@@ -6,9 +6,9 @@ import { emptyCells, gridSize, isCell, shapeKey } from '../../lib/shape';
 import { roomGlyph } from '../../lib/glyph';
 import { attachAim, type AimHandle, type AimMode } from '../../lib/aim';
 import type { Catalog, LearnCopy, LearnRules } from './index';
-import type { MiniSpec, Phase, Step } from './lessons';
-import { BOTTOM, blank, bottomColumns, chase, chaseShape, lit, litIndexes, lookup, methodTaps, onlyBottom, pressAll, type TableEntry } from './method';
-import { createDrill, deriveView, names, picker, rulesView, stackView, strip, tableList, type DrillStore } from './echo-steps';
+import type { DemoEnd, MiniSpec, Phase, Step } from './lessons';
+import { BOTTOM, blank, bottomColumns, chase, chaseShape, coachPhase, lit, litIndexes, lookup, methodTaps, onlyBottom, pressAll, startCells, type TableEntry } from './method';
+import { createDrill, deriveView, names, picker, rulesView, stackView, tableList, type DrillStore } from './echo-steps';
 
 interface Deps {
   ctx: Ctx;
@@ -24,11 +24,16 @@ interface Deps {
 
 /** a board much taller than wide (the Tower): practice scrolls with the page instead of shrinking */
 const isTall = (s: Shape) => s.rows >= 2 * s.cols;
-/** strips this wide don't fit twice in a row on a phone: a lights row becomes "lit letter → top strip" */
-const WIDE_STRIP = 8;
 
-/** shape absent = the classic board */
-interface Demo { start: Cells; taps: number[]; phases: (Phase | null)[]; pos: number; cells: Cells; cancel: (() => void) | null; shape?: Shape }
+/**
+ * A demo playing on a mini board (shape absent = the classic board). `end`: the line when it stops with lights on;
+ * `orders`: each Replay plays the next order of the same taps; `markAll`: dot every tap to come; `ring`: lights outlined
+ * until tapped (the lights step's top lights); `paused`: a tap on the board stopped it, each further tap steps once.
+ */
+interface Demo {
+  start: Cells; taps: number[]; phases: (Phase | null)[]; pos: number; cells: Cells; cancel: (() => void) | null; shape?: Shape;
+  end?: DemoEnd; orders?: number[][]; round: number; markAll?: boolean; ring?: number[]; paused: boolean;
+}
 
 const SVG = 'http://www.w3.org/2000/svg';
 function icon(d: string): SVGSVGElement {
@@ -63,10 +68,13 @@ export function createLearnView(d: Deps) {
   let builtKey = '';
   let demo: Demo | null = null;
   /** the practice board and its line, kept to patch on every tap */
-  let practiceEls: { board: HTMLElement; line: HTMLElement; moves: HTMLElement; another: HTMLButtonElement; assist: HTMLButtonElement | null; suggest: number | null } | null = null;
+  let practiceEls: { board: HTMLElement; line: HTMLElement; moves: HTMLElement; another: HTMLButtonElement; assist: HTMLButtonElement | null; suggest: number | null; start: Cells | null } | null = null;
   /** the practice board's pointer helper (aim bubble / scroll-safe taps) and its size watcher, undone on every rebuild */
   let practiceInput: { aim: AimHandle; observer: ResizeObserver | null } | null = null;
-  let demoEls: { board: HTMLElement; line: HTMLElement; button: HTMLButtonElement; echo: number | null } | null = null;
+  /** `edges`: the top-edge lights, outlined while a top-edge tap is next (shaped rooms) */
+  let demoEls: { board: HTMLElement; line: HTMLElement; button: HTMLButtonElement; echo: number | null; edges: number[]; end?: string } | null = null;
+  /** practice on small lights: the aim tip shows after a miss or a drag, until the next clean tap */
+  let aimHelp = false;
   const parCache = new Map<string, number>();
 
   const state = (): LearnState => ctx.read('learn')!;
@@ -106,13 +114,14 @@ export function createLearnView(d: Deps) {
   /** columns and rows for the grid and its aspect ratio (CSS: --board-cols / --board-rows) */
   const ratio = (s: Shape) => `--board-cols:${s.cols};--board-rows:${s.rows}`;
 
-  function patchBoard(board: HTMLElement, cells: readonly boolean[], suggest: readonly number[]) {
+  function patchBoard(board: HTMLElement, cells: readonly boolean[], suggest: readonly number[], ring: readonly number[] = []) {
     const markAttr = board.dataset.miniBoard === 'practice' ? 'data-suggest' : 'data-mark';
     const cols = Number(board.dataset.cols) || 5;
     board.querySelectorAll<HTMLElement>('[data-mini-cell]').forEach((el) => {
       const i = Number(el.dataset.index);
       setAttr(el, 'data-lit', String(!!cells[i]));
       setAttr(el, markAttr, suggest.includes(i) ? 'true' : null);
+      setAttr(el, 'data-ring', ring.includes(i) ? 'true' : null);
       if (el.tagName === 'BUTTON') {
         const row = Math.floor(i / cols) + 1, col = (i % cols) + 1;
         setAttr(el, 'aria-label', fmt(cells[i] ? copy.cellOn : copy.cellOff, { row, col }));
@@ -159,14 +168,30 @@ export function createLearnView(d: Deps) {
       const i = row * s.cols + col;
       return isCell(s, i) ? i : -1;
     };
+    // one aim gesture: the lights it passed over and whether it pressed. A miss or a drag shows the aim tip.
+    let trail: number[] = [];
+    let pressed = false;
     const aim = attachAim(board, {
       mode,
       cellAt,
       litAt: (i) => (isCell(s, i) ? !!state().practice?.cells[i] : null),
       cols: () => s.cols,
-      press: (i) => ctx.emit('learn:press', { index: i }),
-      onAim: (i) => board.querySelectorAll<HTMLElement>('[data-mini-cell]').forEach((el) => setAttr(el, 'data-aimed', Number(el.dataset.index) === i ? 'true' : null)),
+      press: (i) => { pressed = true; ctx.emit('learn:press', { index: i }); },
+      onAim: (i) => {
+        if (i >= 0) trail.push(i);
+        board.querySelectorAll<HTMLElement>('[data-mini-cell]').forEach((el) => setAttr(el, 'data-aimed', Number(el.dataset.index) === i ? 'true' : null));
+      },
     });
+    const gestureEnd = () => {
+      if (board.dataset.aim === 'true' && trail.length) {
+        const help = !pressed || new Set(trail).size > 1;
+        if (help !== aimHelp) { aimHelp = help; patchPractice(state()); }
+      }
+      trail = [];
+      pressed = false;
+    };
+    board.addEventListener('pointerup', gestureEnd);
+    board.addEventListener('pointercancel', gestureEnd);
     // touch-action has to be set before a finger lands, so the aim mode follows the board's size
     const fit = () => {
       const aiming = mode() === 'aim';
@@ -273,7 +298,7 @@ export function createLearnView(d: Deps) {
   function echoPlan(col: number): Demo {
     const start = blank();
     const rest = chase(solver, solver.press(start, col)).taps;
-    return { start, taps: [col, ...rest], phases: [null, ...rest.map(() => 'chase' as const)], pos: 0, cells: start, cancel: null };
+    return { start, taps: [col, ...rest], phases: [null, ...rest.map(() => 'chase' as const)], pos: 0, cells: start, cancel: null, round: 0, paused: false };
   }
 
   function demoPlan(step: Extract<Step, { kind: 'demo' }>, shape?: Shape): Demo {
@@ -296,29 +321,61 @@ export function createLearnView(d: Deps) {
       taps = step.play;
       phases = step.phases ?? taps.map(() => null);
     }
-    return { start, taps, phases, pos: 0, cells: start, cancel: null, shape };
+    return { start, taps, phases, pos: 0, cells: start, cancel: null, shape, end: step.end, orders: step.orders, round: 0, markAll: step.markAll, paused: false };
   }
 
-  /** a full rectangle's lone bottom light: tap its top lights, then chase again */
+  /** a full rectangle's lone bottom light: its top lights to tap outlined, tap them, then chase again */
   function lightPlan(row: { bottom: number; top: number[] }, shape: Shape): Demo {
     const start = emptyCells(shape).map((_, i) => i === row.bottom);
     const again = chaseShape(solver, pressAll(solver, start, row.top, shape), shape).taps;
-    return { start, taps: [...row.top, ...again], phases: [...row.top.map(() => 'top' as const), ...again.map(() => 'chase2' as const)], pos: 0, cells: start, cancel: null, shape };
+    return {
+      start, taps: [...row.top, ...again], phases: [...row.top.map(() => 'top' as const), ...again.map(() => 'chase2' as const)],
+      pos: 0, cells: start, cancel: null, shape, round: 0, ring: row.top, paused: false,
+    };
   }
+
+  /** "A", "A and B", "A, B and C" */
+  const listOf = (names: readonly string[]) => names.length < 2 ? (names[0] ?? '')
+    : `${names.slice(0, -1).join(copy.comma)}${copy.and}${names.at(-1)}`;
+  const letterOf = (i: number, cols: number) => copy.letters[i % cols] ?? '';
 
   function paintDemo() {
     if (!demo || !demoEls) return;
+    const cols = demo.shape?.cols ?? SIZE;
     const next = demo.taps[demo.pos];
-    patchBoard(demoEls.board, demo.cells, next === undefined ? [] : [next]);
     const doneAll = demo.pos >= demo.taps.length;
-    const phase = demo.phases[Math.min(demo.pos, demo.taps.length - 1)];
-    const tap = fmt(copy.demoTap, { n: Math.min(demo.pos + 1, demo.taps.length), total: demo.taps.length });
-    const done = demoEls.echo !== null ? fmt(copy.echo.caption, { name: copy.letters[demoEls.echo]! }) : copy.demoDone;
-    setText(demoEls.line, doneAll ? done : phase ? `${copy.demoPhase[phase]} · ${tap}` : tap);
+    const done = demo.taps.slice(0, demo.pos);
+    const phase = doneAll ? null : demo.phases[demo.pos] ?? null;
+    // the next tap is dotted (every tap to come on a markAll demo); outlined: the top lights still to tap, or while
+    // a top-edge tap is next, every top-edge light (lights with nothing above them)
+    const dots = doneAll ? [] : demo.markAll ? demo.taps.slice(demo.pos) : [next!];
+    const ring = phase === 'edge' ? demoEls.edges : (demo.ring ?? []).filter((i) => !done.includes(i));
+    patchBoard(demoEls.board, demo.cells, dots, ring);
+    let text: string;
+    if (doneAll) {
+      const left = litIndexes(demo.cells).length;
+      text = demoEls.echo !== null ? fmt(copy.echo.caption, { name: copy.letters[demoEls.echo]! })
+        : demo.end === 'cancelled' ? copy.demoEnd.cancelled
+        : left === 0 ? demoEls.end ?? copy.demoDone
+        : fmt(copy.demoEnd[demo.end ?? 'left'], { n: left });
+    } else {
+      const tap = { n: demo.pos + 1, total: demo.taps.length };
+      // a top light tapped a second time: say that it cancels
+      text = phase === 'top' && done.includes(next!) ? fmt(copy.demoCancel, { name: letterOf(next!, cols) })
+        : phase ? fmt(copy.demoPhaseTap, { phase: copy.demoPhase[phase], ...tap }) : fmt(copy.demoTap, tap);
+    }
+    setText(demoEls.line, text);
     setAttr(demoEls.line, 'data-tone', 'coach');
-    const auto = !view.reducedMotion();
+    const auto = !view.reducedMotion() && !demo.paused;
     setText(demoEls.button, doneAll ? copy.demoReplay : auto ? copy.demoPlay : copy.demoStep);
     demoEls.button.hidden = auto && !doneAll;
+  }
+
+  /** the Tower's demos are full size and scroll with the step: keep the next tap (or the last one) in view */
+  function followDemo() {
+    if (!demo || !demoEls || demoEls.board.dataset.tall !== 'true') return;
+    const i = demo.taps[Math.min(demo.pos, demo.taps.length - 1)];
+    demoEls.board.querySelector<HTMLElement>(`[data-mini-cell][data-index="${i}"]`)?.scrollIntoView?.({ block: 'nearest', behavior: view.reducedMotion() ? 'auto' : 'smooth' });
   }
 
   function stopDemo() {
@@ -333,7 +390,8 @@ export function createLearnView(d: Deps) {
     demo.cells = pressAll(solver, demo.cells, [demo.taps[demo.pos]!], demo.shape);
     demo.pos++;
     paintDemo();
-    if (demo.pos < demo.taps.length && clock) demo.cancel = clock.setTimeout(demoTick, delayBefore(demo.pos));
+    followDemo();
+    if (!demo.paused && !view.reducedMotion() && demo.pos < demo.taps.length && clock) demo.cancel = clock.setTimeout(demoTick, delayBefore(demo.pos));
   }
 
   /**
@@ -344,20 +402,41 @@ export function createLearnView(d: Deps) {
   const delayBefore = (pos: number) => (HOLD.includes(demo?.phases[pos]) ? rules.demoHoldMs
     : Math.min(rules.demoStepMs, Math.round(rules.demoMaxMs / Math.max(1, demo?.taps.length ?? 1))));
 
-  function restartDemo() {
+  /** from the start; `again` (Replay) plays the next order of a demo that has several */
+  function restartDemo(again = false) {
     if (!demo) return;
     stopDemo();
+    if (again && demo.orders?.length) {
+      demo.round++;
+      demo.taps = demo.orders[demo.round % demo.orders.length]!;
+    }
     demo.pos = 0;
     demo.cells = demo.start;
+    demo.paused = false;
     paintDemo();
+    followDemo();
     if (!view.reducedMotion() && clock && visible() && demo.taps.length) demo.cancel = clock.setTimeout(demoTick, Math.max(rules.demoStartMs, delayBefore(0)));
   }
 
+  /** Play / Next tap / Replay: a step stops the auto-play, each press steps once */
   function onDemoButton() {
     if (!demo) return;
-    if (demo.pos >= demo.taps.length) return restartDemo();
+    if (demo.pos >= demo.taps.length) return restartDemo(true);
+    demo.paused = true;
     stopDemo();
     demoTick();
+  }
+
+  /** a tap on a playing demo pauses it; then each tap steps once; at the end it replays */
+  function onDemoBoard() {
+    if (!demo) return;
+    if (demo.pos >= demo.taps.length) return restartDemo(true);
+    if (!demo.paused && !view.reducedMotion()) {
+      demo.paused = true;
+      stopDemo();
+      return paintDemo();
+    }
+    onDemoButton();
   }
 
   function buildLesson(s: LearnState): HTMLElement[] {
@@ -377,13 +456,14 @@ export function createLearnView(d: Deps) {
         onclick: () => (catalog.direct() ? ctx.emit('nav:back', {}) : ctx.emit('learn:open', {})),
       }, icon(CHEVRON_LEFT)),
       h('div', { class: 'screen-header__title' },
-        h('span', { class: 'eyebrow' }, fmt(copy.stepOf, { step: s.step + 1, total: lesson.steps.length })),
+        // a full rectangle's guide names its size: "6×6 · Step 1 of 4"
+        h('span', { class: 'eyebrow' }, fmt(shape && lesson.coach === 'rect' ? copy.stepOfSize : copy.stepOf, { step: s.step + 1, total: lesson.steps.length, cols: shape?.cols ?? SIZE, rows: shape?.rows ?? SIZE })),
         h('strong', {}, c.title)),
       h('div', { class: 'screen-header__end' }),
     );
     const dots = h('div', { class: 'learn-dots', 'aria-hidden': 'true' }, ...lesson.steps.map((_, k) => h('i', { 'data-state': k < s.step ? 'done' : k === s.step ? 'now' : 'todo' })));
     const text = h('p', { class: 'learn-text' }, c.steps[s.step] ?? '');
-    // the stage fills what is left: [a list] above the fit box (the picture, as large as it fits), then the line and buttons
+    // the stage fills what is left: the fit box (the picture, as large as it fits), then the line and buttons
     const tall = !!shape && isTall(shape);
     const stage = h('div', {
       class: `learn-stage learn-stage--${step.kind}`, 'data-shape': shape ? shapeKey(shape) : null,
@@ -391,69 +471,68 @@ export function createLearnView(d: Deps) {
     });
     const fit = h('div', { class: 'learn-fit' });
     const under = h('div', { class: 'learn-under' });
-    let above: HTMLElement | null = null;
 
     practiceEls = null;
     stopInput();
     demoEls = null;
     stopDemo();
     demo = null;
+    aimHelp = false;
 
     const demoLine = () => h('p', { class: 'tutorial-line', 'data-learn-line': 'demo', 'data-tone': 'coach', 'aria-live': 'polite' });
     const demoButton = () => h('button', { class: 'btn btn--ghost learn-small', type: 'button', 'data-action': 'learn-demo', onclick: onDemoButton }, copy.demoPlay);
+    const cols = shape?.cols ?? SIZE;
+    /** letters over a board's columns: quiet labels, or a picker; the board's own padding and gaps line them up */
+    const group = (letters: HTMLElement | null, board: HTMLElement, kind: 'static' | 'pick' | 'hint') => {
+      setAttr(stage, 'data-letters', kind);
+      return h('div', { class: 'learn-pickboard', 'data-room': shape && Math.max(shape.cols, shape.rows) !== SIZE ? 'true' : null }, letters, board);
+    };
+    const quietLetters = () => h('div', { class: 'learn-picker learn-picker--static', 'aria-hidden': 'true', style: `--pick-n:${cols}` },
+      ...[...copy.letters.slice(0, cols)].map((l) => h('span', { class: 'learn-pick' }, l)));
+    /** a demo board: tap it to pause, then to step */
+    const demoBoard = (cells: Cells, sh?: Shape) => {
+      const board = miniBoard(cells, 'demo', [], sh);
+      board.addEventListener('click', onDemoBoard);
+      return board;
+    };
 
     if (step.kind === 'show') {
       const captioned = step.boards.some((b) => !!b.caption);
       fit.append(h('div', { class: 'learn-figs', 'data-n': step.boards.length, 'data-captions': captioned ? 'true' : null, style: `--n:${step.boards.length}` }, ...step.boards.map((b) => figure(b, shape))));
     } else if (step.kind === 'demo') {
       demo = demoPlan(step, shape);
-      const board = miniBoard(demo.start, 'demo', [], shape);
+      const board = demoBoard(demo.start, shape);
       const line = demoLine();
       const button = demoButton();
-      fit.append(board);
+      fit.append(step.letters ? group(quietLetters(), board, 'static') : board);
       under.append(line, h('div', { class: 'learn-controls' }, button));
-      demoEls = { board, line, button, echo: null };
+      // shaped rooms: the lights with nothing above them, outlined while a top-edge tap is next
+      demoEls = { board, line, button, echo: null, edges: shape && step.phases?.includes('edge') ? startCells(shape) : [] };
     } else if (step.kind === 'echo') {
       // pick a top-row light; the demo taps it and chases down to its echo
       const col = 1;
       demo = echoPlan(col);
-      const board = miniBoard(demo.start, 'demo');
+      const board = demoBoard(demo.start);
       const line = demoLine();
       const button = demoButton();
       // the A–E buttons sit over the board's columns
-      fit.append(h('div', { class: 'learn-echo' }, picker(copy, col, (c) => { if (!demoEls) return; demoEls.echo = c; demo = echoPlan(c); restartDemo(); }), board));
+      fit.append(group(picker(copy, col, (c) => { if (!demoEls) return; demoEls.echo = c; demo = echoPlan(c); restartDemo(); }), board, 'pick'));
       under.append(line, h('div', { class: 'learn-controls' }, button));
-      demoEls = { board, line, button, echo: col };
+      demoEls = { board, line, button, echo: col, edges: [] };
     } else if (step.kind === 'lights' && shape) {
-      // each lone bottom light → the top lights that clear it; tapping a row plays it on the board below
-      const cols = shape.cols;
+      // board first: a letter over each column picks a bottom light; its top lights to tap are outlined, then the demo
+      // taps them and chases again
       demo = lightPlan(step.rows[step.pick]!, shape);
-      const board = miniBoard(demo.start, 'demo', [], shape);
+      const board = demoBoard(demo.start, shape);
       const line = demoLine();
       const button = demoButton();
-      // a row is the bottom strip with its light → the top strip; 8 wide and up (and the Tower, beside its board) the lit
-      // light with its letter → the top strip. 6 and 7 wide carry both and CSS picks by the room it has (letters stay readable).
-      const wide = cols >= WIDE_STRIP || tall;
-      const keyOf = (r: { bottom: number }, c: number) => h('span', { class: 'learn-row learn-row--key', 'aria-hidden': 'true', style: '--strip-n:1' },
-        h('span', { class: 'cell', 'data-mini-cell': '', 'data-index': r.bottom, 'data-lit': 'true', 'data-letter': copy.letters[c]! }));
-      const bottomOf = (r: { bottom: number }, c: number) => (wide ? [keyOf(r, c)]
-        : [strip({ lit: [c], n: cols, bottom: r.bottom - c }), ...(cols > SIZE ? [keyOf(r, c)] : [])]);
-      const rowsEl = step.rows.map((r, c) => h('button', {
-        class: 'learn-lights__row', type: 'button', 'data-action': 'learn-strip', 'data-col': c, 'aria-pressed': String(c === step.pick),
-        'aria-label': fmt(copy.lights.row, { name: copy.letters[c]!, taps: names(copy, r.top) }),
-        onclick: () => {
-          rowsEl.forEach((el, k) => setAttr(el, 'aria-pressed', String(k === c)));
-          demo = lightPlan(r, shape);
-          restartDemo();
-        },
-      }, ...bottomOf(r, c), h('span', { class: 'learn-table__arrow', 'aria-hidden': 'true' }, '→'), strip({ ring: r.top, row: 'top', kind: 'top', letters: copy.letters, n: cols })));
-      const list = h('div', { class: 'learn-lights__list learn-scroll', role: 'group', 'aria-label': copy.lights.pick }, ...rowsEl);
-      // the list sits above the board (beside it on the Tower) and scrolls when both don't fit; the board keeps its share
-      above = h('div', { class: 'learn-lights', 'data-wide': wide ? 'true' : null, 'data-cols': cols, style: `--strip-n:${cols}` }, list, fit);
-      fit.append(board);
+      const letters = picker(copy, step.pick, (c) => { demo = lightPlan(step.rows[c]!, shape); restartDemo(); }, {
+        n: cols, action: 'learn-strip', label: copy.lights.pick,
+        say: (c) => fmt(copy.lights.row, { name: copy.letters[c]!, taps: listOf(step.rows[c]!.top.map((i) => letterOf(i, cols))) }),
+      });
+      fit.append(group(letters, board, 'pick'));
       under.append(line, h('div', { class: 'learn-controls' }, button));
-      demoEls = { board, line, button, echo: null };
-      afterLayout(() => { centreIn(list, rowsEl[step.pick]); watchEdges(list); });
+      demoEls = { board, line, button, echo: null, edges: [], end: copy.lights.end };
     } else if (step.kind === 'table') {
       fit.append(tableList(copy, d.table()));
     } else if (step.kind === 'stack') {
@@ -477,14 +556,14 @@ export function createLearnView(d: Deps) {
       const another = h('button', { class: 'btn btn--ghost learn-small', type: 'button', 'data-action': 'learn-practice', onclick: () => ctx.emit('learn:new_practice', {}) }, copy.newBoard);
       fit.append(board);
       under.append(line, h('div', { class: 'learn-controls' }, moves, assist, another));
-      practiceEls = { board, line, moves, another, assist, suggest: null };
+      practiceEls = { board, line, moves, another, assist, suggest: null, start: null };
     }
     // "Go deeper" sits under the last idea before practice (lesson 4's list, lesson 5's two answers), never under a practice board
     const deeperAt = lesson.steps.reduce((at, x, k) => (x.kind === 'practice' ? at : k), -1);
     if (lesson.deeper && s.step === deeperAt) {
       under.append(h('button', { class: 'btn btn--link learn-link', type: 'button', 'data-action': 'learn-deeper', onclick: () => ctx.emit('learn:open', { lessonId: lesson.deeper! }) }, copy.deeper));
     }
-    stage.append(above ?? fit);
+    stage.append(fit);
     if (under.childElementCount) { stage.append(under); setAttr(stage, 'data-under', 'true'); }
     // lists that scroll inside the stage (the five rules, how an echo forms) fade at the edge with more to see
     const scroller = fit.querySelector<HTMLElement>('.learn-rules, .learn-derive');
@@ -494,8 +573,7 @@ export function createLearnView(d: Deps) {
       h('button', { class: 'btn btn--ghost', type: 'button', 'data-action': 'learn-prev', disabled: s.step === 0, onclick: () => ctx.emit('learn:step', { delta: -1 }) }, copy.prev),
       h('button', { class: 'btn btn--primary bar__main', type: 'button', 'data-action': 'learn-next', onclick: () => ctx.emit('learn:step', { delta: 1 }) }, last ? copy.finish : copy.next),
     );
-    // the Tower's practice scrolls with the step (its line and buttons stay pinned under the board)
-    const body = h('div', { class: 'learn-step', 'data-step': s.step, 'data-kind': step.kind, 'data-scroll': tall && step.kind === 'practice' ? 'true' : null }, dots, text, stage);
+    const body = h('div', { class: 'learn-step', 'data-step': s.step, 'data-kind': step.kind }, dots, text, stage);
     const wrap = h('div', { class: 'learn-lesson', 'data-lesson-view': id, 'data-step': s.step }, header, body, navRow);
     return [wrap];
   }
@@ -513,17 +591,25 @@ export function createLearnView(d: Deps) {
     el.addEventListener('scroll', paint, { passive: true });
     paint();
   }
-  /** scroll a list (only the list, never the page) so a row sits in its middle */
-  function centreIn(list: HTMLElement, row: HTMLElement | undefined) {
-    if (!row || list.scrollHeight <= list.clientHeight) return;
-    list.scrollTop = row.offsetTop - list.offsetTop - (list.clientHeight - row.offsetHeight) / 2;
-  }
+
 
   function parOf(start: Cells, shape?: Shape): number {
     const key = `${shape ? shapeKey(shape) : ''}|${start.map((b) => (b ? 1 : 0)).join('')}`;
     let par = parCache.get(key);
     if (par === undefined) { par = (shape ? solver.solve(start, shape) : solver.solve(start))?.length ?? 0; parCache.set(key, par); }
     return par;
+  }
+
+  /** a guide's practice line by phase: chase; bottom light(s) and their top lights; chase again (shaped rooms: the top edge) */
+  function coachLine(id: string, shape: Shape, kind: 'rect' | 'shape', start: Cells, cells: Cells): string {
+    const fixer = catalog.fixer(id);
+    const c = fixer ? coachPhase(solver, fixer, shape, start, cells) : null;
+    if (!c) return '';
+    if (c.phase === 'chase') return copy.coach.chase;
+    if (c.phase === 'again') return copy.coach.again;
+    if (kind === 'shape') return fmt(copy.coach.shapeFix, { n: c.fix.length });
+    const say = (xs: number[]) => listOf(xs.map((i) => letterOf(i, shape.cols)));
+    return fmt(c.ends.length > 1 ? copy.coach.bottoms : copy.coach.bottom, { names: say(c.ends), taps: say(c.fix) });
   }
 
   function patchPractice(s: LearnState) {
@@ -537,26 +623,32 @@ export function createLearnView(d: Deps) {
     setText(practiceEls.moves, fmt(showPar ? copy.movesPar : copy.moves, { moves: p.moves, par }));
     // once only the bottom row is left (lesson 4), name its echo: "That's B's echo: tap B, then chase again."
     const echo = lesson?.echoHelp && p.status === 'playing' && onlyBottom(p.cells) ? lookup(d.table(), bottomColumns(p.cells)) : undefined;
+    const moved = p.cells.some((on, i) => on !== p.start[i]);
     let line = '';
     const tone = 'coach'; // teal is the paid Hint's colour only
     if (p.status === 'solved') line = fmt(showPar ? (p.moves <= par ? copy.solvedAtPar : copy.solvedPar) : copy.solved, { moves: p.moves, par });
     else if (echo) line = fmt(copy.echoMatch, { name: names(copy, echo.top) });
+    else if (aimHelp && practiceEls.board.dataset.aim === 'true') line = copy.aimTip;
+    else if (lesson?.coach && lesson.shape) line = coachLine(s.lessonId!, lesson.shape, lesson.coach, p.start, p.cells);
+    else if (lesson?.undoHint && moved) line = copy.undoHint;
     else if (p.suggest !== null) line = copy.assistLine;
-    else if (practiceEls.board.dataset.aim === 'true') line = copy.aimTip;
-    // lesson 4: until its echo shows, the line holds the guess-and-chase tip
-    else if (lesson?.echoHelp && p.status === 'playing') line = copy.echoTip;
     setText(practiceEls.line, line);
-    // the Tower scrolls: bring a newly ringed light into view (only if it's off screen)
+    const board = practiceEls.board;
+    const into = (i: number | undefined, block: ScrollLogicalPosition = 'nearest') => board.querySelector<HTMLElement>(`[data-mini-cell][data-index="${i}"]`)?.scrollIntoView?.({ block, behavior: view.reducedMotion() ? 'auto' : 'smooth' });
+    // the Tower scrolls inside its box: a new board opens on its first light; a newly ringed light comes into view too
+    if (p.start !== practiceEls.start) {
+      practiceEls.start = p.start;
+      if (board.dataset.tall === 'true') afterLayout(() => into(p.cells.findIndex(Boolean), 'center'));
+    }
     if (p.suggest !== practiceEls.suggest) {
       practiceEls.suggest = p.suggest;
-      if (p.suggest !== null && practiceEls.board.dataset.tall === 'true') {
-        practiceEls.board.querySelector<HTMLElement>(`[data-mini-cell][data-index="${p.suggest}"]`)?.scrollIntoView?.({ block: 'nearest', behavior: view.reducedMotion() ? 'auto' : 'smooth' });
-      }
+      if (p.suggest !== null && board.dataset.tall === 'true') into(p.suggest);
     }
     setAttr(practiceEls.line, 'data-tone', tone);
     setText(practiceEls.another, p.status === 'solved' ? copy.another : copy.newBoard);
     if (practiceEls.assist) setAttr(practiceEls.assist, 'aria-pressed', String(s.assist));
   }
+
 
   /** the guide tiles depend on the rooms (levels) and how far the player got in each (progress) */
   const listKey = () => {

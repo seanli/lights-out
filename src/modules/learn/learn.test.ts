@@ -47,6 +47,8 @@ function refShapedSolve(shape: Shape, cells: readonly boolean[]): number[] | nul
   }
   return best!.map((j) => vars[j]!).sort((a, b) => a - b);
 }
+/** sentences in a step; the practice line's one-word lead-in "Stuck?" reads with the sentence after it */
+const sentences = (step: string) => step.replace(/\bStuck\? /g, '').split(/[.!?](\s|$)/).filter((x) => x && x.trim()).length;
 /** classic through the 5×5 reference, any other shape through the shaped one (modules never import each other) */
 const roomSolver: SolverService = {
   press: (cells, i, shape) => {
@@ -86,6 +88,8 @@ const boot = (opts: Parameters<typeof bootModule>[1] = {}) => {
   return bootModule(learn, { ...opts, services: { solver, ...opts.services } });
 };
 const q = (sel: string) => document.querySelector<HTMLElement>(sel);
+/** what the view's size watcher would set once laid out (happy-dom has no layout) */
+const setAttrForTest = (el: HTMLElement, name: string, value: string) => el.setAttribute(name, value);
 const qa = (sel: string) => [...document.querySelectorAll<HTMLElement>(sel)];
 
 describe('learn: the maths', () => {
@@ -329,7 +333,7 @@ describe('learn: module', () => {
     for (let k = 0; k < 20 && button.textContent !== 'Replay'; k++) button.click();
     const bottom = qa('[data-mini-board="demo"] [data-mini-cell]').slice(20).map((e) => e.dataset.lit === 'true');
     expect(bottom).toEqual([false, false, true, true, true]);
-    expect(q('[data-learn-line="demo"]')!.textContent).toBe("D's echo");
+    expect(q('[data-learn-line="demo"]')!.textContent).toBe("D's echo. Tap a letter to try another.");
     expect(q('[data-action="learn-echo"][data-col="3"]')!.getAttribute('aria-pressed')).toBe('true');
   });
 
@@ -387,7 +391,7 @@ describe('learn: module', () => {
       expect(l.steps.length, id).toBeLessThanOrEqual(5);
       for (const step of l.steps) {
         expect(step.split(/\s+/).length, step).toBeLessThanOrEqual(26);
-        expect(step.split(/[.!?](\s|$)/).filter((x) => x && x.trim()).length, step).toBeLessThanOrEqual(2);
+        expect(sentences(step), step).toBeLessThanOrEqual(2);
       }
     }
   });
@@ -764,9 +768,9 @@ describe('learn: what the board guides say (proved from the solver)', () => {
     const SAYS: Record<string, RegExp[]> = {
       straightAbove: [/straight above/],
       threeAbove: [/three top lights above/],
-      twoAside: [/two to each side/, /also tap the one above/],
-      aboveTwoAside: [/the top light above it and two to each side/, /skip the one above/],
-      own: [/its own top taps/, /mirrors/],
+      twoAside: [/two places left and right of it/, /also tap the one above/],
+      aboveTwoAside: [/the top light above it and the ones two places left and right/, /skip the one above/],
+      own: [/its own top lights/, /flipped left to right/],
     };
     for (const { id, shape } of RECTS) {
       const rule = rectRule(rectTopSets(roomSolver, shape as never).perLight) ?? 'own';
@@ -818,8 +822,8 @@ describe('learn: board guides', () => {
         expect(play.every((i) => cellIndexes(shape).includes(i))).toBe(true);
         expect(step.phases).toHaveLength(play.length);
         const end = pressAll(roomSolver, start, play, shape);
-        // the first lights demo stops with only bottom lights; every other demo ends dark
-        if (KIND[id] === 'lights' && k === 0) expect(onlyEnds(end, shape) && !isClear(end)).toBe(true);
+        // a chase-only demo (a lights guide's first, a shaped room's "stuck") stops with only end lights; every other ends dark
+        if ((KIND[id] === 'lights' && k === 0) || (KIND[id] === 'shapes' && k === 2)) expect(onlyEnds(end, shape) && !isClear(end)).toBe(true);
         else expect(isClear(end), `${id} step ${k + 1}`).toBe(true);
         // a chase tap always goes under a lit light; top-edge taps are start cells
         let b = start;
@@ -844,13 +848,19 @@ describe('learn: board guides', () => {
       }
     });
     if (KIND[id] === 'shapes') {
-      const [, spotStep, stuckStep] = g.lesson.steps as Extract<(typeof g.lesson.steps)[number], { kind: 'demo' }>[];
+      const [, spotStep, stuckStep, fixStep] = g.lesson.steps as Extract<(typeof g.lesson.steps)[number], { kind: 'demo' }>[];
       // spotting: the demo taps are exactly what spotting finds, two or three of them
       expect(spot(roomSolver, shape, pressAll(roomSolver, emptyCells(shape), spotStep!.from, shape))).toEqual(spotStep!.play);
       expect((spotStep!.play as number[]).length).toBeGreaterThanOrEqual(2);
-      // stuck: spotting can't clear it; chase, one top-edge tap, chase again
+      // stuck: spotting can't clear it; the chase stops with end lights ("Stuck: n lights left")
       expect(spot(roomSolver, shape, pressAll(roomSolver, emptyCells(shape), stuckStep!.from, shape))).toBeNull();
-      expect(stuckStep!.phases!.filter((x) => x === 'edge')).toHaveLength(1);
+      expect(stuckStep!.phases!.every((x) => x === 'chase')).toBe(true);
+      expect(stuckStep!.end).toBe('stuckShape');
+      // then from exactly what it left: one top-edge tap, chase again, all dark
+      const left = pressAll(roomSolver, pressAll(roomSolver, emptyCells(shape), stuckStep!.from, shape), stuckStep!.play as number[], shape);
+      expect(emptyCells(shape).map((_, i) => fixStep!.lit!.includes(i))).toEqual(left);
+      expect(fixStep!.phases![0]).toBe('edge');
+      expect(fixStep!.phases!.filter((x) => x === 'edge')).toHaveLength(1);
     }
   });
 
@@ -901,7 +911,7 @@ describe('learn: board guides', () => {
       expect(f.querySelectorAll('[data-gap][data-mini-cell], [data-gap] button')).toHaveLength(0);
       expect(f.querySelectorAll('[data-mark="true"]')).toHaveLength(1);
     }
-    for (let k = 0; k < 3; k++) t.emit('learn:step', { delta: 1 });
+    for (let k = 0; k < 4; k++) t.emit('learn:step', { delta: 1 });
     const board = q('[data-mini-board="practice"]')!;
     expect(board.querySelectorAll('button[data-mini-cell]')).toHaveLength(40);
     expect(board.querySelectorAll('button[data-gap]')).toHaveLength(0);
@@ -934,21 +944,33 @@ describe('learn: board guides', () => {
     expect(q(`[data-lesson-tile][data-lesson="guide-${id}"]`)!.dataset.completed).toBe('true');
   });
 
-  test('the lights step: six strips on 6×6, letters A–F; tapping a strip plays that light to dark', () => {
+  test('the lights step: board first, a letter over each column; a letter outlines its top lights, then the demo plays it to dark', () => {
     const t = bootRooms();
     t.emit('learn:open', { lessonId: 'guide-6x6' });
     t.emit('learn:step', { delta: 1 });
-    const rows = qa('[data-action="learn-strip"]');
-    expect(rows).toHaveLength(6);
-    expect(rows.map((r) => [...r.querySelectorAll<HTMLElement>('.learn-row--top [data-letter]')].map((e) => e.dataset.letter).join(''))).toEqual(['AC', 'D', 'AE', 'BF', 'C', 'DF']);
-    expect(rows[2]!.getAttribute('aria-pressed')).toBe('true');
-    rows[5]!.click();
-    expect(rows[5]!.getAttribute('aria-pressed')).toBe('true');
+    const letters = qa('[data-action="learn-strip"]');
+    expect(letters.map((e) => e.textContent).join('')).toBe('ABCDEF');
+    expect(letters[2]!.getAttribute('aria-pressed')).toBe('true');
+    // each letter is read aloud with its top lights to tap (the maths: two places left and right, A and F also above)
+    expect(letters.map((e) => e.getAttribute('aria-label'))).toEqual([
+      'Bottom light A: tap A and C', 'Bottom light B: tap D', 'Bottom light C: tap A and E', 'Bottom light D: tap B and F', 'Bottom light E: tap C', 'Bottom light F: tap D and F']);
+    const board = q('[data-mini-board="demo"]')!;
+    // the board comes after the letters, in the same group: no list in between
+    expect(letters[0]!.closest('.learn-pickboard')!.contains(board)).toBe(true);
     const litIdx = () => qa('[data-mini-board="demo"] [data-mini-cell]').flatMap((e) => (e.dataset.lit === 'true' ? [Number(e.dataset.index)] : []));
+    const ringed = () => qa('[data-mini-board="demo"] [data-ring="true"]').map((e) => Number(e.dataset.index));
+    expect(litIdx()).toEqual([32]);
+    expect(ringed()).toEqual([0, 4]);
+    letters[5]!.click();
+    expect(letters[5]!.getAttribute('aria-pressed')).toBe('true');
     expect(litIdx()).toEqual([35]);
+    expect(ringed()).toEqual([3, 5]);
     const button = q('[data-action="learn-demo"]')!;
+    button.click();
+    expect(ringed()).toEqual([5]); // tapped lights lose their outline
     for (let k = 0; k < 40 && button.textContent !== 'Replay'; k++) button.click();
     expect(litIdx()).toEqual([]);
+    expect(q('[data-learn-line="demo"]')!.textContent).toBe('All dark. Tap a letter to try another.');
   });
 
   test('every room in the data has a guide; the 4×4 guide is gone', () => {
@@ -977,34 +999,20 @@ describe('learn: board guides', () => {
     }
   });
 
-  test('the lights step on 10×10: ten rows A–J, each the lit light with its letter → its top taps; tapping a row plays it to dark', () => {
+  test('the lights step on 10×10: letters A–J over the columns; each one plays its own top lights to dark', () => {
     const t = bootRooms();
     t.emit('learn:open', { lessonId: 'guide-10x10' });
     t.emit('learn:step', { delta: 1 });
-    expect(q('.learn-lights')!.dataset.wide).toBe('true');
-    const rows = qa('[data-action="learn-strip"]');
-    expect(rows).toHaveLength(10);
-    const key = rows.map((r) => r.querySelector<HTMLElement>('.learn-row--key [data-mini-cell]')!);
-    expect(key.map((e) => e.dataset.letter).join('')).toBe('ABCDEFGHIJ');
-    expect(key.every((e, c) => e.dataset.lit === 'true' && Number(e.dataset.index) === 90 + c)).toBe(true);
-    expect(rows.map((r) => [...r.querySelectorAll<HTMLElement>('.learn-row--top [data-letter]')].map((e) => e.dataset.letter).join(''))).toEqual(['C', 'BD', 'ACE', 'BDF', 'CEG', 'DFH', 'EGI', 'FHJ', 'GI', 'H']);
-    rows[9]!.click();
+    const letters = qa('[data-action="learn-strip"]');
+    expect(letters.map((e) => e.textContent).join('')).toBe('ABCDEFGHIJ');
+    expect(letters.map((e) => e.getAttribute('aria-label')!.split('tap ')[1])).toEqual(
+      ['C', 'B and D', 'A, C and E', 'B, D and F', 'C, E and G', 'D, F and H', 'E, G and I', 'F, H and J', 'G and I', 'H']);
+    letters[9]!.click();
     const litIdx = () => qa('[data-mini-board="demo"] [data-mini-cell]').flatMap((e) => (e.dataset.lit === 'true' ? [Number(e.dataset.index)] : []));
     expect(litIdx()).toEqual([99]);
     const button = q('[data-action="learn-demo"]')!;
     for (let k = 0; k < 80 && button.textContent !== 'Replay'; k++) button.click();
     expect(litIdx()).toEqual([]);
-    // up to 7 wide a row keeps the bottom strip too (CSS shows it while its cells stay readable, else the lettered light)
-    t.emit('learn:open', { lessonId: 'guide-7x7' });
-    t.emit('learn:step', { delta: 1 });
-    expect(q('.learn-lights')!.dataset.wide).toBeUndefined();
-    const sevens = qa('[data-action="learn-strip"]');
-    expect(sevens.every((r, c) => r.querySelector<HTMLElement>('.learn-row--bottom [data-lit="true"]')!.dataset.index === String(42 + c))).toBe(true);
-    expect(sevens.map((r) => r.querySelector<HTMLElement>('.learn-row--key [data-mini-cell]')!.dataset.letter).join('')).toBe('ABCDEFG');
-    // 5 wide: only the two strips
-    t.emit('learn:open', { lessonId: 'guide-5x6' });
-    t.emit('learn:step', { delta: 1 });
-    expect(qa('.learn-row--key')).toHaveLength(0);
   });
 
   describe('practice input on big boards', () => {
@@ -1059,6 +1067,24 @@ describe('learn: board guides', () => {
       fire('pointermove', 0, -200, -200);
       fire('pointerup', 0, -200, -200);
       expect(moves(t)).toBe(2);
+    });
+
+    test('the aim tip shows only after a drag or a miss, and gives way again after a clean tap', () => {
+      const t = atPractice('10x10');
+      const { board, fire } = layOut('10x10', 30);
+      setAttrForTest(board, 'data-aim', 'true');
+      const line = () => q('[data-learn-line="practice"]')!.textContent;
+      const tip = 'Small lights: hold one, slide to aim, lift to tap.';
+      expect(line()).not.toBe(tip);
+      fire('pointerdown', 0); fire('pointerup', 0); // a clean tap
+      expect(line()).not.toBe(tip);
+      fire('pointerdown', 0); fire('pointermove', 0, 30, 0); fire('pointerup', 0, 30, 0); // a drag
+      expect(line()).toBe(tip);
+      fire('pointerdown', 5); fire('pointerup', 5);
+      expect(line()).not.toBe(tip);
+      fire('pointerdown', 0); fire('pointermove', 0, -200, -200); fire('pointerup', 0, -200, -200); // a miss
+      expect(line()).toBe(tip);
+      expect(moves(t)).toBe(3);
     });
 
     test('8×8 with full-size lights presses on pointerdown, no bubble', () => {
@@ -1219,9 +1245,199 @@ describe('learn: guide copy', () => {
       expect(g.steps.length, id).toBeLessThanOrEqual(5);
       for (const step of g.steps) {
         expect(step.split(/\s+/).length, step).toBeLessThanOrEqual(26);
-        expect(step.split(/[.!?](\s|$)/).filter((x) => x && x.trim()).length, step).toBeLessThanOrEqual(2);
+        expect(sentences(step), step).toBeLessThanOrEqual(2);
         expect(step, id).not.toMatch(/echo/i);
       }
     }
+  });
+});
+
+describe('learn: first-time-player review', () => {
+  const bootRooms = (opts: Parameters<typeof bootModule>[1] = {}) => boot({ ...opts, services: { solver: roomSolver, ...opts.services }, state: { levels: levelsState(), ...opts.state } });
+  const line = (kind: 'demo' | 'practice') => q(`[data-learn-line="${kind}"]`)!.textContent;
+  const playToEnd = () => {
+    const button = q('[data-action="learn-demo"]')!;
+    for (let k = 0; k < 200 && button.textContent !== 'Replay'; k++) button.click();
+  };
+  const RECTS = ['5x6', '6x6', '7x7', '8x8', '10x10', 'tower'];
+
+  test('a demo that stops with lights on says how many are left; "All dark." only when it is', () => {
+    const t = bootRooms();
+    for (const id of RECTS) {
+      t.emit('learn:open', { lessonId: `guide-${id}` });
+      playToEnd();
+      const left = qa('[data-mini-board="demo"] [data-lit="true"]').length;
+      expect(left, id).toBeGreaterThan(0);
+      expect(line('demo'), id).toBe(`${left} ${left === 1 ? 'light' : 'lights'} left in the bottom row.`);
+    }
+    t.emit('learn:open', { lessonId: 'chase' });
+    t.emit('learn:step', { delta: 1 });
+    t.emit('learn:step', { delta: 1 });
+    playToEnd();
+    expect(line('demo')).toBe('Stuck: 3 lights left in the bottom row.');
+    t.emit('learn:open', { lessonId: 'order' });
+    playToEnd();
+    expect(line('demo')).toBe('Back to the start: the taps cancelled.');
+    t.emit('learn:open', { lessonId: 'guide-cross' });
+    t.emit('learn:step', { delta: 1 });
+    t.emit('learn:step', { delta: 1 });
+    playToEnd();
+    expect(line('demo')).toMatch(/^Stuck: \d+ lights? left\.$/);
+    t.emit('learn:step', { delta: 1 });
+    playToEnd();
+    expect(line('demo')).toBe('All dark.');
+  });
+
+  test('phase lines read "Phase: tap n of N"; a top light tapped a second time says it cancels', () => {
+    const t = bootRooms();
+    t.emit('learn:open', { lessonId: 'guide-6x6' });
+    expect(line('demo')).toMatch(/^Chase down: tap 1 of \d+$/);
+    const several = buildGuide(roomSolver, PACKS.find((p) => p.id === '6x6')!).lesson.steps[2] as unknown as { play: number[]; phases: (string | null)[] };
+    const play = several.play;
+    const again = play.findIndex((tap, k) => several.phases[k] === 'top' && play.slice(0, k).includes(tap));
+    expect(again).toBeGreaterThan(0);
+    t.emit('learn:step', { delta: 1 });
+    t.emit('learn:step', { delta: 1 });
+    expect(line('demo')).toBe('Top row: tap 1 of ' + play.length);
+    const button = q('[data-action="learn-demo"]')!;
+    for (let k = 0; k < again; k++) button.click();
+    expect(line('demo')).toBe(`${'ABCDEF'[play[again]! % 6]} again: it cancels.`);
+  });
+
+  test('rectangle guides put the column letters over every demo and the size in the eyebrow', () => {
+    const t = bootRooms();
+    t.emit('learn:open', { lessonId: 'guide-6x6' });
+    expect(q('.screen-header .eyebrow')!.textContent).toBe('6×6 · Step 1 of 4');
+    expect(qa('.learn-picker--static .learn-pick').map((e) => e.textContent).join('')).toBe('ABCDEF');
+    t.emit('learn:step', { delta: 1 });
+    t.emit('learn:step', { delta: 1 });
+    expect(qa('.learn-picker--static .learn-pick').map((e) => e.textContent).join('')).toBe('ABCDEF');
+    t.emit('learn:open', { lessonId: 'guide-ring' });
+    expect(q('.screen-header .eyebrow')!.textContent).toBe('Step 1 of 5');
+    t.emit('learn:open', { lessonId: 'bottom-row' });
+    t.emit('learn:step', { delta: 1 });
+    expect(qa('.learn-picker--static .learn-pick').map((e) => e.textContent).join('')).toBe('ABCDE');
+  });
+
+  test('shaped rooms: while a top-edge tap is next, every top-edge light is outlined and the one used is dotted', () => {
+    const t = bootRooms();
+    t.emit('learn:open', { lessonId: 'guide-ring' });
+    for (let k = 0; k < 3; k++) t.emit('learn:step', { delta: 1 });
+    const outlined = qa('[data-mini-board="demo"] [data-ring="true"]').map((e) => Number(e.dataset.index));
+    expect(outlined).toEqual(startCells(ROOM['ring']!));
+    expect(line('demo')).toMatch(/^Top-edge light: tap 1 of/);
+    const dot = qa('[data-mini-board="demo"] [data-mark="true"]').map((e) => Number(e.dataset.index));
+    expect(dot).toHaveLength(1);
+    expect(outlined).toContain(dot[0]);
+    q('[data-action="learn-demo"]')!.click();
+    expect(qa('[data-mini-board="demo"] [data-ring="true"]')).toHaveLength(0);
+  });
+
+  test.each(RECTS)('%s practice: a short first chase leaves one or two bottom lights; the line follows chase → bottom lights → chase again', (id) => {
+    const shape = ROOM[id]!;
+    const fx = createFixer(roomSolver, shape);
+    const t = bootRooms();
+    t.emit('learn:open', { lessonId: `guide-${id}` });
+    for (let k = 0; k < 3; k++) t.emit('learn:step', { delta: 1 });
+    for (let n = 0; n < 8; n++) {
+      const start = t.state('learn').practice!.cells;
+      const c1 = chaseShape(roomSolver, start, shape);
+      expect(c1.taps.length, `${id} first chase`).toBeLessThanOrEqual(2 * shape.cols);
+      expect(roomSolver.isSolvable(start, shape)).toBe(true);
+      const left = cellIndexes(shape).filter((i) => c1.cells[i]);
+      expect(left.length).toBeGreaterThanOrEqual(1);
+      expect(left.length).toBeLessThanOrEqual(2);
+      expect(left.every((i) => i >= (shape.rows - 1) * shape.cols)).toBe(true);
+      expect(line('practice')).toBe('Chase: tap under each lit light.');
+      for (const i of c1.taps) t.emit('learn:press', { index: i });
+      const fix = fx.fixFor(c1.cells)!;
+      const L = (i: number) => 'ABCDEFGHIJ'[i % shape.cols];
+      const list = (xs: number[]) => (xs.length < 2 ? L(xs[0]!) : `${xs.slice(0, -1).map(L).join(', ')} and ${L(xs.at(-1)!)}`);
+      const bottom = `${left.length > 1 ? 'Bottom lights' : 'Bottom light'} ${list(left)}: tap ${list(fix)}, then chase again.`;
+      expect(line('practice')).toBe(bottom);
+      t.emit('learn:press', { index: fix[0]! });
+      expect(line('practice')).toBe(fix.length > 1 ? bottom : 'Chase again.');
+      for (const i of fix.slice(1)) t.emit('learn:press', { index: i });
+      expect(line('practice')).toBe('Chase again.');
+      for (const i of chaseShape(roomSolver, t.state('learn').practice!.cells, shape).taps) t.emit('learn:press', { index: i });
+      expect(t.state('learn').practice!.status).toBe('solved');
+      t.emit('learn:new_practice', {});
+    }
+  });
+
+  test('lesson 2 practice: two or three shapes that never touch, so spotting whole shapes clears every board', () => {
+    const t = boot();
+    t.emit('learn:open', { lessonId: 'order' });
+    t.emit('learn:step', { delta: 1 });
+    t.emit('learn:step', { delta: 1 });
+    const classic = { cols: 5, rows: 5, mask: null };
+    for (let n = 0; n < 30; n++) {
+      const taps = spot(roomSolver, classic, t.state('learn').practice!.cells);
+      expect(taps, `board ${n}`).not.toBeNull();
+      expect(taps!.length).toBeGreaterThanOrEqual(2);
+      expect(taps!.length).toBeLessThanOrEqual(3);
+      t.emit('learn:new_practice', {});
+    }
+  });
+
+  test('lesson 2 step 2: each Replay taps the same three lights in another order, always to dark; every tap to come is dotted', () => {
+    const t = boot();
+    t.emit('learn:open', { lessonId: 'order' });
+    t.emit('learn:step', { delta: 1 });
+    expect(qa('[data-mini-board="demo"] [data-mark="true"]').map((e) => Number(e.dataset.index))).toEqual([0, 13, 21]);
+    const firstTaps: number[] = [];
+    const dots = () => qa('[data-mini-board="demo"] [data-mark="true"]').map((e) => Number(e.dataset.index));
+    for (let round = 0; round < 3; round++) {
+      q('[data-action="learn-demo"]')!.click();
+      firstTaps.push([0, 13, 21].find((i) => !dots().includes(i))!);
+      playToEnd();
+      expect(line('demo')).toBe('All dark.');
+      q('[data-action="learn-demo"]')!.click(); // Replay: the next order
+    }
+    expect(new Set(firstTaps).size).toBe(3);
+  });
+
+  test('lesson 1 practice: a wrong tap says "tap it again to undo it"; undoing clears the line', () => {
+    const t = boot();
+    t.emit('learn:open', { lessonId: 'shapes' });
+    for (let k = 0; k < 3; k++) t.emit('learn:step', { delta: 1 });
+    const answer = solver.solve(t.state('learn').practice!.cells)![0]!;
+    const wrong = answer === 0 ? 24 : 0;
+    t.emit('learn:press', { index: wrong });
+    expect(line('practice')).toBe('Not that one. Tap it again to undo it.');
+    t.emit('learn:press', { index: wrong });
+    expect(line('practice')).toBe('');
+    t.emit('learn:press', { index: answer });
+    expect(t.state('learn').practice!.status).toBe('solved');
+  });
+
+  test('lesson 5 has Assist: it rings a shortest answer, so following it solves at par', () => {
+    const t = boot();
+    t.emit('learn:open', { lessonId: 'shortest' });
+    t.emit('learn:step', { delta: 1 });
+    expect(q('[data-action="learn-assist"]')).not.toBeNull();
+    t.emit('learn:set_assist', { on: true });
+    const par = solver.solve(t.state('learn').practice!.start)!.length;
+    for (let k = 0; k < 30 && t.state('learn').practice!.status === 'playing'; k++) t.emit('learn:press', { index: t.state('learn').practice!.suggest! });
+    expect(t.state('learn').practice!.moves).toBe(par);
+  });
+
+  test('a tap on a demo board steps it (and pauses an auto-play)', () => {
+    const t = boot();
+    t.emit('learn:open', { lessonId: 'chase' });
+    t.emit('learn:step', { delta: 1 });
+    expect(t.instance!.debug!()).toMatchObject({ demo: { demoAt: 0 } });
+    q('[data-mini-board="demo"]')!.click();
+    expect(t.instance!.debug!()).toMatchObject({ demo: { demoAt: 1 } });
+    expect(q('[data-action="learn-demo"]')!.textContent).toBe('Next tap');
+  });
+
+  test('copy: the shared words (no "top taps", no "two to each side"), one practice-line pattern', () => {
+    const c = (fixtureData.copy as { learn: { lessons: Record<string, { steps: string[] }>; guides: Record<string, { steps: string[]; summary: string }> } }).learn;
+    const all = [...Object.values(c.lessons).flatMap((l) => l.steps), ...Object.values(c.guides).flatMap((g) => [...g.steps, g.summary])];
+    for (const x of all) {
+      expect(x).not.toMatch(/top taps|two to each side|the echo's top light/);
+    }
+    for (const id of RECTS) expect(c.guides[id]!.steps.at(-1)).toMatch(/^Your turn: .*Stuck\? Assist rings the next tap\.$/);
   });
 });

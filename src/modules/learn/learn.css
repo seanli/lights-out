@@ -39,8 +39,13 @@
   width: var(--dot); height: var(--dot); translate: -50% -50%; border-radius: var(--radius-pill); background: var(--c-pointer); opacity: .85;
 }
 .board--mini .cell[data-lit="true"][data-mark="true"]::after { background: var(--c-accent-ink); }
-.board--show, .board--demo { pointer-events: none; }
+.board--show { pointer-events: none; }
 .board--show .cell, .board--demo .cell { display: block; cursor: default; }
+/* a demo pauses on a tap and then steps one tap at a time (view.ts: onDemoBoard); its lights aren't buttons */
+.board--demo { cursor: pointer; touch-action: manipulation; }
+.board--demo .cell { pointer-events: none; }
+/* outlined: the top lights still to tap (a guide's lights step), or every top-edge light while a top-edge tap is next */
+.board--mini .cell[data-ring="true"] { outline: var(--ring-w) dashed var(--c-pointer); outline-offset: var(--hairline); z-index: 1; }
 .board--practice[data-status="solved"] .cell { pointer-events: none; opacity: var(--solved-dim); }
 
 /* ---------- a lesson: header, dots, text, stage, bar ----------
@@ -78,16 +83,15 @@
 /* the classic practice board never gets lights under the aim size (--aim-below, decision 48): the step scrolls first */
 .learn-stage--practice:not([data-shape]) .learn-fit { min-height: calc(5 * var(--aim-below) - var(--space-1-5) + 2 * var(--space-2)); }
 .learn-under { display: flex; flex-direction: column; gap: var(--space-2); }
-/* the Tower's practice keeps big lights and scrolls with the step; a swipe never presses (view.ts, mode 'tap').
-   Its line and buttons stay pinned under it, and Assist brings the ringed light into view clear of them. */
-.learn-step[data-scroll] > .learn-stage { flex: none; container-type: inline-size; }
-.learn-step[data-scroll] .learn-fit { flex: none; container-type: inline-size; max-height: none; }
-.learn-step[data-scroll] .learn-fit > .board--mini { width: min(100cqw, var(--board-cols) * var(--cell-max-tall)); }
-.learn-step[data-scroll] .learn-under {
-  position: sticky; bottom: 0; z-index: 1; padding-top: var(--space-3);
-  background: linear-gradient(to bottom, transparent, var(--c-room) var(--space-3));
+/* the Tower keeps big lights, as on the play screen: its board scrolls inside the fit box under the words, and the line
+   and buttons stay below it. A swipe never presses (view.ts, mode 'tap'); demos and Assist scroll to their tap. */
+.learn-stage[data-tall]:is(.learn-stage--practice, .learn-stage--demo, .learn-stage--lights) .learn-fit {
+  container-type: inline-size; display: block; max-height: none; overflow-y: auto; overscroll-behavior: contain;
 }
-.board--practice[data-tall] .cell { scroll-margin-block: var(--space-4) calc(2 * var(--text-md) * var(--leading-snug) + var(--tap-min) + var(--space-2) + var(--space-3) + var(--space-4)); }
+.learn-stage[data-tall] .learn-fit > :is(.board--mini, .learn-pickboard) { width: min(100cqw, var(--board-cols) * var(--cell-max-tall)); margin-inline: auto; }
+/* the column letters stay pinned above while the board scrolls under them */
+.learn-stage[data-tall] .learn-pickboard > :first-child { position: sticky; top: 0; z-index: 2; padding-bottom: var(--space-1); background: var(--c-room); }
+.board--mini[data-tall] .cell { scroll-margin-block: calc(var(--letters-h, 0px) + var(--space-4)) var(--space-4); }
 /* the practice line keeps two lines, so a longer message never resizes the board under the finger */
 .learn-stage:is(.learn-stage--practice, .learn-stage--drill) .tutorial-line { min-height: calc(2 * var(--text-md) * var(--leading-snug)); }
 .learn-controls { display: flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: var(--tap-min); }
@@ -138,45 +142,28 @@
 .learn-table__head, .learn-table__row { display: contents; }
 .learn-table__head .caption { text-align: center; }
 
-/* A–E picker over the board's columns (lesson 4's echo step) */
-.learn-stage--echo .learn-fit { max-height: calc(min(100cqw, var(--board-max)) + var(--tap-min) + var(--space-2)); }
-.learn-echo { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); width: min(100cqw, 100cqh - var(--tap-min) - var(--space-2), var(--board-max)); }
-.learn-echo > .board--mini { width: 100%; height: auto; aspect-ratio: 1; }
-.learn-picker { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-1-5); width: 100%; padding-inline: var(--space-2); }
+/* letters over a board's columns (lesson 4's echo picker, a guide's letter picker, quiet labels on guide demos).
+   The picker takes the board's own side padding and light gaps, so each letter sits over its column. */
+.learn-stage[data-letters] { --letters-h: var(--line-h); }
+.learn-stage[data-letters="pick"] { --letters-h: var(--tap-min); }
+.learn-stage[data-letters] .learn-fit {
+  max-height: calc(min(100cqw, var(--board-max)) * var(--board-rows, 1) / var(--board-cols, 1) + var(--letters-h) + var(--space-2));
+}
+.learn-pickboard {
+  --pick-pad: var(--space-2); --pick-gap: var(--space-1-5);
+  display: flex; flex-direction: column; align-items: center; gap: var(--space-2);
+  width: min(100cqw, (100cqh - var(--letters-h) - var(--space-2)) * var(--board-cols, 1) / var(--board-rows, 1), var(--board-max));
+}
+.learn-pickboard[data-room] { --pick-pad: var(--space-1-5); --pick-gap: var(--space-1); }
+.learn-pickboard > .board--mini { width: 100%; height: auto; aspect-ratio: var(--mini-ratio); }
+.learn-picker { display: grid; grid-template-columns: repeat(var(--pick-n, 5), minmax(0, 1fr)); gap: var(--pick-gap); width: 100%; padding-inline: var(--pick-pad); }
 .learn-pick { min-width: 0; min-height: var(--tap-min); padding: 0; font-size: var(--text-md); }
+/* 8 letters and up: narrower columns, so quieter buttons (the chosen one keeps its fill) */
+.learn-picker[style*="--pick-n:8"] > .learn-pick:not([aria-pressed="true"]), .learn-picker[style*="--pick-n:10"] > .learn-pick:not([aria-pressed="true"]) { box-shadow: none; }
+.learn-picker:is([style*="--pick-n:8"], [style*="--pick-n:10"]) > .learn-pick { font-size: var(--text-sm); }
+/* quiet labels: the column letters a demo's words name */
+.learn-picker--static > .learn-pick { min-height: var(--line-h); display: grid; place-items: center; font: var(--fw-bold) var(--text-2xs) / 1 var(--font-ui); letter-spacing: var(--tracking-eyebrow); color: var(--c-text-faint); }
 
-/* ---------- a full rectangle's lights: each bottom light → its top taps; tap a row to play it on the board ----------
-   The list sits above the board and scrolls when both don't fit; the board keeps at least 36% of the stage.
-   The Tower: the list (lit letter → top strip) beside its tall board. */
-.learn-lights {
-  /* a row: two strips + an arrow, or (--key) the lit light with its letter + an arrow + the top strip */
-  --pair-cell: min(var(--icon), (100cqw - var(--space-8) - var(--space-6) - 4 * var(--strip-n) * var(--space-half)) / (2 * var(--strip-n)));
-  --key-cell: min(var(--icon), (100cqw - var(--space-8) - var(--space-6) - 2 * (var(--strip-n) + 1) * var(--space-half)) / (var(--strip-n) + 1));
-  --strip-cell: var(--pair-cell); --pair: grid; --key: none;
-  display: contents;
-}
-/* 8 wide and up and the Tower always; 6 and 7 wide when two strips would need cells under 18px (letters under 11px) */
-.learn-lights[data-wide] { --strip-cell: var(--key-cell); --pair: none; --key: grid; }
-@container learn-stage (max-width: 319px) { .learn-lights[data-cols="6"] { --strip-cell: var(--key-cell); --pair: none; --key: grid; } }
-@container learn-stage (max-width: 363px) { .learn-lights[data-cols="7"] { --strip-cell: var(--key-cell); --pair: none; --key: grid; } }
-.learn-lights__row > .learn-row--bottom { display: var(--pair); }
-.learn-lights__row > .learn-row--key { display: var(--key); }
-.learn-lights__list {
-  flex: 0 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
-  display: grid; grid-template-columns: auto; justify-content: center; align-content: start; gap: var(--space-half);
-}
-.learn-stage--lights .learn-fit { min-height: 36cqh; }
-.learn-lights__row {
-  display: grid; grid-template-columns: auto auto auto; align-items: center; column-gap: var(--space-2);
-  padding: var(--space-half) var(--space-2); border: 0; border-radius: var(--radius-sm); background: none; color: inherit; cursor: pointer; touch-action: manipulation;
-}
-.learn-lights__row[aria-pressed="true"] { background: var(--c-surface-2); box-shadow: inset 0 0 0 var(--ring-w) var(--c-pointer); }
-@media (hover: hover) { .learn-lights__row:hover { background: var(--c-surface-2); } }
-.learn-lights__row .learn-row { padding: var(--space-half); gap: var(--space-half); }
-.learn-row > .cell[data-lit="true"][data-letter]::after { color: var(--c-accent-ink); }
-.learn-stage--lights[data-tall] .learn-lights { display: flex; flex: 1 1 0; min-height: 0; gap: var(--space-3); justify-content: center; }
-.learn-stage--lights[data-tall] .learn-lights__list { flex: none; align-content: center; }
-.learn-stage--lights[data-tall] .learn-fit { flex: 1 1 0; min-width: 0; min-height: 0; max-height: none; max-width: calc(100cqh * var(--board-cols) / var(--board-rows)); }
 
 /* ---------- strips: one row of five (echo steps, rules, drill, the in-game table) ---------- */
 .learn-screen { --strip-cell: min(var(--tap-min), calc((100cqw - 2 * var(--space-4)) / 7)); }

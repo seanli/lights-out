@@ -2,10 +2,10 @@
 // short steps (illustration, animated demo, table, practice), and one short guide per room
 // on that room's own shape. Owns the `learn` slice.
 import * as v from 'valibot';
-import { CELL_COUNT, MAX_CELLS, type Cells, type LearnState, type ModuleDef, type Pack } from '../../contracts';
+import { CELL_COUNT, CLASSIC_SHAPE, MAX_CELLS, type Cells, type LearnState, type ModuleDef, type Pack } from '../../contracts';
 import { isCell, shapeKey } from '../../lib/shape';
 import { LESSONS, type Lesson } from './lessons';
-import { bottomRowTable, chaseShape, chaseSuggest, createFixer, fixSuggest, isClear, makeBoard, methodSuggest, quietPatterns, type Fixer, type TableEntry } from './method';
+import { bottomRowTable, chaseShape, chaseSuggest, createFixer, fixSuggest, isClear, makeBoard, methodSuggest, quietPatterns, touches, type Fixer, type TableEntry } from './method';
 import { GUIDE_PREFIX, GUIDE_STEPS, buildGuide, guideId, guideKind, type GuideKind } from './guides';
 import { emptySave, type DrillSave } from './drill';
 import { createReference } from './reference';
@@ -34,12 +34,19 @@ export type LearnRules = v.InferOutput<typeof RulesSchema>;
 
 const text = v.pipe(v.string(), v.minLength(1));
 const CopySchema = v.looseObject({
-  title: text, subtitle: text, back: text, backToLessons: text, stepOf: text, prev: text, next: text, finish: text,
-  done: text, assist: text, newBoard: text, another: text, assistLine: text, aimTip: text, moves: text, movesPar: text,
-  solved: text, solvedPar: text, solvedAtPar: text, demoPlay: text, demoReplay: text, demoStep: text, demoTap: text, demoDone: text,
+  title: text, subtitle: text, back: text, backToLessons: text, stepOf: text, stepOfSize: text, prev: text, next: text, finish: text,
+  done: text, assist: text, newBoard: text, another: text, assistLine: text, aimTip: text, undoHint: text, moves: text, movesPar: text,
+  solved: text, solvedPar: text, solvedAtPar: text, demoPlay: text, demoReplay: text, demoStep: text, demoTap: text, demoPhaseTap: text,
+  demoDone: text, demoCancel: text,
+  /** how a demo ends when it doesn't end dark ({n} = lights left) */
+  demoEnd: v.object({ left: text, stuck: text, stuckShape: text, cancelled: text }),
   demoPhase: v.object({ chase: text, top: text, edge: text, chase2: text, spot: text }),
+  /** a guide's practice line by phase: chasing, only the bottom (end) lights left, after the top taps */
+  coach: v.object({ chase: text, bottom: text, bottoms: text, again: text, shapeFix: text }),
   captions: v.record(v.string(), text), cellOn: text, cellOff: text,
-  letters: v.pipe(v.string(), v.minLength(7)), echoJoin: text, deeper: text, echoMatch: text, echoTip: text, tableBottom: text, tableTop: text,
+  /** "A and B", "A, B and C" */
+  and: text, comma: text,
+  letters: v.pipe(v.string(), v.minLength(10)), echoJoin: text, deeper: text, echoMatch: text, tableBottom: text, tableTop: text,
   echo: v.object({ pick: text, caption: text }),
   stack: v.object({ of: text, both: text, cancel: text }),
   derive: v.object({ row: text, echo: text }),
@@ -59,8 +66,8 @@ const CopySchema = v.looseObject({
   sections: v.object({ basics: text, boards: text }),
   /** board guides by room id; the title is the room's name. A room with no entry gets no guide. */
   guides: v.record(v.string(), v.object({ summary: text, steps: v.array(text) })),
-  /** the lights step of a full-rectangle guide: the rows' group label, and one row read aloud */
-  lights: v.object({ pick: text, row: text }),
+  /** the lights step of a full-rectangle guide: the letters' group label, one letter read aloud, the end line */
+  lights: v.object({ pick: text, row: text, end: text }),
 });
 export type LearnCopy = v.InferOutput<typeof CopySchema>;
 
@@ -76,6 +83,8 @@ export interface Catalog {
   guides(): { id: string; pack: Pack }[];
   /** true when the open lesson was opened from outside Learn (Back and Done return there) */
   direct(): boolean;
+  /** a guide's top-edge fixes (its coach line and its demos' top-edge lights) */
+  fixer(id: string): Fixer | null;
 }
 
 const learn: ModuleDef = {
@@ -216,6 +225,7 @@ const learn: ModuleDef = {
         return fixer && lesson.shape ? fixSuggest(fixer, cells, lesson.shape) : null;
       }
       if (mode === 'chase') return chaseSuggest(cells) ?? methodSuggest(solver, table, cells);
+      if (mode === 'par') return (lesson.shape ? solver.solve(cells, lesson.shape) : solver.solve(cells))?.[0] ?? null;
       return methodSuggest(solver, table, cells);
     };
 
@@ -224,11 +234,24 @@ const learn: ModuleDef = {
       const lesson = lessonOf(id)!;
       const [min, max] = rules.practicePresses[id]!;
       const pool = lesson.pool ?? [...Array(CELL_COUNT).keys()];
-      const make = () => makeBoard(solver, (n) => rng.int(n), min + rng.int(max - min + 1), pool, lesson.shape);
+      // lesson 2: shapes that don't touch, so every lit light belongs to one whole shape
+      const apart = lesson.apart ? (taps: readonly number[]) => taps.every((a, k) => taps.slice(k + 1).every((b) => !touches(lesson.shape ?? CLASSIC_SHAPE, a, b))) : undefined;
+      const make = () => makeBoard(solver, (n) => rng.int(n), min + rng.int(max - min + 1), pool, lesson.shape, apart);
       let cells = make();
-      // a room's guide teaches the bottom-row step: draw again (a few times) while a chase alone would clear the board
-      const chased = (b: Cells) => (lesson.shape ? chaseShape(solver, b, lesson.shape).cells : b);
-      for (let k = 0; lesson.leftover && k < 30 && isClear(chased(cells)); k++) cells = make();
+      // a full rectangle's guide teaches the bottom-row step: a few taps low on the board (a short first chase, which
+      // clears exactly what they lit) plus one or two lone bottom lights, which are what that chase leaves.
+      // Every board on these rooms is solvable (each lone bottom light has its top lights), so it stays winnable.
+      if (lesson.leftover && lesson.shape) {
+        const shape = lesson.shape;
+        const withLeftover = () => {
+          const bottom = [...Array(shape.cols).keys()].map((c) => (shape.rows - 1) * shape.cols + c);
+          const extra = [bottom.splice(rng.int(bottom.length), 1)[0]!, ...(rng.int(2) ? [bottom[rng.int(bottom.length)]!] : [])];
+          return make().map((on, i) => (extra.includes(i) ? !on : on));
+        };
+        const ok = (b: Cells) => !isClear(chaseShape(solver, b, shape).cells) && solver.isSolvable(b, shape);
+        cells = withLeftover();
+        for (let k = 0; k < 30 && !ok(cells); k++) cells = withLeftover();
+      }
       return { ...s, practice: { cells, start: cells, moves: 0, suggest: suggestFor(s, cells), status: 'playing' } };
     };
 
@@ -350,6 +373,7 @@ const learn: ModuleDef = {
       },
       guides: () => (ctx.read('levels')?.packs ?? []).flatMap((p) => (guidePack(guideId(p.id)) ? [{ id: guideId(p.id), pack: p }] : [])),
       direct: () => direct,
+      fixer: (id) => guideOf(id)?.fixer ?? null,
     };
     const view = createLearnView({ ctx, rules, copy, solver, rng, drillStore, catalog, table: () => table, quiet: () => quiet });
     const letters = (cols: readonly number[]) => cols.map((c) => copy.letters[c]).join(copy.echoJoin);
