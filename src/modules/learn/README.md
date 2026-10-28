@@ -10,4 +10,5 @@ The Learn screen (`screen:learn`): five lessons that teach the patterns that sol
 - Lesson shapes in `lessons.ts`; every sentence in `copy.json → learn`. Demos auto-play with the `clock` service, step by tap under reduced motion.
 - Mini board `.board--mini` lives in `learn.css` (tokens only). Practice cells press on `pointerdown`, keyboard via click + arrow keys.
 - Saves completed lesson ids under storage key `learn` (`rules.json → learn.saveKey`); without storage they last until the page closes.
+- In-game reference: fills `slot:reference` (play-view places it) from `reference.ts`: chase line, live advice `[data-reference-status]`, live bottom row, the 7 table rows (`[data-match]`), "All lessons". Patches attributes on every `board` change; never marks the main board.
 - Services: uses `view`, `solver`, `rng`; optional `storage`, `clock`. Console: `learn.open [lessonId]`, `learn.table`.

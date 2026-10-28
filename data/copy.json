@@ -149,6 +149,21 @@
     },
     "cellOn": "Light {row}, {col}: on",
     "cellOff": "Light {row}, {col}: off",
+    "reference": {
+      "chase": "Chase: row by row from the top, tap under every lit light.",
+      "yourRow": "Your bottom row",
+      "bottom": "Bottom row",
+      "top": "Tap in top row",
+      "lessons": "All lessons",
+      "status": {
+        "start": "Start a level, then chase the lights down.",
+        "chase": "Row {row}: tap under each lit light.",
+        "match": "Bottom row found below. Tap the ringed top-row lights, then chase again.",
+        "progress": "Keep going: finish the ringed top-row taps, then chase again.",
+        "clear": "All dark. Solved.",
+        "nomatch": "This bottom row isn't in the table, so the board can't be finished this way. Restart and chase again."
+      }
+    },
     "lessons": {
       "shapes": {
         "title": "One tap, five lights",
