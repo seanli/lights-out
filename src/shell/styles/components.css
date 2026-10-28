@@ -378,3 +378,20 @@ button, input { font: inherit; color: inherit; }
 .room-glyph > i { aspect-ratio: 1; border-radius: 28%; background: var(--c-line-strong); }
 .room-glyph > i[data-lit="true"] { background: var(--c-tile-on); box-shadow: 0 0 var(--space-1-5) var(--c-glow); }
 .room-glyph > i[data-gap] { visibility: hidden; }
+
+/* aim bubble (src/lib/aim.ts): magnifies the aimed cell and its neighbours above the finger on boards with small cells */
+.aim-bubble {
+  position: fixed; left: 0; top: 0; z-index: 50; pointer-events: none;
+  display: grid; grid-template-columns: repeat(3, var(--space-8)); gap: var(--space-1); padding: var(--space-2);
+  background: var(--c-surface-2); border-radius: var(--radius-lg); box-shadow: var(--shadow-board), 0 12px 32px -8px var(--c-shadow);
+  opacity: 0; transition: opacity var(--dur-fast) var(--ease-out);
+}
+.aim-bubble[data-open="true"] { opacity: 1; }
+.aim-bubble > i { aspect-ratio: 1; border-radius: 22%; background: var(--grad-tile-off); box-shadow: var(--shadow-recessed); }
+.aim-bubble > i[data-state="on"] { background: var(--grad-tile-on); box-shadow: 0 0 var(--space-2) var(--c-glow); }
+.aim-bubble > i[data-state="none"] { visibility: hidden; }
+.aim-bubble > i[data-target="true"] { outline: 2px dashed var(--c-tile-on); outline-offset: 2px; }
+.board[data-aim="true"] { touch-action: none; }
+
+/* skull (src/lib/icons.ts): marks a boss level */
+.skull { width: 1em; height: 1em; flex: none; vertical-align: -0.125em; }
