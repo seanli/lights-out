@@ -207,29 +207,66 @@ interface Rect { cols: number; rows: number; mask: null }
 /** chase on any full rectangle: row by row, tap under every lit light */
 export const chaseRect = (solver: ShapedPress, cells: Cells, shape: Rect): Cells => chaseShape(solver, cells, shape).cells;
 
+const popcount = (m: number): number => { let n = 0; for (let x = m; x; x &= x - 1) n++; return n; };
+/** a null space bigger than this isn't searched whole (2^n answers); the answer is then made lighter step by step */
+const MAX_NULL_SEARCH = 12;
+
 /**
  * For each bottom-row light of a full rectangle: the fewest top-row taps that, after a chase, clear a board
- * where only that light is lit (null when no top taps do). Worked out from the solver by trying every
- * top-row set and recording the bottom row it leaves (its echo). Where every echo is dark (4×4, 9×9) a chase
- * alone clears any solvable board.
+ * where only that light is lit (null when no top taps do). Linear in the width: each top light is chased once for its
+ * echo (the bottom row it leaves); echoes of a set of top lights add up over GF(2) (a light lit twice cancels), so the
+ * sets for a bottom light are one answer plus any mix of the "quiet" sets whose echoes cancel, and the lightest of
+ * those is kept (a tie goes to the lowest columns). Where every echo is dark (4×4, 9×9) a chase alone clears any
+ * solvable board. A 20-wide custom board takes 20 chases, not 2^20.
  */
 export function rectTopSets(solver: ShapedPress, shape: Rect): { perLight: (number[] | null)[]; chaseClears: boolean } {
   const { cols, rows } = shape;
   const dark = new Array<boolean>(cols * rows).fill(false);
-  const best = new Map<number, number[]>();
-  let chaseClears = true;
-  for (let t = 0; t < 1 << cols; t++) {
-    let b = dark;
-    const top: number[] = [];
-    for (let c = 0; c < cols; c++) if ((t >> c) & 1) { b = solver.press(b, c, shape); top.push(c); }
-    const left = chaseRect(solver, b, shape);
-    let echo = 0;
-    for (let c = 0; c < cols; c++) if (left[(rows - 1) * cols + c]) echo |= 1 << c;
-    if (t && echo) chaseClears = false;
-    const had = best.get(echo);
-    if (!had || top.length < had.length) best.set(echo, top);
-  }
-  return { perLight: Array.from({ length: cols }, (_, c) => best.get(1 << c) ?? null), chaseClears };
+  // echo[k]: the bottom row (bit c = column c) that tapping top light k, then chasing, leaves
+  const echo = Array.from({ length: cols }, (_, k) => {
+    const left = chaseRect(solver, solver.press(dark, k, shape), shape);
+    let m = 0;
+    for (let c = 0; c < cols; c++) if (left[(rows - 1) * cols + c]) m |= 1 << c;
+    return m;
+  });
+  // an XOR basis of the echoes, each with the top lights that make it (`pre`); sets whose echoes cancel are quiet
+  const basis: { echo: number; pre: number }[] = [];
+  const quiet: number[] = [];
+  echo.forEach((e, k) => {
+    let img = e, pre = 1 << k;
+    for (const b of basis) if ((img ^ b.echo) < img) { img ^= b.echo; pre ^= b.pre; }
+    if (img) { basis.push({ echo: img, pre }); basis.sort((x, y) => y.echo - x.echo); } else quiet.push(pre);
+  });
+  /** the top lights whose echoes add up to `target`, or null */
+  const solveFor = (target: number): number | null => {
+    let img = target, pre = 0;
+    for (const b of basis) if ((img ^ b.echo) < img) { img ^= b.echo; pre ^= b.pre; }
+    return img ? null : pre;
+  };
+  /** the lightest of x and x plus any quiet mix: every mix while there are few, else one quiet set at a time while it helps */
+  const lightest = (x: number): number => {
+    let best = x;
+    const better = (m: number) => popcount(m) < popcount(best) || (popcount(m) === popcount(best) && m < best);
+    if (quiet.length <= MAX_NULL_SEARCH) {
+      for (let mix = 1; mix < 1 << quiet.length; mix++) {
+        let m = x;
+        for (let j = 0; j < quiet.length; j++) if ((mix >> j) & 1) m ^= quiet[j]!;
+        if (better(m)) best = m;
+      }
+      return best;
+    }
+    for (let improved = true; improved;) {
+      improved = false;
+      for (const q of quiet) if (better(best ^ q)) { best ^= q; improved = true; }
+    }
+    return best;
+  };
+  const bits = (m: number) => [...Array(cols).keys()].filter((c) => (m >> c) & 1);
+  const perLight = Array.from({ length: cols }, (_, c) => {
+    const x = solveFor(1 << c);
+    return x === null ? null : bits(lightest(x));
+  });
+  return { perLight, chaseClears: echo.every((e) => e === 0) };
 }
 
 /**

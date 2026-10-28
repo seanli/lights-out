@@ -753,6 +753,40 @@ describe('learn: what the board guides say (proved from the solver)', () => {
     expect(g.lesson.steps.map((x) => x.kind)).toEqual(['demo', 'demo', 'practice']);
   });
 
+  /** the old way, by trying all 2^cols top-row sets: the reference the linear rectTopSets must match */
+  const bruteTopSets = (shape: { cols: number; rows: number; mask: null }) => {
+    const { cols, rows } = shape;
+    const best = new Map<number, number[]>();
+    let chaseClears = true;
+    for (let t = 0; t < 1 << cols; t++) {
+      const top = [...Array(cols).keys()].filter((c) => (t >> c) & 1);
+      const left = chaseRect(roomSolver, pressAll(roomSolver, emptyCells(shape), top, shape), shape);
+      let echo = 0;
+      for (let c = 0; c < cols; c++) if (left[(rows - 1) * cols + c]) echo |= 1 << c;
+      if (t && echo) chaseClears = false;
+      const had = best.get(echo);
+      if (!had || top.length < had.length) best.set(echo, top);
+    }
+    return { perLight: Array.from({ length: cols }, (_, c) => best.get(1 << c) ?? null), chaseClears };
+  };
+
+  test.each([[4, 4], [5, 5], [5, 6], [6, 6], [7, 7], [8, 8], [9, 9], [10, 10], [8, 16], [6, 16], [11, 7]])('%i×%i: the linear top-row sets match trying every top-row set', (cols, rows) => {
+    const shape = { cols, rows, mask: null } as const;
+    expect(rectTopSets(roomSolver, shape)).toEqual(bruteTopSets(shape));
+  });
+
+  test('a 20×30 custom board: its top-row sets take 20 chases, not 2^20 (well under 200 ms), and they clear their lights', () => {
+    const shape = { cols: 20, rows: 30, mask: null } as const;
+    const t0 = performance.now();
+    const { perLight } = rectTopSets(roomSolver, shape);
+    expect(performance.now() - t0).toBeLessThan(200);
+    for (const [c, top] of perLight.entries()) {
+      if (!top) continue;
+      const b = pressAll(roomSolver, emptyCells(shape).map((_, i) => i === 29 * 20 + c), top, shape);
+      expect(isClear(chaseRect(roomSolver, b, shape)), `light ${c}`).toBe(true);
+    }
+  });
+
   test('5×6 and 6×16: one bottom light → the top light straight above it (custom boards)', () => {
     for (const shape of [{ cols: 5, rows: 6, mask: null }, { cols: 6, rows: 16, mask: null }]) {
       const { perLight } = rectTopSets(roomSolver, shape as never);
