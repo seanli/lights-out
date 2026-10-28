@@ -8,7 +8,7 @@ Fonts are bundled woff2 (Fraunces 600, Manrope 500/700, Latin only, 45 KB). ≤ 
 |---|---|---|
 | `.app` | the single column, 480px max (880px in short landscape), safe-area gutters | `height:100%` |
 | `.screen` | `.screen--play` (grid: header, stats, `.board-slot`, actions), `.screen--scroll` (reaches the screen edges, pads back by `--gutter`, children never shrink) | `[hidden]`, `[data-enter="forward"\|"back"]` (shell: 200ms fade in, ±12px) |
-| `.screen-header` | `> button.btn--icon` · `__title` (`.eyebrow` + `strong`) · `__end` (a row; may be empty, always reserved) | — (see "Shared screen parts") |
+| `.screen-header` | `> button.btn--icon` · `__title` (`.eyebrow` + `strong`) · `__end` (a row; may be empty, always reserved) | sticks to the top of a `.screen--scroll` (room-coloured, content fades under it) |
 | `.bar` | `> .btn` (equal widths), `.bar__main` (1.5× wide: Hint, Next), `.bar--icons` (icon above a small label) | short screens (`max-height: 640px`): `--bar-h-short`, `.bar--icons` puts the icon beside the label; buttons use `.btn` states |
 | `.btn` | `--primary` `--secondary` `--ghost` `--icon` `--hint` `--danger` `--link` (quiet underlined text, 44px tall) `--block` `--stack` (icon over label), `__meta` | `:hover` `:active` (scale) `:focus-visible` `:disabled` `[aria-disabled="true"]` `[aria-pressed="true"]` |
 | `.menu-list` > `.menu-row` | `__glyph` (a `.room-glyph` or an `.icon`) `__body` > `__title` + `__sub`, `__end` (score or `.menu-row__mark`); rows may sit in `<li>` | `:active` `:hover` `:focus-visible` `[aria-disabled="true"]` (dim glyph, quiet words, inert) |
