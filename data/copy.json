@@ -277,7 +277,9 @@
         "threeAbove": "Each lit bottom light: tap the three top lights above it. Overlaps cancel.",
         "twoAside": "Each lit bottom light: tap the top lights two places left and right; at the edges, also the one above.",
         "aboveTwoAside": "Each lit bottom light: tap the top light above it and two places left and right; at the edges, skip that one.",
-        "ownTaps": "Each lit bottom light has its own top lights to tap. Overlaps cancel."
+        "ownTaps": "Each lit bottom light has its own top lights to tap. Overlaps cancel.",
+        "oneRow": "Here a chase leaves the bottom row dark or {pattern}. For {pattern}, tap {taps} on top, then chase again.",
+        "fewRows": "Only a few bottom rows can be left here. Each has its own top lights to tap, shown below."
       },
       "tips": {
         "hex": "Spot flowers of seven and tap their centres.",
@@ -354,7 +356,7 @@
         ]
       }
     },
-    "letters": "ABCDEFGHIJ",
+    "letters": "ABCDEFGHIJKLMNOPQRST",
     "echoJoin": " + ",
     "echo": {
       "pick": "Pick a top light",

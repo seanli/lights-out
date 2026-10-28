@@ -1,6 +1,6 @@
 // Board guides: one per room (`guide-<room id>`), built at runtime from the room's real shape and the solver.
 // Which steps a guide has follows from the room's kind and the maths, never from a table:
-//   chase:  a full rectangle where a chase clears every solvable board (none today: 4×4 and 9×9 were dropped)
+//   chase:  a full rectangle where a chase clears every solvable board (none today: 4×4 was dropped)
 //   lights: a full rectangle where each lone bottom light has its own top lights to tap (7×7, 8×8, the Tower)
 //   shapes: any other square grid (Ring, Diamond): spot tap shapes, or chase, then tap the top-edge fix and chase again
 //   hex, cube, wired, stuck (the twist rooms, by pack kind): how a tap spreads there, the one idea, practice

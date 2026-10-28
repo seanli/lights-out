@@ -63,7 +63,7 @@ const CopySchema = v.looseObject({
       shapedFix: text, shapedProgress: text, shapedNomatch: text,
     }),
     /** the rule line per full rectangle: the rule its maths follows (method.ts → RECT_RULES), else ownTaps */
-    rect: v.object({ chaseClears: text, straightAbove: text, threeAbove: text, twoAside: text, aboveTwoAside: text, ownTaps: text }),
+    rect: v.object({ chaseClears: text, straightAbove: text, threeAbove: text, twoAside: text, aboveTwoAside: text, ownTaps: text, oneRow: text, fewRows: text }),
     /** the one-line tip on a board with no bottom row to read: a honeycomb, a cube, wired or stuck switches */
     tips: v.object({ hex: text, cube: text, wired: text, stuck: text }),
   }),

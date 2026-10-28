@@ -592,7 +592,7 @@ describe('learn: the reference on Variety boards', () => {
   });
 
   test('the strategy line per size, picked from the maths', () => {
-    const lines = { chaseClears: '{cols}×{rows} chase', straightAbove: 'straight', threeAbove: 'three', twoAside: 'two aside', aboveTwoAside: 'above + two aside', ownTaps: 'own' };
+    const lines = { chaseClears: '{cols}×{rows} chase', straightAbove: 'straight', threeAbove: 'three', twoAside: 'two aside', aboveTwoAside: 'above + two aside', ownTaps: 'own', oneRow: 'only {pattern}: {taps}', fewRows: 'few' };
     expect(advise.rectLine(rect(4) as never, lines)).toBe('4×4 chase');
     expect(advise.rectLine({ cols: 5, rows: 6, mask: null }, lines)).toBe('straight');
     expect(advise.rectLine({ cols: 8, rows: 16, mask: null }, lines)).toBe('own');
@@ -600,6 +600,35 @@ describe('learn: the reference on Variety boards', () => {
     expect(advise.rectLine(rect(7) as never, lines)).toBe('three');
     expect(advise.rectLine(rect(8) as never, lines)).toBe('own');
     expect(advise.rectLine(rect(10) as never, lines)).toBe('above + two aside');
+    // 9×9: a chase leaves the bottom row dark or A C E G I, and one top tap fixes that (no lone light has its own taps)
+    const say = (cols: readonly number[]) => cols.map((c) => 'ABCDEFGHIJKLMNOPQRST'[c]).join(' ');
+    expect(advise.rectLine(rect(9) as never, lines, say)).toBe('only A C E G I: A');
+    expect(advise.rectLine(rect(11) as never, lines, say)).toBe('few');
+  });
+
+  test('9×9 at bottom-row time: the panel shows the top tap for the one row a chase can leave', () => {
+    const sets = rectTopSets(shapedSolver, rect(9) as never);
+    expect(sets.chaseClears).toBe(false);
+    expect(sets.rows).toBe(1);
+    expect(sets.perLight.every((x) => x === null)).toBe(true);
+    expect(sets.possibleRows(4)).toEqual([[0, 2, 4, 6, 8]]);
+    expect(advise({ status: 'playing', cells: on(81, [72, 74, 76, 78, 80]), shape: rect(9) })).toMatchObject({ status: 'match', text: 'rect match', rect: { bottom: [0, 2, 4, 6, 8], taps: [0] } });
+  });
+
+  test('every bottom row a chase can leave is cleared by its top taps then a chase, on rectangles 3 to 12 wide', () => {
+    for (const [cols, rows] of [[3, 3], [4, 4], [4, 7], [9, 9], [11, 11], [12, 5], [5, 12], [8, 16], [10, 3]] as const) {
+      const shape = { cols, rows, mask: null } as never;
+      const sets = rectTopSets(shapedSolver, shape);
+      const all = sets.possibleRows(1 << 12)!;
+      expect(all.length, `${cols}×${rows}`).toBe(sets.rows);
+      for (const bottom of all) {
+        const taps = sets.tapsFor(bottom);
+        expect(taps, `${cols}×${rows} bottom ${bottom}`).not.toBeNull();
+        let b = on(cols * rows, bottom.map((c) => (rows - 1) * cols + c));
+        for (const t of taps!) b = shapedSolver.press(b, t, shape);
+        expect(chaseRect(shapedSolver, b, shape).every((x) => !x), `${cols}×${rows} bottom ${bottom}`).toBe(true);
+      }
+    }
   });
 
   test('shaped rooms: chase by the row of the first light above an end cell, then the start-cell fix ringed, then progress', () => {
@@ -781,7 +810,8 @@ describe('learn: what the board guides say (proved from the solver)', () => {
 
   test.each([[4, 4], [5, 5], [5, 6], [6, 6], [7, 7], [8, 8], [9, 9], [10, 10], [8, 16], [6, 16], [11, 7]])('%i×%i: the linear top-row sets match trying every top-row set', (cols, rows) => {
     const shape = { cols, rows, mask: null } as const;
-    expect(rectTopSets(roomSolver, shape)).toEqual(bruteTopSets(shape));
+    const { perLight, chaseClears } = rectTopSets(roomSolver, shape);
+    expect({ perLight, chaseClears }).toEqual(bruteTopSets(shape));
   });
 
   test('a 20×30 custom board: its top-row sets take 20 chases, not 2^20 (well under 200 ms), and they clear their lights', () => {

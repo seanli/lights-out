@@ -7,7 +7,7 @@
 // the top one empty until bottom-row time. Shaped rooms: chase advice by row, then a small picture of the board with the
 // top-edge fix ringed. Honeycombs, cubes, wired and stuck switches: no bottom row to read, so the room's one-line tip.
 // Rooms link to their board guide; classic links to all lessons.
-import { BOTTOM, blank, chaseShapeSuggest, rectRule, rectTaps, rectTopSets, type Fixer, type RectRule, type TableEntry } from './method';
+import { BOTTOM, blank, chaseShapeSuggest, rectRule, rectTopSets, type Fixer, type RectRule, type TableEntry } from './method';
 import { CELL_COUNT, SIZE, type BoardState, type Ctx, type Shape, type SolverService } from '../../contracts';
 import { fmt, h, setAttr, setText } from '../../lib/dom';
 import { gridOf, gridSize, isCell, shapeKey } from '../../lib/shape';
@@ -27,7 +27,7 @@ export interface ReferenceCopy {
     shapedFix: string; shapedProgress: string; shapedNomatch: string;
   };
   /** the strategy line for full rectangles: chase alone clears it / a rule the maths follows / each light its own taps */
-  rect: { chaseClears: string; ownTaps: string } & Record<RectRule, string>;
+  rect: { chaseClears: string; ownTaps: string; oneRow: string; fewRows: string } & Record<RectRule, string>;
   /** the one-line tip on a board with no bottom row to read */
   tips: Record<TwistKind, string>;
 }
@@ -112,7 +112,7 @@ export function createAdvisor(solver: Pick<SolverService, 'press'>, table: reado
       const spread = (tapped ^ (tapped << 1) ^ (tapped >> 1)) & ((1 << cols) - 1);
       const bottom = bottomOf();
       if (tapped && row0 === spread && bottom.length) {
-        const taps = rectTaps(setsFor(shape).perLight, bottom);
+        const taps = setsFor(shape).tapsFor(bottom);
         const want = taps ? taps.reduce((m, c) => m | (1 << c), 0) : 0;
         if (taps && (tapped & ~want) === 0 && tapped !== want) return { status: 'match', text: copy.progress, match: -1, rect: { bottom, taps } };
       }
@@ -121,17 +121,23 @@ export function createAdvisor(solver: Pick<SolverService, 'press'>, table: reado
     const row = Math.floor(first / cols);
     if (row < rows - 1) return { status: 'chase', text: fmt(copy.chase, { row: row + 1 }), match: -1 };
     const bottom = bottomOf();
-    const taps = rectTaps(setsFor(shape).perLight, bottom);
+    const taps = setsFor(shape).tapsFor(bottom);
     if (!taps) return { status: 'nomatch', text: copy.rectBottom, match: -1 };
     return { status: 'match', text: copy.rectMatch, match: -1, rect: { bottom, taps } };
   };
 
-  /** the strategy line for a full rectangle, read from its per-light sets */
-  const rectLine = (shape: Shape, lines: ReferenceCopy['rect']): string => {
-    const { perLight, chaseClears } = setsFor(shape);
-    if (chaseClears) return fmt(lines.chaseClears, { cols: shape.cols, rows: shape.rows });
-    const rule = rectRule(perLight);
-    return rule ? lines[rule] : lines.ownTaps;
+  /** the strategy line for a full rectangle, read from its per-light sets; `letters` names columns ("A C E") */
+  const rectLine = (shape: Shape, lines: ReferenceCopy['rect'], letters?: (cols: readonly number[]) => string): string => {
+    const sets = setsFor(shape);
+    if (sets.chaseClears) return fmt(lines.chaseClears, { cols: shape.cols, rows: shape.rows });
+    if (sets.perLight.every((set) => set !== null)) {
+      const rule = rectRule(sets.perLight);
+      return rule ? lines[rule] : lines.ownTaps;
+    }
+    // a lone bottom light can't always be fixed from the top (9×9): name the one row a chase can leave, or say there are few
+    const only = sets.possibleRows(1)?.[0];
+    if (only && letters) return fmt(lines.oneRow, { pattern: letters(only), taps: letters(sets.tapsFor(only) ?? []) });
+    return lines.fewRows;
   };
 
   /** any shape: part-way through a fix → finish it; lights above an end cell → chase that row; else the fix, ringed */
@@ -332,7 +338,7 @@ export function createReference(ctx: Ctx, solver: SolverService, table: readonly
       // a short panel scrolls: the taps to make are the line that must show
       if (appear) rectTop.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
     }
-    const line = match >= 0 ? ruleOf[match]! : kind === 'rect' && board?.shape ? advise.rectLine(board.shape, copy.rect) : '';
+    const line = match >= 0 ? ruleOf[match]! : kind === 'rect' && board?.shape ? advise.rectLine(board.shape, copy.rect, (cols) => cols.map((c) => labels.letters[c]).join(' ')) : '';
     rule.hidden = !line;
     ruleBox.hidden = !line;
     setText(rule, line);

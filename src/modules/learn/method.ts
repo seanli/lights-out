@@ -221,10 +221,23 @@ const MAX_NULL_SEARCH = 12;
  * where only that light is lit (null when no top taps do). Linear in the width: each top light is chased once for its
  * echo (the bottom row it leaves); echoes of a set of top lights add up over GF(2) (a light lit twice cancels), so the
  * sets for a bottom light are one answer plus any mix of the "quiet" sets whose echoes cancel, and the lightest of
- * those is kept (a tie goes to the lowest columns). Where every echo is dark (4×4, 9×9) a chase alone clears any
- * solvable board. A 20-wide custom board takes 20 chases, not 2^20.
+ * those is kept (a tie goes to the lowest columns). Where every echo is dark (4×4) a chase alone clears any solvable
+ * board. Where some lone bottom lights have no set (9×9: a chase leaves the bottom row dark or A C E G I, nothing else),
+ * `tapsFor` still answers each bottom row a chase can leave: `rows` counts them (not counting dark). A 20-wide custom
+ * board takes 20 chases, not 2^20.
  */
-export function rectTopSets(solver: ShapedPress, shape: Rect): { perLight: (number[] | null)[]; chaseClears: boolean } {
+export interface RectSets {
+  perLight: (number[] | null)[];
+  chaseClears: boolean;
+  /** how many lit bottom rows a chase can leave on a solvable board (2^rank − 1) */
+  rows: number;
+  /** the top taps for a lit bottom row (each light's set, overlaps cancel, when every light has one; else the lightest
+   *  answer for the whole row), or null when no top taps clear it */
+  tapsFor: (bottom: readonly number[]) => number[] | null;
+  /** the lit bottom rows a chase can leave, when there are at most `max` of them (fewest lights first), else null */
+  possibleRows: (max: number) => number[][] | null;
+}
+export function rectTopSets(solver: ShapedPress, shape: Rect): RectSets {
   const { cols, rows } = shape;
   const dark = new Array<boolean>(cols * rows).fill(false);
   // echo[k]: the bottom row (bit c = column c) that tapping top light k, then chasing, leaves
@@ -271,7 +284,23 @@ export function rectTopSets(solver: ShapedPress, shape: Rect): { perLight: (numb
     const x = solveFor(1 << c);
     return x === null ? null : bits(lightest(x));
   });
-  return { perLight, chaseClears: echo.every((e) => e === 0) };
+  const everyLight = perLight.every((set) => set !== null);
+  const tapsFor = (bottom: readonly number[]): number[] | null => {
+    if (everyLight) return rectTaps(perLight, bottom);
+    const x = solveFor(bottom.reduce((m, c) => m | (1 << c), 0));
+    return x === null ? null : bits(lightest(x));
+  };
+  const possibleRows = (max: number): number[][] | null => {
+    if (2 ** basis.length - 1 > max) return null;
+    const out: number[] = [];
+    for (let mix = 1; mix < 1 << basis.length; mix++) {
+      let m = 0;
+      for (let j = 0; j < basis.length; j++) if ((mix >> j) & 1) m ^= basis[j]!.echo;
+      out.push(m);
+    }
+    return out.sort((a, b) => popcount(a) - popcount(b) || a - b).map(bits);
+  };
+  return { perLight, chaseClears: echo.every((e) => e === 0), rows: 2 ** basis.length - 1, tapsFor, possibleRows };
 }
 
 /**
