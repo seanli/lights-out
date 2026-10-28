@@ -305,6 +305,7 @@ const playView: ModuleDef = {
       mode: pointerMode,
       cellAt: pointCell,
       litAt: (i) => (cells[i] ? shown[i] === 1 : null),
+      markAt: (i) => cells[i]?.querySelector(':scope > .cell__mark') ?? null,
       cols: () => shape?.cols ?? 5,
       press,
       onAim: (i) => { aimedCell = mark('data-aimed', aimedCell, i); },

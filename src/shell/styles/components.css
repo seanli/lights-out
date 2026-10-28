@@ -373,13 +373,13 @@ button, input { font: inherit; color: inherit; }
 .cell__mark > svg { grid-area: 1 / 1; overflow: visible; }
 /* a wired switch: circuit traces, teal on a dark tile, burnt amber on a lit one */
 .cell__wires { width: 86%; height: 86%; color: var(--c-wire); opacity: var(--wire-alpha); }
-.cell[data-lit="true"] .cell__wires { color: var(--c-wire-on); opacity: var(--wire-alpha-on); }
+:is(.cell[data-lit="true"], .aim-bubble > i[data-state="on"]) .cell__wires { color: var(--c-wire-on); opacity: var(--wire-alpha-on); }
 .cell__trace { fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
 .cell__pad { fill: currentColor; }
 .cell__hub { fill: none; stroke: currentColor; stroke-width: 1.6; }
 /* a stuck switch: a hazard-striped cover held by four rivets; the tile under it sits a little darker */
 .cell__stuck { width: 96%; height: 96%; color: var(--c-stuck); opacity: var(--stuck-alpha); }
-.cell[data-lit="true"] .cell__stuck { color: var(--c-stuck-on); opacity: var(--stuck-alpha-on); }
+:is(.cell[data-lit="true"], .aim-bubble > i[data-state="on"]) .cell__stuck { color: var(--c-stuck-on); opacity: var(--stuck-alpha-on); }
 .cell__stripes { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: butt; }
 .cell__rim { fill: none; stroke: currentColor; stroke-width: 1.3; }
 .cell__rivet { fill: currentColor; }
@@ -744,7 +744,7 @@ button, input { font: inherit; color: inherit; }
   opacity: 0; transition: opacity var(--dur-fast) var(--ease-out);
 }
 .aim-bubble[data-open="true"] { opacity: 1; }
-.aim-bubble > i { aspect-ratio: 1; border-radius: 22%; background: var(--grad-tile-off); box-shadow: var(--shadow-recessed); }
+.aim-bubble > i { position: relative; aspect-ratio: 1; border-radius: 22%; background: var(--grad-tile-off); box-shadow: var(--shadow-recessed); }
 .aim-bubble > i[data-state="on"] { background: var(--grad-tile-on); box-shadow: 0 0 var(--space-2) var(--c-glow); }
 .aim-bubble > i[data-state="none"] { visibility: hidden; }
 .aim-bubble > i[data-target="true"] { outline: 2px dashed var(--c-tile-on); outline-offset: 2px; }

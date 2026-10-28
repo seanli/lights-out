@@ -2,7 +2,7 @@
 import { describe, expect, test } from 'vitest';
 import { attachAim, type AimMode } from './aim';
 
-function setup(mode: AimMode) {
+function setup(mode: AimMode, markAt?: (i: number) => Node | null) {
   const grid = document.createElement('div');
   document.body.append(grid);
   const pressed: number[] = [];
@@ -13,6 +13,7 @@ function setup(mode: AimMode) {
     cellAt: (x, y) => (x >= 0 && y >= 0 && x < 40 && y < 40 ? Math.floor(y / 10) * 4 + Math.floor(x / 10) : -1),
     litAt: (i) => (i >= 0 && i < 16 ? i % 2 === 0 : null),
     cols: () => 4,
+    ...(markAt ? { markAt } : {}),
     press: (i) => pressed.push(i),
     onAim: (i) => aims.push(i),
   });
@@ -48,6 +49,21 @@ describe('attachAim', () => {
     expect(pressed).toEqual([6]);
     expect(aims).toEqual([0, 6, -1]);
     expect(bubble.dataset.open).toBe('false');
+  });
+  test('aim: the bubble copies each cell\'s marks (a stuck plate, wiring) and redraws them when the aim moves', () => {
+    // cell 5 carries a mark; the copy is a clone, so the board keeps its own
+    const mark = document.createElement('span');
+    mark.className = 'cell__mark';
+    const { fire, handle } = setup('aim', (i) => (i === 5 ? mark : null));
+    fire('pointerdown', 5, 5); // aim at 0: cell 5 sits bottom-right of the bubble
+    const bubble = [...document.querySelectorAll<HTMLElement>('[data-aim-bubble]')].at(-1)!;
+    const marked = () => [...bubble.children].map((t) => (t.querySelector('.cell__mark') ? 1 : 0));
+    expect(marked()).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 1]);
+    expect(bubble.querySelector('.cell__mark')).not.toBe(mark);
+    fire('pointermove', 15, 15); // aim at 5: its mark moves to the middle
+    expect(marked()).toEqual([0, 0, 0, 0, 1, 0, 0, 0, 0]);
+    fire('pointerup', 15, 15);
+    handle.destroy();
   });
   test('aim: lifting off the board presses nothing', () => {
     const { pressed, fire } = setup('aim');

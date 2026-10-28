@@ -17,6 +17,8 @@ export interface AimOptions {
   cellAt: (x: number, y: number) => number;
   /** lit state of a grid index for the bubble: true/false, or null for a gap or off the board */
   litAt: (index: number) => boolean | null;
+  /** what is drawn on a grid index (a stuck plate, wiring): a node the bubble copies, or null */
+  markAt?: (index: number) => Node | null;
   /** grid columns (to find a cell's neighbours) */
   cols: () => number;
   press: (index: number) => void;
@@ -62,6 +64,13 @@ export function attachAim(grid: HTMLElement, opts: AimOptions): AimHandle {
       const rr = r + dr, cc = c + dc;
       const lit = target >= 0 && cc >= 0 && cc < cols && rr >= 0 ? opts.litAt(rr * cols + cc) : null;
       t.dataset.state = lit === null ? 'none' : lit ? 'on' : 'off';
+      // the cell's marks, copied once per aimed cell (a stuck switch or its wiring must read in the bubble too)
+      const index = lit === null ? -1 : rr * cols + cc;
+      if (t.dataset.index !== String(index)) {
+        t.dataset.index = String(index);
+        const m = index >= 0 ? opts.markAt?.(index) : null;
+        t.replaceChildren(...(m ? [m.cloneNode(true)] : []));
+      }
       if (k === 4) t.dataset.target = target >= 0 ? 'true' : 'false';
     });
     // keep it on screen; above the finger, or below it near the top edge
@@ -72,7 +81,11 @@ export function attachAim(grid: HTMLElement, opts: AimOptions): AimHandle {
     b.dataset.open = 'true';
   }
 
-  function hideBubble() { if (bubble) bubble.dataset.open = 'false'; }
+  function hideBubble() {
+    if (!bubble) return;
+    bubble.dataset.open = 'false';
+    for (const t of tiles) delete t.dataset.index; // the next level may draw other marks on the same cells
+  }
 
   function aimAt(x: number, y: number) {
     const i = opts.cellAt(x, y);
