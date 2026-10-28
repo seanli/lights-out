@@ -86,6 +86,18 @@ describe('kernel', () => {
     expect(seen).toEqual([{ screen: 'play', sheet: 'solved' }]);
   });
 
+  test('runtime failures reach onFault once per module, and start() failures are reported', () => {
+    const faults: string[] = [];
+    const k = createKernel({ data: {}, onFault: (f) => faults.push(`${f.module}:${f.kind}`) });
+    k.register(mod({ name: 'bad', listens: ['board:press'] }, (ctx) => { ctx.on('board:press', () => { throw new Error('boom'); }); }));
+    k.register(mod({ name: 'late' }, () => ({ start() { throw new Error('nope'); } })));
+    const r = k.boot();
+    k.emit('board:press', { index: 1 });
+    k.emit('board:press', { index: 2 });
+    expect(faults).toEqual(['late:start', 'bad:handler']);
+    expect(r.failed).toEqual([{ name: 'late', reason: 'nope' }]);
+  });
+
   test('undeclared events produce a warning', () => {
     const k = createKernel({ data: {} });
     k.register(mod({ name: 'sloppy' }, (ctx) => { ctx.emit('board:undo', {}); }));

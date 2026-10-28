@@ -12,6 +12,8 @@ export interface KernelOptions {
   clock?: Clock;
   /** print every log line to the console (tests keep this off) */
   echoLogs?: boolean;
+  /** called once per module for any runtime failure (a handler, a view watcher, start()), so the shell can tell the player */
+  onFault?: (fault: { module: string; kind: 'handler' | 'watcher' | 'start'; message: string }) => void;
 }
 
 export interface BootReport {
@@ -81,6 +83,7 @@ export function createKernel(opts: KernelOptions): Kernel {
     },
     onHandlerError(owner, type, err) {
       const message = err instanceof Error ? err.message : String(err);
+      fault(owner, 'handler', message);
       sink.forSource(owner).error(`Handler for ${type} failed: ${message}`, err);
       if (type !== 'kernel:handler_failed') bus.emit('kernel:handler_failed', { module: owner, type, message }, 'kernel');
     },
@@ -92,7 +95,11 @@ export function createKernel(opts: KernelOptions): Kernel {
 
   const store = createStore({
     isBusy: () => bus.dispatching(),
-    onWatcherError: (slice, err) => klog.error(`A view watching "${slice}" failed: ${err instanceof Error ? err.message : String(err)}`, err),
+    onWatcherError: (slice, err) => {
+      const message = err instanceof Error ? err.message : String(err);
+      klog.error(`A view watching "${slice}" failed: ${message}`, err);
+      fault(`watcher of ${slice}`, 'watcher', message);
+    },
   });
 
   // kernel-provided services
@@ -100,6 +107,13 @@ export function createKernel(opts: KernelOptions): Kernel {
   services.set('rng', { owner: 'kernel', impl: rng });
   services.set('clock', { owner: 'kernel', impl: clock });
   services.set('ids', { owner: 'kernel', impl: createIds() });
+
+  const faulted = new Set<string>();
+  function fault(module: string, kind: 'handler' | 'watcher' | 'start', message: string) {
+    if (faulted.has(module)) return;
+    faulted.add(module);
+    try { opts.onFault?.({ module, kind, message }); } catch { /* the reporter must never break dispatch */ }
+  }
 
   function warnOnce(key: string, msg: string) {
     if (warned.has(key)) return;
@@ -258,7 +272,12 @@ export function createKernel(opts: KernelOptions): Kernel {
       if (bootOpts.snapshot) store.restore(bootOpts.snapshot);
       for (const name of report.started) {
         try { instances.get(name)!.start?.(); } catch (err) {
-          klog.error(`${name} failed in start(): ${err instanceof Error ? err.message : String(err)}`, err);
+          const reason = err instanceof Error ? err.message : String(err);
+          klog.error(`${name} failed in start(): ${reason}`, err);
+          statuses.get(name)!.status = 'failed';
+          statuses.get(name)!.reason = reason;
+          report.failed.push({ name, reason });
+          fault(name, 'start', reason);
         }
       }
       store.flush();

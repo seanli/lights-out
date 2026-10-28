@@ -46,7 +46,13 @@ function start(hotData: HotData = {}) {
   const root = document.getElementById('app')!;
   const env = detectEnv();
   const view = createView(root);
-  const k = createKernel({ data: liveData, seed: seed(), echoLogs: env.target === 'dev' && env.debug });
+  const k = createKernel({
+    data: liveData,
+    seed: seed(),
+    echoLogs: env.target === 'dev' && env.debug,
+    // never silent: a part that breaks mid-game says so, and progress is saved as it happens
+    onFault: ({ module, kind }) => kind !== 'start' && view.notice('shell:fault', `Part of the game hit a problem (${module}). Your progress is saved; reload the page if something looks wrong.`, 'error'),
+  });
   kernel = k;
   k.provide('view', view);
   k.provide('env', env);
