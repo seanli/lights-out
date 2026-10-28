@@ -224,15 +224,15 @@
     "cellOn": "Light {row}, {col}: on",
     "cellOff": "Light {row}, {col}: off",
     "reference": {
-      "yourRow": "Your bottom row",
+      "yourRow": "Your row",
       "bottom": "Bottom row",
       "top": "Tap",
-      "lessons": "All lessons",
-      "guide": "Board guide",
+      "lessons": "Lessons",
+      "guide": "Guide",
       "status": {
         "start": "Start a level, then chase the lights down.",
         "chase": "Row {row}: tap under each lit light.",
-        "match": "Tap the top light shown, then chase again.",
+        "match": "Tap the top lights shown, then chase again.",
         "progress": "Finish the top taps shown, then chase again.",
         "clear": "All dark. Solved.",
         "nomatch": "This bottom row can't be cleared. Restart and chase again.",
@@ -245,11 +245,11 @@
       "echo": "Echo of {name}",
       "rect": {
         "chaseClears": "On {cols}×{rows}, chasing clears the whole board.",
-        "straightAbove": "For each lit bottom light, tap the top light straight above it. Then chase again.",
-        "threeAbove": "For each lit bottom light, tap the three top lights above it. Overlaps cancel. Then chase again.",
-        "twoAside": "For each lit bottom light, tap the top lights two to each side; at the edges, also the one above. Overlaps cancel. Then chase again.",
-        "aboveTwoAside": "For each lit bottom light, tap the top light above it and two to each side; at the edges, skip the one above. Overlaps cancel. Then chase again.",
-        "ownTaps": "Each lit bottom light has its own top taps; overlaps cancel. Then chase again."
+        "straightAbove": "Each lit bottom light: tap the top light straight above it.",
+        "threeAbove": "Each lit bottom light: tap the three top lights above it. Overlaps cancel.",
+        "twoAside": "Each lit bottom light: tap the top lights two to each side; at the edges, also the one above.",
+        "aboveTwoAside": "Each lit bottom light: tap the top light above it and two to each side; at the edges, skip that one.",
+        "ownTaps": "Each lit bottom light has its own top taps. Overlaps cancel."
       }
     },
     "lessons": {
