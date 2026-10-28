@@ -117,7 +117,14 @@
     "levels": [1, 2]
   },
   "sound": {
-    "volume": 0.4
+    "volume": 0.4,
+    "lowpassHz": 2400,
+    "lowpassQ": 0.5,
+    "tap": { "ms": 70, "gain": 0.5, "glide": 0.04, "glideMs": 50, "detuneCents": 12, "pan": 0.3 },
+    "win": { "steps": [12, 16, 19, 24], "stepMs": 90, "ms": 350, "gain": 0.35 },
+    "restart": { "steps": [7, 0], "stepMs": 60, "ms": 160, "gain": 0.2 },
+    "stars": { "startMs": 280, "stepMs": 140, "ms": 260, "gain": 0.18 },
+    "haptics": { "tap": 8, "hint": 6, "solved": [0, 60, 14, 50, 22] }
   },
   "storage": {
     "namespace": "lights-out:v1"
