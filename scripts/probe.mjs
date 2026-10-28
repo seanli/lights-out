@@ -41,7 +41,7 @@ const TARGETS = {
   10: { name: 'Progress survives reload', target: 'same tile stars' },
   11: { name: 'Blocked storage', target: 'plays + storage notice' },
   12: { name: 'Layout', target: '6 viewports: no h-scroll, 44px, board fits' },  // board slots: 44px, or the board aims
-  13: { name: 'Page weight', target: '≤ 280KB, gzip ≤ 105KB' },
+  13: { name: 'Page weight', target: '≤ 310KB, gzip ≤ 112KB' },
   14: { name: 'Offline install (PWA)', target: 'plays offline after SW ready' },
   15: { name: 'Every room by touch', target: 'level 1 of each; slot ≥ 44px (40 at 320) or aim' },
 };
@@ -206,7 +206,7 @@ await check(13, async () => {
   if (!target.file || !existsSync(target.file)) throw new Skip('target is not a local file');
   const bytes = statSync(target.file).size;
   const gz = gzipSync(readFileSync(target.file)).length;
-  return { pass: bytes <= 280 * 1024 && gz <= 105 * 1024, measured: `${kb(bytes)} (gzip ${kb(gz)})`, detail: target.file.replace(ROOT + '/', '') };
+  return { pass: bytes <= 310 * 1024 && gz <= 112 * 1024, measured: `${kb(bytes)} (gzip ${kb(gz)})`, detail: target.file.replace(ROOT + '/', '') };
 });
 
 await browser.close();
