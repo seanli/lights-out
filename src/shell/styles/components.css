@@ -155,7 +155,7 @@ button, input { font: inherit; color: inherit; }
 
 /* ---------- stat ---------- */
 .stat { display: flex; flex-direction: column; gap: var(--space-1-5); }
-.stat__value { width: fit-content; font: var(--fw-display) var(--text-2xl) / var(--leading-num) var(--font-display); font-variant-numeric: lining-nums tabular-nums; color: var(--c-text); }
+.stat__value { font: var(--fw-display) var(--text-2xl) / var(--leading-num) var(--font-display); font-variant-numeric: lining-nums tabular-nums; color: var(--c-text); }
 .stat__value--bump { animation: lo-bump var(--dur-bump) var(--ease-spring); }
 @keyframes lo-bump { from { scale: var(--bump-scale); } }
 .stat--end { align-items: flex-end; text-align: right; }
