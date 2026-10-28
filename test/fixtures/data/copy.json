@@ -8,14 +8,14 @@
       "blackout": "Blackout"
     },
     "rooms": {
-      "5x6": "Tall room",
-      "6x6": "Wide room",
       "7x7": "Great hall",
-      "cross": "Cross",
       "ring": "Ring",
       "diamond": "Diamond",
-      "8x8": "Ballroom",
-      "10x10": "Cathedral",
+      "stuck": "Stuck",
+      "hex": "Hex",
+      "cube": "Cube",
+      "wired": "Wired",
+      "8x8": "Cathedral",
       "tower": "Tower"
     }
   },
@@ -30,16 +30,20 @@
     "allSolved": "Every level solved. Replay any level to improve your stars.",
     "levelsError": "The levels couldn't be made, so there's nothing to play. Reload the page to try again.",
     "starTotal": "{stars} {stars|star|stars}",
-    "groups": { "boards": "Boards", "shapes": "Shapes", "extreme": "Extreme" },
+    "groups": { "boards": "Boards", "twists": "Twists", "extreme": "Extreme", "custom": "Make your own" },
     "boardSize": "{cols}×{rows} · {count} levels",
     "boardSizeNote": "{cols}×{rows} · {note} · {count} levels",
     "boardShape": "{count} levels",
-    "boardNotes": { "tower": "scrolls" },
+    "boardLights": "{lights} lights · {count} levels",
+    "boardCube": "{n}×{n}×{n} · {count} levels",
+    "boardNotes": { "tower": "scrolls", "stuck": "jammed switches", "wired": "rewired" },
     "boardSolved": "{solved}/{count}",
-    "boardLocked": "Opens after level 20",
+    "boardLocked": "Opens after level 10",
     "boardLabel": "{name}: {solved} of {count} solved, {stars} {stars|star|stars}",
     "learn": "Learn the patterns",
     "learnSub": "Lessons and a guide for each board",
+    "custom": "Custom",
+    "customSub": "Pick the board, the size, a twist and how hard",
     "learnNew": "New here? Learn the patterns",
     "soundOn": "Sound on",
     "soundOff": "Sound off",
@@ -77,7 +81,18 @@
     "tierOverAria": "{moves} moves or more: {stars} of 3 stars",
     "hintChipCost": "−{stars}★",
     "hintChipWord": "{count|hint|hints}",
-    "hintChipAria": "{count|Hint|Hints} used: {stars} {stars|star|stars} fewer"
+    "hintChipAria": "{count|Hint|Hints} used: {stars} {stars|star|stars} fewer",
+    "faces": { "up": "Top", "left": "Left", "front": "Front", "right": "Right", "down": "Bottom", "back": "Back" },
+    "cubeOn": "{face} face, light {row}, {col}: on",
+    "cubeOff": "{face} face, light {row}, {col}: off",
+    "cubeTurn": "Swipe the cube to turn it",
+    "cubeHidden": "{n} lit {n|light|lights} out of sight · swipe to turn",
+    "stuck": ", stuck: it can't be pressed",
+    "wired": ", wired: also flips {dirs}",
+    "list": ", ",
+    "dirs": ["up", "up-right", "right", "down-right", "down", "down-left", "left", "up-left"],
+    "custom": "Custom",
+    "puzzle": "Puzzle {n}"
   },
   "solved-sheet": {
     "eyebrow": "Level {level}",
@@ -101,7 +116,9 @@
     "roomEyebrow": "{room} · Level {level}",
     "roomDone": "Every level in this room is solved.",
     "roomLast": "That was the last level in this room.",
-    "nextMeta": "Level {level}"
+    "nextMeta": "Level {level}",
+    "customNext": "New puzzle",
+    "customSettings": "Change board"
   },
   "tutorial": {
     "1": [
@@ -203,7 +220,8 @@
       "top": "Top row",
       "edge": "Top-edge light",
       "chase2": "Chase again",
-      "spot": "Spot a shape"
+      "spot": "Spot a shape",
+      "back": "Work back"
     },
     "captions": {
       "middle": "Middle: a plus of five",
@@ -219,10 +237,19 @@
       "line": "A line",
       "pair": "A pair",
       "single": "One light",
-      "dot": "The dot is where you tap."
+      "dot": "The dot is where you tap.",
+      "x": "An X",
+      "hexMiddle": "A flower of seven",
+      "hexEdge": "Edge: {lights} lights",
+      "hexCancel": "The outlined lights cancel",
+      "cubePlus": "A plus of five",
+      "cubeCorner": "These five touch on the cube",
+      "reach": "{rings} switches flip this light",
+      "screw": "The screw's light flips too"
     },
     "cellOn": "Light {row}, {col}: on",
     "cellOff": "Light {row}, {col}: off",
+    "cellStuck": ", stuck: tapping it does nothing",
     "reference": {
       "yourRow": "Your row",
       "bottom": "Bottom row",
@@ -250,6 +277,12 @@
         "twoAside": "Each lit bottom light: tap the top lights two places left and right; at the edges, also the one above.",
         "aboveTwoAside": "Each lit bottom light: tap the top light above it and two places left and right; at the edges, skip that one.",
         "ownTaps": "Each lit bottom light has its own top lights to tap. Overlaps cancel."
+      },
+      "tips": {
+        "hex": "Spot flowers of seven and tap their centres.",
+        "cube": "Turn the cube to see every face, and spot the pluses.",
+        "wired": "For a lit light, find the switches whose spokes reach it.",
+        "stuck": "Chase down; lights over screws stay. Then try top-edge taps."
       }
     },
     "lessons": {
@@ -365,24 +398,6 @@
       "end": "All dark. Tap a letter to try another."
     },
     "guides": {
-      "5x6": {
-        "summary": "Chase, then the top light above.",
-        "steps": [
-          "Chase down: tap under each lit light, row by row. What's left ends up in the bottom row.",
-          "Each bottom light: tap the top light straight above it, then chase again.",
-          "Several bottom lights: tap above each one, then chase again.",
-          "Your turn: chase, tap the top lights, chase again. Stuck? Assist rings the next tap."
-        ]
-      },
-      "6x6": {
-        "summary": "Chase, then two places left and right.",
-        "steps": [
-          "Chase down: tap under each lit light, row by row. What's left ends up in the bottom row.",
-          "Each bottom light: tap the top lights two places left and right of it. At A and F, also tap the one above.",
-          "Several bottom lights: tap the top lights for each one, then chase again. A light tapped twice cancels.",
-          "Your turn: chase, tap the top lights, chase again. Stuck? Assist rings the next tap."
-        ]
-      },
       "7x7": {
         "summary": "Chase, then three top lights above.",
         "steps": [
@@ -401,32 +416,13 @@
           "Your turn: chase, tap the top lights, chase again. Stuck? Assist rings the next tap."
         ]
       },
-      "10x10": {
-        "summary": "Chase, then above + two places aside.",
-        "steps": [
-          "Chase down: tap under each lit light, row by row. What's left ends up in the bottom row.",
-          "Each bottom light: tap the top light above it and the ones two places left and right. At A and J, skip the one above.",
-          "Several bottom lights: tap the top lights for each one, then chase again. A light tapped twice cancels.",
-          "Your turn: chase, tap the top lights, chase again. Stuck? Assist rings the next tap."
-        ]
-      },
       "tower": {
-        "summary": "Chase all the way, then tap above.",
+        "summary": "Chase all the way, then each light's top lights.",
         "steps": [
           "Chase down: tap under each lit light, all the way down. What's left ends up in the bottom row.",
-          "Each bottom light: tap the top light straight above it, then chase again.",
-          "Several bottom lights: tap above each one, then chase again.",
+          "Each bottom light has its own top lights to tap. H is A flipped left to right, G is B, and so on.",
+          "Several bottom lights: tap the top lights for each one, then chase again. A light tapped twice cancels.",
           "Your turn: scroll as you chase. Stuck? Assist rings the next tap."
-        ]
-      },
-      "cross": {
-        "summary": "Spot whole shapes, or chase and fix.",
-        "steps": [
-          "A tap flips a plus. This board's edges cut it short: a T or an L.",
-          "Spot whole shapes and tap their centres, corners first.",
-          "Stuck? Chase down: tap under each lit light, row by row.",
-          "Then tap the top-edge light shown and chase again. Top-edge lights have nothing above them.",
-          "Your turn: spot shapes, or chase. In levels, the book button shows the top-edge light."
         ]
       },
       "ring": {
@@ -448,6 +444,42 @@
           "Then tap the top-edge light shown and chase again. Top-edge lights have nothing above them.",
           "Your turn: spot shapes, or chase. In levels, the book button shows the top-edge light."
         ]
+      },
+      "stuck": {
+        "summary": "Chase, then go round the screws.",
+        "steps": [
+          "A screw marks a stuck switch: tapping it does nothing. Its light still flips when you tap a neighbour.",
+          "So chase down as usual: a lit stuck light goes off when you tap under it.",
+          "A light over a screw can't be chased, so go round it: chase on, tap the top-edge light shown, then chase again.",
+          "Your turn: chase, and go round the screws from the top edge. Assist rings the next tap if you need it."
+        ]
+      },
+      "hex": {
+        "summary": "Spot flowers of seven.",
+        "steps": [
+          "A tap flips the light and the six around it: a flower of seven. At the edge, fewer.",
+          "Where two flowers overlap, the shared lights flip twice and cancel.",
+          "Chasing doesn't work here. Spot flowers and tap their centres; where two overlap, tap one and the other shows whole.",
+          "Your turn: spot the flowers. Stuck? Assist rings the next tap."
+        ]
+      },
+      "cube": {
+        "summary": "Pluses bend round the edges.",
+        "steps": [
+          "Here is the cube, unfolded. A tap flips a plus: the light and the four it touches.",
+          "Lights touch round the cube's edges too. At a corner, the plus bends onto two other faces.",
+          "There's no bottom row to chase into. Spot pluses, bent ones too, and tap their centres.",
+          "Your turn: spot the pluses; in levels, turn the cube to see every face. Stuck? Assist rings the next tap."
+        ]
+      },
+      "wired": {
+        "summary": "Read the spokes, work back.",
+        "steps": [
+          "Each switch shows its wiring: spokes point to the lights it also flips.",
+          "Work backwards: for a lit light, find the switches whose spokes reach it. Its own switch flips it too.",
+          "Of those, tap the one whose spokes all reach lit lights. Then look again.",
+          "Your turn: work back from the lit lights. Stuck? Assist rings the next tap."
+        ]
       }
     },
     "stepOfSize": "{cols}×{rows} · Step {step} of {total}",
@@ -464,7 +496,8 @@
       "bottom": "Bottom light {names}: tap {taps}, then chase again.",
       "bottoms": "Bottom lights {names}: tap {taps}, then chase again.",
       "again": "Chase again.",
-      "shapeFix": "Stuck: tap the top-edge {n|light|lights} Assist rings, then chase again."
+      "shapeFix": "Stuck: tap the top-edge {n|light|lights} Assist rings, then chase again.",
+      "edgeFix": "Left over: tap the top-edge {n|light|lights} Assist rings, then chase again."
     },
     "undoHint": "Not that one. Tap it again to undo it.",
     "and": " and ",
@@ -474,8 +507,10 @@
     "back": "Back",
     "boardSize": "{cols}×{rows} · {count} levels",
     "boardShape": "{count} levels",
+    "boardLights": "{lights} lights · {count} levels",
+    "boardCube": "{n}×{n}×{n} · {count} levels",
     "summary": "{solved} of {count} solved · {stars} of {max} stars",
-    "guide": "How to clear the {name}",
+    "guide": "How to play {name}",
     "guideClassic": "Learn the patterns",
     "chapter": "Chapter {n} · {name}",
     "chapterRange": "Levels {from}–{to}",
@@ -491,5 +526,37 @@
       "one": "solved",
       "hint": "hint −{cost}★"
     }
+  },
+  "custom": {
+    "title": "Custom",
+    "eyebrow": "Make your own",
+    "back": "Back",
+    "sections": { "grid": "Board", "size": "Size", "twist": "Twist", "difficulty": "Difficulty" },
+    "grids": { "square": "Square", "hex": "Hex", "cube": "Cube" },
+    "twists": { "none": "None", "stuck": "Stuck", "wired": "Wired" },
+    "difficulties": { "easy": "Easy", "medium": "Medium", "hard": "Hard", "boss": "Boss" },
+    "sizes": {
+      "cols": { "name": "Width", "less": "Narrower", "more": "Wider" },
+      "rows": { "name": "Height", "less": "Shorter", "more": "Taller" },
+      "hexSide": { "name": "Side", "less": "Smaller", "more": "Bigger" },
+      "cubeSide": { "name": "Per edge", "less": "Smaller", "more": "Bigger" }
+    },
+    "lights": "{n} lights",
+    "twistNotes": {
+      "none": "A press flips its light and the ones touching it.",
+      "stuck": "A few lights won't press. Their neighbours still flip them.",
+      "wired": "Each switch flips its own pattern of lights."
+    },
+    "wiredNeedsSquare": "Wired needs the square board.",
+    "bigNote": "Big boards have small lights: hold one to magnify it, slide to aim, lift to press.",
+    "name": { "square": "Square {cols}×{rows}", "hex": "Hex · {lights} lights", "cube": "Cube {n}×{n}×{n}" },
+    "summary": {
+      "square": "{lights} lights · about {par} {par|press|presses}",
+      "hex": "About {par} {par|press|presses} to clear",
+      "cube": "{lights} lights · about {par} {par|press|presses}"
+    },
+    "sep": " · ",
+    "play": "Play",
+    "error": "Couldn't make that puzzle. Try another size or difficulty."
   }
 }

@@ -15,37 +15,9 @@
       { "id": "crossfade", "from": 21, "to": 40 },
       { "id": "blackout", "from": 41, "to": 50 }
     ],
+    "readable": 0,
+    "roomTries": 3000,
     "rooms": [
-      {
-        "id": "5x6",
-        "kind": "size",
-        "group": "boards",
-        "cols": 5,
-        "rows": 6,
-        "idBase": 7000,
-        "seed": 5006,
-        "bands": [
-          { "pars": [2, 2, 3, 3, 4, 4, 4, 5, 5], "boss": 9 },
-          { "pars": [4, 5, 5, 6, 6, 7, 7, 8, 8], "boss": 13 },
-          { "pars": [6, 7, 7, 8, 8, 9, 9, 10, 10], "boss": 16 },
-          { "pars": [8, 9, 9, 10, 10, 11, 11, 12, 12], "boss": 19 }
-        ]
-      },
-      {
-        "id": "6x6",
-        "kind": "size",
-        "group": "boards",
-        "cols": 6,
-        "rows": 6,
-        "idBase": 2000,
-        "seed": 6006,
-        "bands": [
-          { "pars": [2, 2, 3, 3, 4, 4, 4, 5, 5], "boss": 9 },
-          { "pars": [4, 5, 5, 6, 6, 7, 7, 8, 8], "boss": 13 },
-          { "pars": [6, 7, 7, 8, 8, 9, 9, 10, 10], "boss": 16 },
-          { "pars": [8, 9, 9, 10, 10, 11, 11, 12, 12], "boss": 20 }
-        ]
-      },
       {
         "id": "7x7",
         "kind": "size",
@@ -55,48 +27,89 @@
         "idBase": 3000,
         "seed": 7007,
         "bands": [
-          { "pars": [3, 3, 4, 4, 5, 5, 5, 6, 6], "boss": 10 },
-          { "pars": [5, 6, 6, 7, 7, 8, 8, 9, 9], "boss": 15 },
-          { "pars": [7, 8, 8, 9, 10, 10, 11, 11, 12], "boss": 20 }
-        ]
-      },
-      {
-        "id": "cross",
-        "kind": "shape",
-        "group": "shapes",
-        "picture": ["..XXX..", "..XXX..", "XXXXXXX", "XXXXXXX", "XXXXXXX", "..XXX..", "..XXX.."],
-        "idBase": 4000,
-        "seed": 4141,
-        "bands": [
-          { "pars": [2, 2, 3, 3, 4, 4, 4, 5, 5], "boss": 8 },
           { "pars": [4, 4, 5, 5, 6, 6, 6, 7, 7], "boss": 11 },
-          { "pars": [6, 6, 7, 7, 8, 8, 8, 9, 9], "boss": 15 }
+          { "pars": [7, 7, 8, 8, 9, 9, 10, 10, 10], "boss": 15 },
+          { "pars": [10, 10, 11, 11, 12, 12, 13, 13, 14], "boss": 21 }
         ]
       },
       {
         "id": "ring",
         "kind": "shape",
-        "group": "shapes",
+        "group": "boards",
         "picture": ["XXXXXXX", "XXXXXXX", "XX...XX", "XX...XX", "XX...XX", "XXXXXXX", "XXXXXXX"],
         "idBase": 5000,
         "seed": 5151,
         "bands": [
-          { "pars": [2, 2, 3, 3, 4, 4, 4, 5, 5], "boss": 9 },
-          { "pars": [4, 5, 5, 6, 6, 7, 7, 8, 8], "boss": 13 },
-          { "pars": [6, 7, 7, 8, 8, 9, 9, 10, 10], "boss": 16 }
+          { "pars": [3, 3, 4, 4, 5, 5, 5, 6, 6], "boss": 9 },
+          { "pars": [6, 6, 7, 7, 8, 8, 8, 9, 9], "boss": 14 },
+          { "pars": [9, 9, 10, 10, 11, 11, 12, 12, 12], "boss": 18 }
         ]
       },
       {
         "id": "diamond",
         "kind": "shape",
-        "group": "shapes",
+        "group": "boards",
         "picture": ["...X...", "..XXX..", ".XXXXX.", "XXXXXXX", ".XXXXX.", "..XXX..", "...X..."],
         "idBase": 6000,
         "seed": 6161,
         "bands": [
-          { "pars": [2, 2, 3, 3, 3, 3, 4, 4, 4], "boss": 7 },
-          { "pars": [3, 3, 4, 4, 5, 5, 5, 6, 6], "boss": 10 },
-          { "pars": [5, 5, 6, 6, 7, 7, 7, 8, 8], "boss": 13 }
+          { "pars": [3, 3, 4, 4, 4, 5, 5, 5, 6], "boss": 9 },
+          { "pars": [5, 5, 6, 6, 7, 7, 7, 8, 8], "boss": 12 },
+          { "pars": [7, 7, 8, 8, 9, 9, 9, 10, 10], "boss": 15 }
+        ]
+      },
+      {
+        "id": "stuck",
+        "kind": "stuck",
+        "group": "twists",
+        "cols": 6,
+        "rows": 6,
+        "idBase": 11000,
+        "seed": 1106,
+        "bands": [
+          { "pars": [3, 3, 4, 4, 4, 5, 5, 5, 6], "boss": 9, "stuck": 3 },
+          { "pars": [5, 5, 6, 6, 7, 7, 7, 8, 8], "boss": 12, "stuck": 4 },
+          { "pars": [7, 7, 8, 8, 9, 9, 10, 10, 10], "boss": 15, "stuck": 5 }
+        ]
+      },
+      {
+        "id": "hex",
+        "kind": "hex",
+        "group": "twists",
+        "side": 4,
+        "idBase": 12000,
+        "seed": 1204,
+        "bands": [
+          { "pars": [2, 3, 3, 4, 4, 4, 5, 5, 5], "boss": 8 },
+          { "pars": [5, 5, 6, 6, 6, 7, 7, 7, 8], "boss": 12 },
+          { "pars": [7, 8, 8, 9, 9, 9, 10, 10, 10], "boss": 15 }
+        ]
+      },
+      {
+        "id": "cube",
+        "kind": "cube",
+        "group": "twists",
+        "side": 3,
+        "idBase": 13000,
+        "seed": 1303,
+        "bands": [
+          { "pars": [2, 3, 3, 4, 4, 4, 5, 5, 5], "boss": 8 },
+          { "pars": [5, 5, 6, 6, 6, 7, 7, 7, 8], "boss": 12 },
+          { "pars": [7, 7, 8, 8, 8, 9, 9, 9, 10], "boss": 15 }
+        ]
+      },
+      {
+        "id": "wired",
+        "kind": "wired",
+        "group": "twists",
+        "cols": 5,
+        "rows": 5,
+        "idBase": 14000,
+        "seed": 1405,
+        "bands": [
+          { "pars": [2, 2, 3, 3, 3, 4, 4, 4, 5], "boss": 8, "kinds": 3, "gentle": true },
+          { "pars": [4, 4, 5, 5, 5, 6, 6, 6, 7], "boss": 11, "kinds": 4, "gentle": false },
+          { "pars": [6, 6, 7, 7, 7, 8, 8, 8, 9], "boss": 14, "kinds": 5, "gentle": false }
         ]
       },
       {
@@ -108,37 +121,23 @@
         "idBase": 8000,
         "seed": 8008,
         "bands": [
-          { "pars": [3, 3, 4, 4, 5, 5, 5, 6, 6], "boss": 10 },
-          { "pars": [5, 6, 6, 7, 7, 8, 8, 9, 9], "boss": 15 },
-          { "pars": [7, 8, 8, 9, 10, 10, 11, 11, 12], "boss": 20 }
-        ]
-      },
-      {
-        "id": "10x10",
-        "kind": "size",
-        "group": "extreme",
-        "cols": 10,
-        "rows": 10,
-        "idBase": 9000,
-        "seed": 1010,
-        "bands": [
-          { "pars": [4, 5, 5, 6, 6, 7, 7, 8, 8], "boss": 13 },
-          { "pars": [6, 7, 7, 8, 9, 9, 10, 10, 11], "boss": 18 },
-          { "pars": [9, 10, 10, 11, 12, 12, 13, 13, 14], "boss": 24 }
+          { "pars": [5, 5, 6, 6, 7, 7, 8, 8, 9], "boss": 14 },
+          { "pars": [9, 9, 10, 10, 11, 11, 12, 12, 13], "boss": 20 },
+          { "pars": [12, 12, 13, 14, 14, 15, 16, 16, 17], "boss": 26 }
         ]
       },
       {
         "id": "tower",
         "kind": "size",
         "group": "extreme",
-        "cols": 6,
+        "cols": 8,
         "rows": 16,
         "idBase": 10000,
         "seed": 5016,
         "bands": [
-          { "pars": [4, 5, 5, 6, 6, 7, 7, 8, 8], "boss": 14 },
-          { "pars": [7, 8, 8, 9, 10, 10, 11, 11, 12], "boss": 20 },
-          { "pars": [10, 11, 12, 12, 13, 14, 15, 15, 16], "boss": 26 }
+          { "pars": [8, 8, 9, 9, 10, 10, 11, 11, 12], "boss": 18 },
+          { "pars": [12, 12, 13, 13, 14, 14, 15, 15, 16], "boss": 24 },
+          { "pars": [16, 16, 17, 18, 18, 19, 20, 20, 21], "boss": 32 }
         ]
       }
     ]
@@ -149,9 +148,24 @@
     "hintCost": 1,
     "minStars": 1,
     "saveKey": "progress",
-    "varietyAfter": 20
+    "varietyAfter": 10
   },
   "hints": { "choice": "random" },
+  "custom": {
+    "$comment": "Custom mode: par as a share of the lights per difficulty (at most maxPar), wiring mixed per difficulty, stuck lights per lights, tries per puzzle.",
+    "par": { "easy": 0.1, "medium": 0.17, "hard": 0.25, "boss": 0.33 },
+    "minPar": 2,
+    "wires": {
+      "easy": { "kinds": 3, "gentle": true },
+      "medium": { "kinds": 4, "gentle": false },
+      "hard": { "kinds": 5, "gentle": false },
+      "boss": { "kinds": 6, "gentle": false }
+    },
+    "lightsPerStuck": 12,
+    "maxStuck": 8,
+    "maxTries": 400,
+    "maxPar": 80
+  },
   "solved-sheet": { "delayMs": 640 },
   "tutorial": {
     "levels": [1, 2]
@@ -230,15 +244,15 @@
       "chase": [4, 8],
       "bottom-row": [6, 10],
       "shortest": [8, 12],
-      "guide-5x6": [2, 4],
-      "guide-6x6": [2, 4],
       "guide-7x7": [2, 4],
-      "guide-8x8": [2, 4],
-      "guide-10x10": [2, 4],
-      "guide-tower": [2, 4],
-      "guide-cross": [3, 4],
       "guide-ring": [3, 4],
-      "guide-diamond": [3, 4]
+      "guide-diamond": [3, 4],
+      "guide-stuck": [3, 4],
+      "guide-hex": [3, 4],
+      "guide-cube": [3, 4],
+      "guide-wired": [3, 4],
+      "guide-8x8": [2, 4],
+      "guide-tower": [2, 4]
     },
     "demoStartMs": 700,
     "demoStepMs": 650,

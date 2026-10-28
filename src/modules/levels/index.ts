@@ -2,8 +2,9 @@
 // Levels come in bands of ten: nine that ramp up, then a boss (every 10th level) that is drastically harder.
 import * as v from 'valibot';
 import { CLASSIC_SHAPE, MAX_COLS, MAX_ROWS, type LevelDef, type LevelsState, type ModuleDef, type Pack, type Shape } from '../../contracts';
-import { cellCount, parseShape } from '../../lib/shape';
-import { checkChapters, generateLevels, parsOf, type Generated } from './generate';
+import { cubeShape } from '../../lib/cube';
+import { cellCount, hexagonShape, parseShape } from '../../lib/shape';
+import { checkChapters, generateLevels, generateRoom, parsOf, type Generated } from './generate';
 
 /** No 5×5 board needs more than 15 presses, so a higher par could never be generated. */
 const MAX_PAR = 15;
@@ -16,6 +17,11 @@ const BandSchema = v.pipe(
   v.object({
     pars: v.pipe(v.array(v.pipe(int, v.minValue(1))), v.length(BAND - 1, `A band has ${BAND - 1} levels before its boss`)),
     boss: v.pipe(int, v.minValue(1)),
+    /** a stuck room: stuck cells on each level of this band */
+    stuck: v.optional(v.pipe(int, v.minValue(1))),
+    /** a wired room: how many wiring patterns a level mixes, and whether only the gentle ones (lines, plus, cross) */
+    kinds: v.optional(v.pipe(int, v.minValue(1))),
+    gentle: v.optional(v.boolean()),
   }),
   v.check((b) => b.boss > Math.max(...b.pars), 'A boss must need more presses than every level in its band'),
 );
@@ -29,22 +35,34 @@ const RulesSchema = v.object({
   ),
   maxTries: v.pipe(int, v.minValue(1)),
   chapters: v.array(v.object({ id: v.pipe(v.string(), v.minLength(1)), from: v.pipe(int, v.minValue(1)), to: v.pipe(int, v.minValue(1)) })),
-  /** Variety rooms, in menu order: a cols × rows board or a picture ("X" cell, "." gap); level ids idBase + 1.. */
+  /** most presses of a room level that may show as a whole footprint (readable straight off the board) */
+  readable: v.pipe(int, v.minValue(0)),
+  /** tries per room level before keeping the closest board found */
+  roomTries: v.pipe(int, v.minValue(1)),
+  /**
+   * Variety rooms, in menu order. size / stuck / wired: cols × rows; shape: a picture ("X" cell, "." gap);
+   * hex: a hexagon with `side` cells per edge; cube: `side` cells along each face's edge. Level ids idBase + 1..
+   * Ids of retired rooms stay reserved (DECISIONS.md), so a save keeps their stars.
+   */
   rooms: v.array(v.pipe(
     v.object({
       id: v.pipe(v.string(), v.regex(/^[a-z0-9-]+$/, 'A room id uses only a-z, 0-9 and "-"')),
-      kind: v.picklist(['size', 'shape']),
-      /** the menu section: boards (one screen), shapes, extreme (big or scrolling) */
-      group: v.picklist(['boards', 'shapes', 'extreme']),
+      kind: v.picklist(['size', 'shape', 'hex', 'cube', 'stuck', 'wired']),
+      /** the menu section: boards (classic rules), twists (new rules), extreme (big or scrolling) */
+      group: v.picklist(['boards', 'twists', 'extreme']),
       cols: v.optional(v.pipe(int, v.minValue(3), v.maxValue(MAX_COLS))),
       rows: v.optional(v.pipe(int, v.minValue(3), v.maxValue(MAX_ROWS))),
       picture: v.optional(v.pipe(v.array(v.string()), v.maxLength(MAX_ROWS, `A room picture has at most ${MAX_ROWS} rows`))),
+      side: v.optional(v.pipe(int, v.minValue(2), v.maxValue(5))),
       idBase: v.pipe(int, v.minValue(1)),
       seed: int,
       bands: BandsSchema,
     }),
-    v.check((r) => (r.picture !== undefined) !== (r.cols !== undefined || r.rows !== undefined), 'A room has either cols and rows, or a picture'),
-    v.check((r) => r.picture !== undefined || (r.cols !== undefined && r.rows !== undefined), 'A size room needs both cols and rows'),
+    v.check((r) => r.kind !== 'shape' || (r.picture !== undefined && r.cols === undefined && r.rows === undefined), 'A shape room has a picture (and no cols or rows)'),
+    v.check((r) => !['size', 'stuck', 'wired'].includes(r.kind) || (r.cols !== undefined && r.rows !== undefined && r.picture === undefined), 'A size, stuck or wired room needs cols and rows (and no picture)'),
+    v.check((r) => !['hex', 'cube'].includes(r.kind) || (r.side !== undefined && r.cols === undefined && r.rows === undefined && r.picture === undefined), 'A hex or cube room needs a side (and no cols, rows or picture)'),
+    v.check((r) => r.kind === 'stuck' || r.bands.every((b) => b.stuck === undefined), 'Only a stuck room sets stuck cells per band'),
+    v.check((r) => r.kind === 'wired' || r.bands.every((b) => b.kinds === undefined && b.gentle === undefined), 'Only a wired room sets wiring per band'),
   )),
 });
 type Rules = v.InferOutput<typeof RulesSchema>;
@@ -61,7 +79,10 @@ const CopySchema = v.object({
 function roomShape(room: Room): Shape {
   let shape: Shape;
   try {
-    shape = room.picture ? parseShape(room.picture) : { cols: room.cols!, rows: room.rows!, mask: null };
+    shape = room.kind === 'shape' ? parseShape(room.picture!)
+      : room.kind === 'hex' ? hexagonShape(room.side!)
+      : room.kind === 'cube' ? cubeShape(room.side!)
+      : { cols: room.cols!, rows: room.rows!, mask: null };
   } catch (err) {
     throw new Error(`Room "${room.id}": ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -127,8 +148,10 @@ const levels: ModuleDef = {
       for (const { pack, room } of plan) {
         const t0 = performance.now();
         // classic levels carry no pack fields (ids 1..n); every 10th level of every pack is a boss
+        // classic is made exactly as it always was (its boards are pinned); rooms tangle their presses (lib/puzzle.ts)
+        const twist = room?.kind === 'stuck' || room?.kind === 'wired' ? room.kind : undefined;
         const g = room
-          ? generateLevels({ pars: parsOf(room.bands), maxTries: rules.maxTries }, rng.seeded(room.seed), solver, { idBase: room.idBase, shape: pack.shape, pack: pack.id, bossEvery: BAND })
+          ? generateRoom({ idBase: room.idBase, pack: pack.id, shape: pack.shape, bands: room.bands, readable: rules.readable, maxTries: rules.roomTries, ...(twist ? { twist } : {}) }, rng.seeded(room.seed), solver)
           : generateLevels({ pars: classicPars, maxTries: rules.maxTries }, rng.seeded(rules.seed), solver, { idBase: 0, bossEvery: BAND });
         const took = performance.now() - t0;
         ms += took;

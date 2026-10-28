@@ -1,0 +1,82 @@
+/* custom layout only. The header, sections, bar, buttons and the room glyph come from the design system; tokens only.
+   The screen: header, then the choices (scrolling on short phones), then the Play bar under the thumb. */
+.custom__body {
+  flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--stack-lg);
+  overflow-y: auto; overscroll-behavior: contain;
+  /* reach the screen's edges so focus rings at the gutter aren't clipped (as .screen--scroll does) */
+  margin-inline: calc(-1 * var(--gutter)); padding: 0 var(--gutter) var(--space-2);
+}
+.custom__body > * { flex-shrink: 0; }
+
+/* the preview: what Play will make, on a dark board well; lit more the harder it is */
+.custom__preview {
+  display: flex; align-items: center; gap: var(--space-4);
+  padding: var(--card-pad); border-radius: var(--radius-lg); background: var(--c-board); box-shadow: var(--shadow-board);
+}
+.custom__glyph { display: flex; flex: none; }
+.custom__glyph .room-glyph { --glyph-box: calc(2 * var(--space-8)); --glyph-tall: calc(2 * var(--space-8)); }
+.custom__glyph[data-grid="hex"] .room-glyph > i { border-radius: var(--radius-pill); }
+.custom__glyph[data-grid="hex"] .room-glyph > i[data-odd] { translate: calc((var(--glyph-dot-px, var(--glyph-dot)) + var(--glyph-dot-gap)) / 2) 0; }
+.custom__preview-body { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.custom__name { font: var(--fw-display) var(--text-lg) / var(--leading-snug) var(--font-display); letter-spacing: var(--tracking-display); }
+.custom__summary { font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--c-text-dim); }
+
+/* a segmented choice: one recessed track, the chosen option lit like a pressed button */
+.custom__seg {
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--space-1);
+  padding: var(--space-1); border-radius: var(--radius-md); background: var(--c-board); box-shadow: var(--shadow-recessed);
+}
+.custom__opt {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-1); min-width: 0;
+  min-height: var(--tap-min); padding: 0 var(--space-1); border: 0; border-radius: var(--radius-sm); cursor: pointer;
+  font: var(--fw-bold) var(--text-md) / var(--leading-tight) var(--font-ui); color: var(--c-text-dim); background: var(--c-none);
+  white-space: nowrap; touch-action: manipulation; user-select: none; -webkit-user-select: none;
+  transition: transform var(--dur-press) var(--ease-out), background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.custom__opt > span { overflow: hidden; text-overflow: ellipsis; }
+.custom__opt .skull { width: var(--icon-sm); height: var(--icon-sm); }
+.custom__opt:active { transform: scale(var(--press-scale-btn)); }
+.custom__opt:focus-visible { outline-offset: var(--focus-offset-tight); }
+.custom__opt[aria-checked="true"] { background: var(--c-surface-3); color: var(--c-accent-hi); box-shadow: inset 0 0 0 var(--hairline) var(--c-accent); }
+.custom__opt[aria-disabled="true"] { opacity: var(--disabled-opacity); cursor: not-allowed; transform: none; }
+@media (hover: hover) {
+  .custom__opt:not([aria-checked="true"], [aria-disabled="true"]):hover { background-color: var(--c-surface); color: var(--c-text); }
+}
+
+/* size: steppers side by side (square: width and height; hex and cube: one, with its light count beside it) */
+.custom__sizes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+.custom__stepper {
+  display: flex; flex-direction: column; gap: var(--space-1-5);
+  padding: var(--space-2); border-radius: var(--radius-md); background: var(--c-board); box-shadow: var(--shadow-recessed);
+}
+.custom__stepper-name { padding-inline: var(--space-1); font-size: var(--text-xs); line-height: var(--leading-snug); color: var(--c-text-dim); }
+.custom__stepper-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-1); }
+.custom__value {
+  flex: 1; min-width: 0; text-align: center;
+  font: var(--fw-display) var(--text-lg) / var(--leading-tight) var(--font-display); font-variant-numeric: lining-nums tabular-nums;
+}
+.custom__lights { align-self: center; padding-inline: var(--space-2); font-size: var(--text-sm); color: var(--c-text-dim); }
+
+/* what the chosen twist does; two lines kept so the choices below never jump */
+.custom__note {
+  min-height: calc(2 * var(--text-sm) * var(--leading-snug)); padding-inline: var(--space-1);
+  font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--c-text-dim);
+}
+.custom__wired-note { color: var(--c-text-faint); }
+
+.custom__error { font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--c-error); text-align: center; }
+
+/* narrow phones: four options share ~67px each at 320 wide, so "Medium" steps down a size instead of clipping */
+@media (max-width: 359px) {
+  .custom__opt { font-size: var(--text-sm); }
+}
+/* short phones: tighter sections so the choices fit above the bar */
+@media (max-height: 640px) {
+  .custom__body { gap: var(--stack); }
+  .custom__preview { padding: var(--space-3); }
+  .custom__glyph .room-glyph { --glyph-box: calc(var(--space-8) + var(--space-4)); --glyph-tall: calc(var(--space-8) + var(--space-4)); }
+}
+/* short landscape (phone on its side): the choices in two columns */
+@media (orientation: landscape) and (max-height: 540px) {
+  .custom__body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: var(--stack) var(--stack-lg); }
+}

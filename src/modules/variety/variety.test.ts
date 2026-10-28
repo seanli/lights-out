@@ -8,7 +8,7 @@ import variety from './index';
 
 const tall: Pack = { id: '5x6', name: 'Tall room', kind: 'size', group: 'boards', shape: { cols: 5, rows: 6, mask: null }, first: 7001, count: 40 };
 const ring: Pack = {
-  id: 'ring', name: 'Ring', kind: 'shape', group: 'shapes', first: 5001, count: 30,
+  id: 'ring', name: 'Ring', kind: 'shape', group: 'twists', first: 5001, count: 30,
   shape: parseShape(['XXXXXXX', 'XXXXXXX', 'XX...XX', 'XX...XX', 'XX...XX', 'XXXXXXX', 'XXXXXXX']),
 };
 const tower: Pack = { id: 'tower', name: 'Tower', kind: 'size', group: 'extreme', shape: { cols: 5, rows: 16, mask: null }, first: 10001, count: 30 };
@@ -241,7 +241,7 @@ describe('variety: one board screen for every board', () => {
     t.emit('variety:open', { room: 'ring' });
     const guide = $<HTMLButtonElement>(SEL.action('guide'));
     expect(guide.hidden).toBe(false);
-    expect(guide.textContent).toBe('How to clear the Ring');
+    expect(guide.textContent).toBe('How to play Ring');
     guide.click();
     expect(t.seen('learn:open')).toEqual({ lessonId: 'guide-ring' });
     t.emit('variety:open', { room: 'classic' });

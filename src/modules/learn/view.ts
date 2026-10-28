@@ -2,8 +2,10 @@
 // Demo progress is presentation (timers), so it lives here, not in the store.
 import { CLASSIC_SHAPE, SIZE, type Cells, type Ctx, type LearnState, type Pack, type Rng, type Shape, type SolverService } from '../../contracts';
 import { fmt, h, setAttr, setText } from '../../lib/dom';
-import { emptyCells, gridSize, isCell, shapeKey } from '../../lib/shape';
+import { emptyCells, gridOf, gridSize, isCell, isStuck, shapeKey } from '../../lib/shape';
+import { cubeSide, FACES } from '../../lib/cube';
 import { roomGlyph } from '../../lib/glyph';
+import { stuckIcon, wireIcon } from '../../lib/icons';
 import { attachAim, type AimHandle, type AimMode } from '../../lib/aim';
 import type { Catalog, LearnCopy, LearnRules } from './index';
 import type { DemoEnd, MiniSpec, Phase, Step } from './lessons';
@@ -25,6 +27,23 @@ interface Deps {
 /** a board much taller than wide (the Tower): practice scrolls with the page instead of shrinking */
 const isTall = (s: Shape) => s.rows >= 2 * s.cols;
 
+/** the board scrolls inside its box right now: the Tower always, the cube's net on a short phone (learn.css) */
+const scrolling = (board: HTMLElement) => board.dataset.tall === 'true'
+  || (board.dataset.miniGrid === 'cube' && !!board.parentElement && board.parentElement.scrollHeight > board.parentElement.clientHeight + 1);
+
+/** a honeycomb row's height, in light widths (neighbours are one width apart in every direction) */
+const HEX_ROW = 0.866;
+/**
+ * A honeycomb's half-columns: each light spans two, odd rows start one later (half a light right). Trimmed to the
+ * half-columns its lights use, so the hexagon sits centred. `col(i)` is a light's first half-column (1-based).
+ */
+function hexHalves(s: Shape) {
+  const first = (i: number) => 2 * (i % s.cols) + (Math.floor(i / s.cols) & 1);
+  let min = Infinity, max = -Infinity;
+  for (let i = 0; i < gridSize(s); i++) if (isCell(s, i)) { min = Math.min(min, first(i)); max = Math.max(max, first(i) + 2); }
+  return { n: max - min, col: (i: number) => first(i) - min + 1 };
+}
+
 /**
  * A demo playing on a mini board (shape absent = the classic board). `end`: the line when it stops with lights on;
  * `orders`: each Replay plays the next order of the same taps; `markAll`: dot every tap to come; `ring`: lights outlined
@@ -32,7 +51,7 @@ const isTall = (s: Shape) => s.rows >= 2 * s.cols;
  */
 interface Demo {
   start: Cells; taps: number[]; phases: (Phase | null)[]; pos: number; cells: Cells; cancel: (() => void) | null; shape?: Shape;
-  end?: DemoEnd; orders?: number[][]; round: number; markAll?: boolean; ring?: number[]; paused: boolean;
+  end?: DemoEnd; orders?: number[][]; round: number; markAll?: boolean; ring?: number[]; rings?: number[][]; paused: boolean;
 }
 
 const SVG = 'http://www.w3.org/2000/svg';
@@ -85,34 +104,65 @@ export function createLearnView(d: Deps) {
   /**
    * marks: on a practice board the tap pointer (data-suggest); on illustrations a quiet, non-interactive mark.
    * shape absent = classic 5×5; a room's gaps keep their grid slot and are drawn empty (never cells or buttons).
+   * A honeycomb places each light on its half-columns (no gap slots); a cube is drawn as its net; a wired switch shows
+   * its spokes and a stuck one its screw, the same marks the play board draws (lib/icons.ts).
    */
   function miniBoard(cells: readonly boolean[], kind: 'practice' | 'show' | 'demo', marks: readonly number[] = [], shape?: Shape): HTMLElement {
     const s = shape ?? CLASSIC_SHAPE;
     const n = Math.max(s.cols, s.rows);
+    const grid = gridOf(s);
+    const hex = grid === 'hex' ? hexHalves(s) : null;
     const board = h('div', {
-      class: `board board--mini board--${kind}`, 'data-mini-board': kind, 'data-cols': s.cols,
+      // data-mini-grid, not the play board's data-grid: those styles fold a cube and size a honeycomb to the screen
+      class: `board board--mini board--${kind}`, 'data-mini-board': kind, 'data-cols': s.cols, 'data-mini-grid': grid === 'square' ? null : grid,
       ...(shape ? { 'data-mini-n': n, 'data-tall': isTall(s) ? 'true' : null, style: `--board-n:${n};${ratio(s)}` } : {}),
       ...(kind === 'practice' ? { role: 'grid' } : { 'aria-hidden': 'true' }),
     });
     const markAttr = kind === 'practice' ? 'data-suggest' : 'data-mark';
+    // a cube's net: each face its own panel, as on the play cube, with a seam between faces (a track after every n)
+    const side = grid === 'cube' ? cubeSide(s) : 0;
+    if (side) {
+      board.style.setProperty('--cube-n', String(side));
+      for (const f of FACES) board.append(h('span', { class: 'mini-face', 'data-face': f.id, 'aria-hidden': 'true', style: `grid-area:${f.by * (side + 1) + 1} / ${f.bx * (side + 1) + 1} / span ${side} / span ${side}` }));
+    }
     for (let i = 0; i < gridSize(s); i++) {
       if (!isCell(s, i)) {
-        board.append(h('span', { class: 'mini-gap', 'data-gap': '', 'aria-hidden': 'true' }));
+        if (!hex && !side) board.append(h('span', { class: 'mini-gap', 'data-gap': '', 'aria-hidden': 'true' }));
         continue;
       }
+      const stuck = isStuck(s, i);
       const attrs = {
         class: 'cell',
-        'data-mini-cell': '', 'data-index': i, 'data-lit': String(!!cells[i]),
+        'data-mini-cell': '', 'data-index': i, 'data-lit': String(!!cells[i]), 'data-stuck': stuck ? 'true' : null,
         [markAttr]: marks.includes(i) ? 'true' : null,
       };
-      board.append(kind === 'practice' ? h('button', { ...attrs, type: 'button', tabindex: i === firstCell(s) ? 0 : -1 }) : h('span', attrs));
+      const cell = kind === 'practice' ? h('button', { ...attrs, type: 'button', tabindex: i === firstCell(s) ? 0 : -1 }) : h('span', attrs);
+      if (hex) {
+        cell.style.gridColumn = `${hex.col(i)} / span 2`;
+        cell.style.gridRow = String(Math.floor(i / s.cols) + 1);
+      }
+      if (side) {
+        const r = Math.floor(i / s.cols), c = i % s.cols;
+        cell.style.gridColumn = String(c + Math.floor(c / side) + 1);
+        cell.style.gridRow = String(r + Math.floor(r / side) + 1);
+      }
+      const bits = s.wires?.[i];
+      if (bits !== undefined || stuck) cell.append(h('span', { class: 'cell__mark', 'aria-hidden': 'true' }, bits !== undefined ? wireIcon(bits) : null, stuck ? stuckIcon() : null));
+      board.append(cell);
     }
     if (kind === 'practice') wirePractice(board, s);
     return board;
   }
   const firstCell = (s: Shape) => { for (let i = 0; i < gridSize(s); i++) if (isCell(s, i)) return i; return 0; };
-  /** columns and rows for the grid and its aspect ratio (CSS: --board-cols / --board-rows) */
-  const ratio = (s: Shape) => `--board-cols:${s.cols};--board-rows:${s.rows}`;
+  /**
+   * the grid and its aspect ratio (CSS: --board-cols / --board-rows, in light widths); a honeycomb's width is its
+   * half-columns over two and its rows sit closer (--board-halves / --hex-rows place its lights)
+   */
+  const ratio = (s: Shape) => {
+    if (gridOf(s) !== 'hex') return `--board-cols:${s.cols};--board-rows:${s.rows}`;
+    const halves = hexHalves(s).n;
+    return `--board-cols:${halves / 2};--board-rows:${+(s.rows * HEX_ROW).toFixed(3)};--board-halves:${halves};--hex-rows:${s.rows}`;
+  };
 
   function patchBoard(board: HTMLElement, cells: readonly boolean[], suggest: readonly number[], ring: readonly number[] = []) {
     const markAttr = board.dataset.miniBoard === 'practice' ? 'data-suggest' : 'data-mark';
@@ -124,7 +174,7 @@ export function createLearnView(d: Deps) {
       setAttr(el, 'data-ring', ring.includes(i) ? 'true' : null);
       if (el.tagName === 'BUTTON') {
         const row = Math.floor(i / cols) + 1, col = (i % cols) + 1;
-        setAttr(el, 'aria-label', fmt(cells[i] ? copy.cellOn : copy.cellOff, { row, col }));
+        setAttr(el, 'aria-label', fmt(cells[i] ? copy.cellOn : copy.cellOff, { row, col }) + (el.dataset.stuck === 'true' ? copy.cellStuck : ''));
       }
     });
   }
@@ -140,6 +190,18 @@ export function createLearnView(d: Deps) {
       const cell = (e.target as Element | null)?.closest?.('[data-mini-cell]') as HTMLElement | null;
       return cell ? Number(cell.dataset.index) : -1;
     };
+    /** a press; a stuck switch only shakes (as on the play board) and nothing is counted */
+    const press = (i: number) => {
+      if (!isStuck(s, i)) return ctx.emit('learn:press', { index: i });
+      const el = board.querySelector<HTMLElement>(`[data-mini-cell][data-index="${i}"]`);
+      if (!el) return;
+      el.removeAttribute('data-jam');
+      void el.offsetWidth; // restart the shake on a second tap
+      el.setAttribute('data-jam', '');
+      el.addEventListener('animationend', () => el.removeAttribute('data-jam'), { once: true });
+    };
+    const hex = gridOf(s) === 'hex' ? hexHalves(s) : null;
+    const cube = gridOf(s) === 'cube';
     /** slots under this aim, like the main board (decision 48) */
     const aimBelow = () => parseFloat(getComputedStyle(board).getPropertyValue('--aim-below')) || 40;
     /** one light's slot: the distance from a light to the next one in its row */
@@ -153,7 +215,7 @@ export function createLearnView(d: Deps) {
       return Infinity;
     };
     const mode = (): AimMode | null => {
-      if (isTall(s)) return 'tap';
+      if (isTall(s) || scrolling(board)) return 'tap';
       const w = slot();
       return w > 0 && w < aimBelow() ? 'aim' : null;
     };
@@ -163,8 +225,24 @@ export function createLearnView(d: Deps) {
       if (x < r.left || x >= r.right || y < r.top || y >= r.bottom) return -1;
       const css = getComputedStyle(board);
       const padX = parseFloat(css.paddingLeft) || 0, padY = parseFloat(css.paddingTop) || 0;
-      const col = Math.min(s.cols - 1, Math.max(0, Math.floor(((x - r.left - padX) / (r.width - 2 * padX)) * s.cols)));
       const row = Math.min(s.rows - 1, Math.max(0, Math.floor(((y - r.top - padY) / (r.height - 2 * padY)) * s.rows)));
+      if (hex) {
+        // the half-column under the point, then the light of this row that spans it
+        const half = Math.floor(((x - r.left - padX) / (r.width - 2 * padX)) * hex.n) + 1;
+        for (let i = row * s.cols; i < (row + 1) * s.cols; i++) if (isCell(s, i) && half >= hex.col(i) && half < hex.col(i) + 2) return i;
+        return -1;
+      }
+      if (cube) {
+        // the seams between faces aren't light-sized: the nearest light, unless the point is off every face
+        let near = -1, far = Infinity;
+        board.querySelectorAll<HTMLElement>('[data-mini-cell]').forEach((el) => {
+          const c = el.getBoundingClientRect();
+          const d = Math.max(Math.abs(x - (c.left + c.width / 2)), Math.abs(y - (c.top + c.height / 2)));
+          if (d < far) { far = d; near = Number(el.dataset.index); }
+        });
+        return far <= slot() / 2 ? near : -1;
+      }
+      const col = Math.min(s.cols - 1, Math.max(0, Math.floor(((x - r.left - padX) / (r.width - 2 * padX)) * s.cols)));
       const i = row * s.cols + col;
       return isCell(s, i) ? i : -1;
     };
@@ -176,7 +254,7 @@ export function createLearnView(d: Deps) {
       cellAt,
       litAt: (i) => (isCell(s, i) ? !!state().practice?.cells[i] : null),
       cols: () => s.cols,
-      press: (i) => { pressed = true; ctx.emit('learn:press', { index: i }); },
+      press: (i) => { pressed = true; press(i); },
       onAim: (i) => {
         if (i >= 0) trail.push(i);
         board.querySelectorAll<HTMLElement>('[data-mini-cell]').forEach((el) => setAttr(el, 'data-aimed', Number(el.dataset.index) === i ? 'true' : null));
@@ -207,7 +285,7 @@ export function createLearnView(d: Deps) {
       const i = indexOf(e);
       if (i < 0) return;
       pointerPressed = i;
-      ctx.emit('learn:press', { index: i });
+      press(i);
     });
     board.addEventListener('click', (e) => {
       const i = indexOf(e);
@@ -216,7 +294,7 @@ export function createLearnView(d: Deps) {
       if ((e as MouseEvent).detail !== 0 && mode() !== null) return;
       if (pointerPressed === i && (e as MouseEvent).detail !== 0) { pointerPressed = -1; return; }
       pointerPressed = -1;
-      ctx.emit('learn:press', { index: i });
+      press(i);
     });
     board.addEventListener('keydown', (e) => {
       const i = indexOf(e);
@@ -286,11 +364,15 @@ export function createLearnView(d: Deps) {
   }
 
   function figure(spec: MiniSpec, shape?: Shape): HTMLElement {
-    let cells = pressAll(solver, shape ? emptyCells(shape) : blank(), spec.from, shape);
+    const dark = shape ? emptyCells(shape) : blank();
+    let cells = spec.lit ? dark.map((_, i) => spec.lit!.includes(i)) : pressAll(solver, dark, spec.from, shape);
     if (spec.chased) cells = shape ? chaseShape(solver, cells, shape).cells : chase(solver, cells).cells;
     const marks = marksFor(spec, cells);
-    const fig = h('figure', { class: 'learn-fig' }, miniBoard(cells, 'show', marks, shape));
-    if (spec.caption) fig.append(h('figcaption', { class: 'learn-caption' }, fmt(copy.captions[spec.caption] ?? '', { n: marks.length })));
+    const board = miniBoard(cells, 'show', marks, shape);
+    if (spec.ring) patchBoard(board, cells, marks, spec.ring);
+    const fig = h('figure', { class: 'learn-fig' }, board);
+    const vars = { n: marks.length, lights: litIndexes(cells).length, rings: spec.ring?.length ?? 0 };
+    if (spec.caption) fig.append(h('figcaption', { class: 'learn-caption' }, fmt(copy.captions[spec.caption] ?? '', vars)));
     return fig;
   }
 
@@ -321,7 +403,7 @@ export function createLearnView(d: Deps) {
       taps = step.play;
       phases = step.phases ?? taps.map(() => null);
     }
-    return { start, taps, phases, pos: 0, cells: start, cancel: null, shape, end: step.end, orders: step.orders, round: 0, markAll: step.markAll, paused: false };
+    return { start, taps, phases, pos: 0, cells: start, cancel: null, shape, end: step.end, orders: step.orders, round: 0, markAll: step.markAll, rings: step.rings, paused: false };
   }
 
   /** a full rectangle's lone bottom light: its top lights to tap outlined, tap them, then chase again */
@@ -347,9 +429,9 @@ export function createLearnView(d: Deps) {
     const done = demo.taps.slice(0, demo.pos);
     const phase = doneAll ? null : demo.phases[demo.pos] ?? null;
     // the next tap is dotted (every tap to come on a markAll demo); outlined: the top lights still to tap, or while
-    // a top-edge tap is next, every top-edge light (lights with nothing above them)
+    // a top-edge tap is next, every top-edge light (lights with nothing above them), or the next tap's own outline
     const dots = doneAll ? [] : demo.markAll ? demo.taps.slice(demo.pos) : [next!];
-    const ring = phase === 'edge' ? demoEls.edges : (demo.ring ?? []).filter((i) => !done.includes(i));
+    const ring = phase === 'edge' ? demoEls.edges : demo.rings ? demo.rings[demo.pos] ?? [] : (demo.ring ?? []).filter((i) => !done.includes(i));
     patchBoard(demoEls.board, demo.cells, dots, ring);
     let text: string;
     if (doneAll) {
@@ -373,7 +455,7 @@ export function createLearnView(d: Deps) {
 
   /** the Tower's demos are full size and scroll with the step: keep the next tap (or the last one) in view */
   function followDemo() {
-    if (!demo || !demoEls || demoEls.board.dataset.tall !== 'true') return;
+    if (!demo || !demoEls || !scrolling(demoEls.board)) return;
     const i = demo.taps[Math.min(demo.pos, demo.taps.length - 1)];
     demoEls.board.querySelector<HTMLElement>(`[data-mini-cell][data-index="${i}"]`)?.scrollIntoView?.({ block: 'nearest', behavior: view.reducedMotion() ? 'auto' : 'smooth' });
   }
@@ -398,7 +480,7 @@ export function createLearnView(d: Deps) {
    * A top-row (or top-edge) tap and a spotted shape are held a little longer, so the eye finds them before they happen.
    * Other taps speed up on a long demo (10×10, the Tower), so a whole demo runs about demoMaxMs.
    */
-  const HOLD: (Phase | null | undefined)[] = ['top', 'edge', 'spot'];
+  const HOLD: (Phase | null | undefined)[] = ['top', 'edge', 'spot', 'back'];
   const delayBefore = (pos: number) => (HOLD.includes(demo?.phases[pos]) ? rules.demoHoldMs
     : Math.min(rules.demoStepMs, Math.round(rules.demoMaxMs / Math.max(1, demo?.taps.length ?? 1))));
 
@@ -467,6 +549,7 @@ export function createLearnView(d: Deps) {
     const tall = !!shape && isTall(shape);
     const stage = h('div', {
       class: `learn-stage learn-stage--${step.kind}`, 'data-shape': shape ? shapeKey(shape) : null,
+      'data-mini-grid': shape && gridOf(shape) !== 'square' ? gridOf(shape) : null,
       'data-tall': tall ? 'true' : null, style: shape ? ratio(shape) : null,
     });
     const fit = h('div', { class: 'learn-fit' });
@@ -565,8 +648,10 @@ export function createLearnView(d: Deps) {
     }
     stage.append(fit);
     if (under.childElementCount) { stage.append(under); setAttr(stage, 'data-under', 'true'); }
-    // lists that scroll inside the stage (the five rules, how an echo forms) fade at the edge with more to see
-    const scroller = fit.querySelector<HTMLElement>('.learn-rules, .learn-derive');
+    // lists that scroll inside the stage (the five rules, how an echo forms) fade at the edge with more to see; so does
+    // the cube's net in a demo or practice on a short phone
+    const net = shape && gridOf(shape) === 'cube' && (step.kind === 'demo' || step.kind === 'practice');
+    const scroller = fit.querySelector<HTMLElement>('.learn-rules, .learn-derive') ?? (net ? fit : null);
     if (scroller) { scroller.classList.add('learn-scroll'); afterLayout(() => watchEdges(scroller)); }
 
     const navRow = h('nav', { class: 'bar learn-nav' },
@@ -601,13 +686,13 @@ export function createLearnView(d: Deps) {
   }
 
   /** a guide's practice line by phase: chase; bottom light(s) and their top lights; chase again (shaped rooms: the top edge) */
-  function coachLine(id: string, shape: Shape, kind: 'rect' | 'shape', start: Cells, cells: Cells): string {
+  function coachLine(id: string, shape: Shape, kind: 'rect' | 'shape' | 'edge', start: Cells, cells: Cells): string {
     const fixer = catalog.fixer(id);
     const c = fixer ? coachPhase(solver, fixer, shape, start, cells) : null;
     if (!c) return '';
     if (c.phase === 'chase') return copy.coach.chase;
     if (c.phase === 'again') return copy.coach.again;
-    if (kind === 'shape') return fmt(copy.coach.shapeFix, { n: c.fix.length });
+    if (kind !== 'rect') return fmt(kind === 'edge' ? copy.coach.edgeFix : copy.coach.shapeFix, { n: c.fix.length });
     const say = (xs: number[]) => listOf(xs.map((i) => letterOf(i, shape.cols)));
     return fmt(c.ends.length > 1 ? copy.coach.bottoms : copy.coach.bottom, { names: say(c.ends), taps: say(c.fix) });
   }
@@ -638,11 +723,11 @@ export function createLearnView(d: Deps) {
     // the Tower scrolls inside its box: a new board opens on its first light; a newly ringed light comes into view too
     if (p.start !== practiceEls.start) {
       practiceEls.start = p.start;
-      if (board.dataset.tall === 'true') afterLayout(() => into(p.cells.findIndex(Boolean), 'center'));
+      afterLayout(() => { if (scrolling(board)) into(p.cells.findIndex(Boolean), 'center'); });
     }
     if (p.suggest !== practiceEls.suggest) {
       practiceEls.suggest = p.suggest;
-      if (p.suggest !== null && board.dataset.tall === 'true') into(p.suggest);
+      if (p.suggest !== null && scrolling(board)) into(p.suggest);
     }
     setAttr(practiceEls.line, 'data-tone', tone);
     setText(practiceEls.another, p.status === 'solved' ? copy.another : copy.newBoard);

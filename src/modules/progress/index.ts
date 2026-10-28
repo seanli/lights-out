@@ -1,7 +1,7 @@
 // progress: stars, best moves, unlocks and pending hint costs, saved on every change.
 // Works in memory when no storage service exists. Never deletes data it can't read: it keeps a backup.
 import * as v from 'valibot';
-import type { ModuleDef, Pack, ProgressSave, ProgressState, Scoring } from '../../contracts';
+import { CUSTOM_LEVEL_ID, type ModuleDef, type Pack, type ProgressSave, type ProgressState, type Scoring } from '../../contracts';
 import { freshSave, mergeSaves, packProgress, readSave, starsFor, unlockedFrom } from './save';
 
 const int = v.pipe(v.number(), v.integer());
@@ -29,7 +29,7 @@ const progress: ModuleDef = {
   manifest: {
     name: 'progress',
     emits: ['progress:loaded', 'progress:level_completed', 'progress:cleared', 'progress:save_failed', 'progress:clear'],
-    listens: ['progress:clear', 'levels:started', 'levels:generated', 'hints:shown', 'board:solved'],
+    listens: ['progress:clear', 'levels:started', 'levels:generated', 'hints:shown', 'board:solved', 'custom:started'],
     owns: ['progress'],
     uses: ['clock'],
     optional: ['storage', 'view'],
@@ -52,6 +52,8 @@ const progress: ModuleDef = {
     let warnedSaveFailed = false;
     /** true when a damaged save couldn't be backed up: then it is never overwritten this visit */
     let holdWrites = false;
+    /** hints taken on the custom puzzle on screen: custom puzzles are never saved, so the count lives only in the slice */
+    let customHints = 0;
 
     /** levels on the classic path (ids 1..count); Variety room levels are not counted */
     const levelCount = (): number | undefined => {
@@ -74,6 +76,7 @@ const progress: ModuleDef = {
       scoring,
       packs: packProgress(save, roomPacks()),
       varietyOpen: save.results[String(rules.varietyAfter)] !== undefined,
+      ...(customHints ? { customHints } : {}),
     });
     const writeSlice = (save: ProgressSave) => {
       const next = derive(save);
@@ -157,13 +160,25 @@ const progress: ModuleDef = {
       if (save.lastLevel !== levelId) commit({ ...save, lastLevel: levelId });
     });
 
+    ctx.on('custom:started', () => {
+      customHints = 0;
+      writeSlice(current());
+    });
+
     ctx.on('hints:shown', ({ levelId }) => {
+      if (levelId === CUSTOM_LEVEL_ID) { customHints++; writeSlice(current()); return; }
       const save = current();
       const k = String(levelId);
       commit({ ...save, pendingHints: { ...save.pendingHints, [k]: (save.pendingHints[k] ?? 0) + 1 } });
     });
 
     ctx.on('board:solved', ({ levelId, moves, par }) => {
+      if (levelId === CUSTOM_LEVEL_ID) {
+        // a custom puzzle earns its stars on the sheet, but nothing is saved and nothing unlocks
+        const stars = starsFor(moves, par, customHints, scoring);
+        ctx.emit('progress:level_completed', { levelId, stars, moves, par, hintsUsed: customHints, improved: false, unlocked: null, allSolved: false, pack: 'custom', firstSolve: false });
+        return;
+      }
       const save = current();
       const k = String(levelId);
       const hintsUsed = save.pendingHints[k] ?? 0;

@@ -1,25 +1,37 @@
 // Board guides: one per room (`guide-<room id>`), built at runtime from the room's real shape and the solver.
-// Which steps a guide has follows from the maths, never from a table:
+// Which steps a guide has follows from the room's kind and the maths, never from a table:
 //   chase:  a full rectangle where a chase clears every solvable board (none today: 4×4 and 9×9 were dropped)
-//   lights: a full rectangle where each lone bottom light has its own top lights to tap (5×6, 6×6, 7×7, 8×8, 10×10, Tower)
-//   shapes: anything else (Cross, Ring, Diamond): spot tap shapes, or chase, then tap the top-edge fix and chase again
+//   lights: a full rectangle where each lone bottom light has its own top lights to tap (7×7, 8×8, the Tower)
+//   shapes: any other square grid (Ring, Diamond): spot tap shapes, or chase, then tap the top-edge fix and chase again
+//   hex, cube, wired, stuck (the twist rooms, by pack kind): how a tap spreads there, the one idea, practice
 // Example boards come from a fixed-order search, so they always fit the shape; learn.test.ts proves each.
 import type { Cells, Pack, Shape, SolverService } from '../../contracts';
-import { cellIndexes, emptyCells, isCell, pressTargets } from '../../lib/shape';
+import { cellIndexes, emptyCells, gridOf, isCell, isPressable, pressTargets, touching } from '../../lib/shape';
+import { cellFace, cubeSide, FACES } from '../../lib/cube';
+import { WIRINGS } from '../../lib/puzzle';
 import type { Lesson, Phase, Step } from './lessons';
 import { chaseShape, createFixer, isClear, pressAll, rectTopSets, touches, type Fixer } from './method';
 
 type Solver = Pick<SolverService, 'press'>;
-export type GuideKind = 'chase' | 'lights' | 'shapes';
+type Solving = Pick<SolverService, 'press' | 'solve'>;
+/** the twist rooms: a guide of their own, picked by the room's kind (a stuck or wired room's pack is a plain grid) */
+export type TwistKind = 'hex' | 'cube' | 'wired' | 'stuck';
+export const TWISTS: readonly TwistKind[] = ['hex', 'cube', 'wired', 'stuck'];
+const isTwist = (kind: string | undefined): kind is TwistKind => (TWISTS as readonly string[]).includes(kind ?? '');
+export type GuideKind = 'chase' | 'lights' | 'shapes' | TwistKind;
 /** steps per kind: copy.json → learn.guides.<room>.steps has exactly this many sentences */
-export const GUIDE_STEPS: Record<GuideKind, number> = { chase: 3, lights: 4, shapes: 5 };
+export const GUIDE_STEPS: Record<GuideKind, number> = { chase: 3, lights: 4, shapes: 5, hex: 4, cube: 4, wired: 4, stuck: 4 };
 export const GUIDE_PREFIX = 'guide-';
 export const guideId = (pack: string): string => `${GUIDE_PREFIX}${pack}`;
 
 const isRect = (s: Shape) => !s.mask || s.mask.every(Boolean);
 const asRect = (s: Shape) => ({ cols: s.cols, rows: s.rows, mask: null as null });
 
-export function guideKind(solver: Solver, shape: Shape): GuideKind {
+type GuidePack = Pick<Pack, 'id' | 'shape'> & { kind?: Pack['kind'] };
+
+export function guideKind(solver: Solver, pack: Pick<GuidePack, 'kind' | 'shape'>): GuideKind {
+  if (isTwist(pack.kind)) return pack.kind;
+  const shape = pack.shape;
   if (!isRect(shape)) return 'shapes';
   const { perLight, chaseClears } = rectTopSets(solver, asRect(shape));
   if (chaseClears) return 'chase';
@@ -233,17 +245,235 @@ function shapesGuide(solver: Solver, shape: Shape, fx: Fixer): Step[] {
   ];
 }
 
+// ---------- the twist rooms ----------
+
+/** where a light sits, in light widths (a honeycomb's odd rows half a light right, its rows closer) */
+function spot2d(shape: Shape, i: number): [number, number] {
+  const r = Math.floor(i / shape.cols), c = i % shape.cols;
+  return gridOf(shape) === 'hex' ? [c + (r & 1) / 2, r * 0.866] : [c, r];
+}
+/** distance from the middle of the board's real cells */
+function fromMiddle(shape: Shape) {
+  const pts = cellIndexes(shape).map((i) => spot2d(shape, i));
+  const mx = pts.reduce((s, p) => s + p[0], 0) / pts.length, my = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+  return (i: number) => { const [x, y] = spot2d(shape, i); return Math.hypot(x - mx, y - my); };
+}
+const shared = (shape: Shape, a: number, b: number) => pressTargets(shape, a).filter((t) => pressTargets(shape, b).includes(t));
+/** the switches whose press flips light i: its own and every switch wired or touching it */
+export const reachers = (shape: Shape, i: number): number[] => cellIndexes(shape).filter((j) => pressTargets(shape, j).includes(i));
+/** a board's answer is exactly these taps (the shortest one, so the demo shows what a player would find) */
+const answerIs = (solver: Solving, shape: Shape, taps: readonly number[]) =>
+  solver.solve(pressAll(solver, emptyCells(shape), taps, shape), shape)?.join() === [...taps].sort((a, b) => a - b).join();
+
+/**
+ * Taps in the order a player spots them: next, the one whose pattern is most lit (a whole pattern first; where two
+ * overlap, the one with the most showing, after which the other is whole); a tie goes to the smaller pattern.
+ */
+export function readOrder(solver: Solver, shape: Shape, cells: Cells, taps: readonly number[]): number[] {
+  const left = [...taps];
+  const out: number[] = [];
+  let b = cells;
+  while (left.length) {
+    let k = 0, top = -Infinity;
+    left.forEach((t, j) => {
+      const f = pressTargets(shape, t);
+      const score = f.filter((x) => b[x]).length / f.length - f.length / 1000;
+      if (score > top) { top = score; k = j; }
+    });
+    const t = left.splice(k, 1)[0]!;
+    out.push(t);
+    b = solver.press(b, t, shape);
+  }
+  return out;
+}
+/** a shortest answer, in spotting order (Assist on the twist guides), or null when the board can't be solved */
+export const spotOrder = (solver: Solving, shape: Shape, cells: Cells): number[] | null => {
+  const answer = solver.solve(cells, shape);
+  return answer ? readOrder(solver, shape, cells, answer) : null;
+};
+
+/** a show step's figure of one tap, captioned */
+const tapFig = (cell: number, caption: string) => ({ from: [cell], marks: 'taps' as const, caption });
+const spotDemo = (solver: Solver, shape: Shape, taps: readonly number[]) => {
+  const play = readOrder(solver, shape, pressAll(solver, emptyCells(shape), taps, shape), taps);
+  return demo([...taps], play, play.map(() => 'spot' as const));
+};
+
+/** Hex: a flower of seven (fewer at the edge); two flowers overlapping cancel where they share; spot flowers, overlaps too */
+function hexGuide(solver: Solving, shape: Shape): Step[] {
+  const real = cellIndexes(shape);
+  const size = (i: number) => pressTargets(shape, i).length;
+  const dist = fromMiddle(shape);
+  const near = (cells: number[]) => [...cells].sort((a, b) => dist(a) - dist(b) || a - b);
+  const full = Math.max(...real.map(size));
+  const flowers = near(real.filter((i) => size(i) === full));
+  const edge = near(real.filter((i) => size(i) === Math.max(...real.map(size).filter((n) => n < full))))[0]!;
+  // two flowers two apart, sharing two lights (each centre stays lit), near the middle
+  const pair = best(pairsOf(flowers, flowers), ([a, b]) =>
+    (a < b && shared(shape, a, b).length === 2 && !pressTargets(shape, a).includes(b) ? dist(a) + dist(b) : null))!;
+  // and a third tap beside them that shares nothing (a whole flower if one fits): spotting takes it first, then the overlap
+  const alone = (c: number) => (pair.every((p) => !shared(shape, p, c).length) && answerIs(solver, shape, [...pair, c]) ? dist(c) : null);
+  const third = best(flowers, alone) ?? best(near(real), alone);
+  return [
+    { kind: 'show', boards: [tapFig(flowers[0]!, 'hexMiddle'), tapFig(edge, 'hexEdge')] },
+    { kind: 'show', boards: [{ from: pair, marks: 'taps', ring: shared(shape, pair[0], pair[1]), caption: 'hexCancel' }] },
+    spotDemo(solver, shape, third === null ? pair : [...pair, third]),
+    { kind: 'practice' },
+  ];
+}
+
+/** Cube: on the net, a face's middle flips a plain plus; a corner's plus bends onto two other faces; spot pluses, bent ones too */
+function cubeGuide(solver: Solving, shape: Shape): Step[] {
+  const n = cubeSide(shape);
+  const real = cellIndexes(shape);
+  const faceOf = (i: number) => cellFace(n, i)!.face.id;
+  const middleOf = (id: string) => { const f = FACES.find((x) => x.id === id)!; const m = Math.floor(n / 2); return (f.by * n + m) * shape.cols + f.bx * n + m; };
+  const front = middleOf('front');
+  // how far a tap's lights lie apart on the net (lights that touch on the cube but sit far apart unfolded)
+  const scatter = (i: number) => pressTargets(shape, i).reduce((s, t) => s + Math.abs((t % shape.cols) - (i % shape.cols)) + Math.abs(Math.floor(t / shape.cols) - Math.floor(i / shape.cols)), 0);
+  const bent = (i: number) => scatter(i) > 4;
+  const corners = real.filter((i) => new Set(pressTargets(shape, i).map(faceOf)).size === 3);
+  const corner = best(corners, (i) => -scatter(i))!;
+  // the practice idea: a plain plus, a plus bent round an edge, and the corner, none sharing a light
+  const apart = (taps: number[]) => taps.every((a, k) => taps.slice(k + 1).every((b) => !shared(shape, a, b).length));
+  const edgeTap = best(real.filter((i) => bent(i) && !corners.includes(i)), (i) => (apart([corner, front, i]) && answerIs(solver, shape, [corner, front, i]) ? -scatter(i) : null));
+  return [
+    { kind: 'show', boards: [tapFig(front, 'cubePlus')] },
+    { kind: 'show', boards: [tapFig(corner, 'cubeCorner')] },
+    spotDemo(solver, shape, edgeTap === null ? [front, corner] : [front, edgeTap, corner]),
+    { kind: 'practice' },
+  ];
+}
+
+/**
+ * The Wired guide's board: the room's grid with a fixed wiring of the gentle patterns (plus, X, the two lines), as on a
+ * room's first levels. On 5×5 this layout has one answer per board and a plus, an X and a line in the middle (tested).
+ */
+export function guideWiring(shape: Shape): number[] {
+  const kinds = [WIRINGS.plus, WIRINGS.cross, WIRINGS.across, WIRINGS.updown];
+  return Array.from({ length: shape.cols * shape.rows }, (_, i) => {
+    const r = Math.floor(i / shape.cols), c = i % shape.cols;
+    return isCell(shape, i) ? kinds[(3 * r + 3 * c + 2 * ((r * c) % 3)) % 4]! : 0;
+  });
+}
+/** what a wiring looks like, for its caption (learn.captions) */
+const WIRE_SHAPE: Record<number, string> = {
+  [WIRINGS.plus]: 'plus', [WIRINGS.cross]: 'x', [WIRINGS.across]: 'line', [WIRINGS.updown]: 'line', [WIRINGS.slash]: 'line', [WIRINGS.backslash]: 'line',
+  [WIRINGS.teeUp]: 't', [WIRINGS.teeRight]: 't', [WIRINGS.teeDown]: 't', [WIRINGS.teeLeft]: 't',
+  [WIRINGS.cornerUpRight]: 'l', [WIRINGS.cornerDownRight]: 'l', [WIRINGS.cornerDownLeft]: 'l', [WIRINGS.cornerUpLeft]: 'l',
+};
+
+/** Wired: three switches and what each flips; for a lit light, the switches that reach it; work back from the lit lights */
+function wiredGuide(solver: Solving, shape: Shape): Step[] {
+  const real = cellIndexes(shape);
+  const dist = fromMiddle(shape);
+  const wires = shape.wires ?? [];
+  const bits = (i: number) => wires[i] ?? 0;
+  const spokes = (i: number) => bits(i).toString(2).replace(/0/g, '').length;
+  // whole patterns (no spoke off the board), near the middle; one switch of each look, the plus first
+  const whole = real.filter((i) => pressTargets(shape, i).length === spokes(i) + 1).sort((a, b) => dist(a) - dist(b) || a - b);
+  const three = ['plus', 'x', 'line', 't', 'l'].flatMap((look) => whole.filter((j) => WIRE_SHAPE[bits(j)] === look).slice(0, 1)).slice(0, 3);
+  // a light that three switches reach (its own and two others), near the middle
+  const light = best(real, (i) => (reachers(shape, i).length === 3 ? dist(i) : null)) ?? real[0]!;
+  // three overlapping taps the answer is exactly; each tap outlines the switches that reach the light it clears
+  const middle = whole.slice(0, 9);
+  const taps = best(triplesOf(middle, middle), ([a, b, c]) => {
+    const overlap = [shared(shape, a, b), shared(shape, a, c), shared(shape, b, c)].filter((s) => s.length).length;
+    return overlap >= 1 && answerIs(solver, shape, [a, b, c]) ? dist(a) + dist(b) + dist(c) - overlap : null;
+  }) ?? [middle[0]!];
+  const start = pressAll(solver, emptyCells(shape), taps, shape);
+  const play = readOrder(solver, shape, start, taps);
+  let b = start;
+  const rings = play.map((t) => {
+    // the lit light this tap clears that the fewest switches reach
+    const lights = pressTargets(shape, t).filter((x) => b[x]);
+    const anchor = best(lights, (x) => reachers(shape, x).length) ?? t;
+    b = solver.press(b, t, shape);
+    return reachers(shape, anchor);
+  });
+  return [
+    { kind: 'show', boards: three.map((i) => tapFig(i, WIRE_SHAPE[bits(i)]!)) },
+    { kind: 'show', boards: [{ from: [], lit: [light], ring: reachers(shape, light), caption: 'reach' }] },
+    { ...demo([...taps], play, play.map(() => 'back' as const)), rings },
+    { kind: 'practice' },
+  ];
+}
+
+/** The Stuck guide's board: the room's grid with two stuck switches inside it, apart (levels add their own) */
+export function guideStuck(shape: Shape): number[] {
+  const inner = cellIndexes(shape).filter((i) => touching(shape, i).length >= 4);
+  const at = (r: number, c: number) => Math.min(shape.rows - 2, Math.max(1, r)) * shape.cols + Math.min(shape.cols - 2, Math.max(1, c));
+  const picks = [at(1, Math.floor(shape.cols / 2)), at(3, Math.floor(shape.cols / 2) - 2)].filter((i) => inner.includes(i));
+  return [...new Set(picks)].filter((i, k, xs) => xs.slice(0, k).every((j) => !touching(shape, j).includes(i)));
+}
+
+/** Stuck: a neighbour's tap flips a screwed light; chase as usual; a light over a screw stays, then the top-edge fix */
+function stuckGuide(solver: Solver, shape: Shape, fx: Fixer): Step[] {
+  const dark = emptyCells(shape);
+  const stuck = shape.stuck ?? [];
+  const pressable = cellIndexes(shape).filter((i) => isPressable(shape, i));
+  const dist = fromMiddle(shape);
+  // 1. a tap beside a screw: its light flips
+  const s = stuck[0] ?? pressable[0]!;
+  const beside = [s - 1, s + 1, s + shape.cols, s - shape.cols].find((i) => touching(shape, s).includes(i) && isPressable(shape, i)) ?? pressable[0]!;
+  // 2. a chase that runs through a lit stuck light and clears the board: taps off the top edge (a chase makes exactly
+  //    those again), one of them under a screw so its light gets chased; the taps' shapes overlap, so it reads as a chase
+  const under = stuck.map((x) => x + shape.cols).filter((i) => isPressable(shape, i) && !fx.starts.includes(i));
+  const rest = pressable.filter((i) => !fx.starts.includes(i) && !under.includes(i));
+  const through = best(triplesOf(under, rest), ([a, b, c]) => {
+    const overlap = [overlaps(shape, a, b), overlaps(shape, a, c), overlaps(shape, b, c)].filter(Boolean).length;
+    if (overlap < 2 || !isClear(chaseShape(solver, pressAll(solver, dark, [a, b, c], shape), shape).cells)) return null;
+    return dist(a) + dist(b) + dist(c);
+  }) ?? under.slice(0, 1);
+  // 3. a chase that leaves a light over a screw: tap the top-edge light that fixes it, then chase again. The second
+  //    chase runs the whole board (23 taps at the least on 6×6), so: the shortest, then the fewest lights left
+  const overScrew = (cells: Cells) => stuck.some((x) => x >= shape.cols && cells[x - shape.cols]);
+  const plan = (t: readonly number[]) => {
+    const c1 = chaseShape(solver, pressAll(solver, dark, t, shape), shape);
+    const fix = isClear(c1.cells) ? null : fx.fixFor(c1.cells);
+    if (!fix) return null;
+    const c2 = chaseShape(solver, pressAll(solver, c1.cells, fix, shape), shape);
+    return { c1: c1.taps, left: c1.cells, fix, c2: c2.taps };
+  };
+  const others = pressable.filter((i) => !fx.starts.includes(i));
+  const round = best(triplesOf(fx.starts, others), (t) => {
+    const p = plan(t);
+    if (!p || p.fix.length !== 1 || p.c1.length < 2 || !overScrew(p.left)) return null;
+    return (p.c1.length + p.c2.length) * 1000 + p.left.filter(Boolean).length * 100 + dist(t[1]) + dist(t[2]);
+  }) ?? best(triplesOf(fx.starts, others), (t) => (plan(t) ? 0 : null));
+  const p = round ? plan(round)! : { c1: [], fix: [], c2: [] };
+  return [
+    { kind: 'show', boards: [tapFig(beside, 'screw')] },
+    demo(through, chaseShape(solver, pressAll(solver, dark, through, shape), shape).taps, through.map(() => 'chase' as const)),
+    demo(round ?? [], [...p.c1, ...p.fix, ...p.c2], [...p.c1.map(() => 'chase' as const), ...p.fix.map(() => 'edge' as const), ...p.c2.map(() => 'chase2' as const)]),
+    { kind: 'practice' },
+  ];
+}
+
+/** a twist room's guide: its own board (stuck and wired rooms add the guide's stuck switches or wiring to the pack's grid) */
+function twistGuide(solver: Solving, kind: TwistKind, base: Shape): { lesson: Lesson; fixer: Fixer | null } {
+  const shape: Shape = kind === 'wired' ? { ...base, wires: guideWiring(base) } : kind === 'stuck' ? { ...base, stuck: guideStuck(base) } : base;
+  const pool = cellIndexes(shape).filter((i) => isPressable(shape, i));
+  if (kind === 'stuck') {
+    const fixer = createFixer(solver, shape);
+    return { fixer, lesson: { steps: stuckGuide(solver, shape, fixer), shape, assist: 'fix', coach: 'edge', pool } };
+  }
+  const steps = kind === 'hex' ? hexGuide(solver, shape) : kind === 'cube' ? cubeGuide(solver, shape) : wiredGuide(solver, shape);
+  return { fixer: null, lesson: { steps, shape, assist: 'spot', pool } };
+}
+
 /** how many of the lowest rows a full rectangle's practice taps come from: the first chase stays short */
 export const PRACTICE_ROWS = 3;
 
 /**
  * a room's guide: its steps on the room's own shape, assist = chase + fix, a coach line by phase.
  * Full rectangles practise on taps from the lowest rows (a short first chase that still leaves a bottom row);
- * shaped rooms from any cell, so spotting shapes stays worth trying.
+ * shaped rooms from any cell, so spotting shapes stays worth trying. Twist rooms: twistGuide.
  */
-export function buildGuide(solver: Solver, pack: Pick<Pack, 'id' | 'shape'>): { kind: GuideKind; lesson: Lesson; fixer: Fixer } {
+export function buildGuide(solver: Solving, pack: GuidePack): { kind: GuideKind; lesson: Lesson; fixer: Fixer | null } {
   const shape = pack.shape;
-  const kind = guideKind(solver, shape);
+  const kind = guideKind(solver, pack);
+  if (isTwist(kind)) return { kind, ...twistGuide(solver, kind, shape) };
   const fixer = createFixer(solver, shape);
   const steps = kind === 'chase' ? chaseGuide(solver, shape, fixer) : kind === 'lights' ? lightsGuide(solver, shape, fixer) : shapesGuide(solver, shape, fixer);
   const low = cellIndexes(shape).filter((i) => i >= (shape.rows - PRACTICE_ROWS) * shape.cols);

@@ -4,7 +4,9 @@
 // Reads levels, progress, learn and nav; emits commands only.
 import * as v from 'valibot';
 import type { Chapter, LevelDef, LevelsState, ModuleDef, Pack, ProgressState } from '../../contracts';
+import { cubeSide } from '../../lib/cube';
 import { roomGlyph } from '../../lib/glyph';
+import { cellIndexes } from '../../lib/shape';
 import { skull } from '../../lib/icons';
 import { fmt, h, setAttr, setText } from '../../lib/dom';
 import './variety.css';
@@ -15,6 +17,9 @@ const Copy = v.object({
   /** the header's eyebrow: "5×5 · 50 levels" (one line at 320 wide, so no notes here), "30 levels" for a shape */
   boardSize: Text,
   boardShape: Text,
+  /** a honeycomb's and a cube's eyebrow ("37 lights · 30 levels", "3×3×3 · 30 levels") */
+  boardLights: Text,
+  boardCube: Text,
   summary: Text,
   guide: Text,
   guideClassic: Text,
@@ -100,8 +105,12 @@ const variety: ModuleDef = {
       ctx.emit('nav:go', { screen: 'variety' });
     });
 
-    const metaOf = (p: Pack) =>
-      fmt(p.kind === 'shape' ? copy.boardShape : copy.boardSize, { cols: p.shape.cols, rows: p.shape.rows, count: p.count });
+    const metaOf = (p: Pack) => {
+      const vars = { cols: p.shape.cols, rows: p.shape.rows, count: p.count };
+      if (p.kind === 'hex') return fmt(copy.boardLights, { ...vars, lights: cellIndexes(p.shape).length });
+      if (p.kind === 'cube') return fmt(copy.boardCube, { ...vars, n: cubeSide(p.shape) });
+      return fmt(p.kind === 'shape' ? copy.boardShape : copy.boardSize, vars);
+    };
 
     const header = (title: string, eyebrow: string) =>
       h('header', { class: 'screen-header' },

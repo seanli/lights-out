@@ -1,11 +1,11 @@
 # play-view
 
-The play screen, rendered into `view.region('screen:play')`. Owns no slice; reads `board` (incl. `shape`), `hints`, `tutorial`, `levels` (chapters, packs), `progress` (`pendingHints`, `scoring`).
+The play screen, rendered into `view.region('screen:play')`. Owns no slice; reads `board` (incl. `shape`), `hints`, `tutorial`, `levels` (chapters, packs), `progress` (`pendingHints`, `customHints`, `scoring`), `custom` (label, puzzle number).
 
 - One anatomy (layout: `components.css`, "play screen"): `header.screen-header`, `.board-slot` (`.play-line`, then `.play-status` right above the `.board`; the status row takes the board's measured width, `--play-board-w`, and the pair is centred in the area), `.play-reference`, `.play-actions` (the shared `.bar.bar--icons`). Opening Patterns only shows the panel above the tools; the pair moves up into the spare space first and the board shrinks only when it must (no FLIP). Side by side (landscape phones; tablets while open) the same blocks wrap into two columns.
-- Any board: `shape` absent = 5×5. The grid is rebuilt only when the shape changes; `.board` gets `data-n` (max side), `data-cols`, `data-rows`. Real cells are `button[data-cell][data-index]`; gaps are `[data-gap]` (aria-hidden, never focusable, no part in sweep/flip/focus).
+- Any board: `shape` absent = 5×5. The grid is rebuilt only when the grid changes (size, gaps, `grid`); a level's stuck cells and wiring are redrawn on the same cells (`.cell__mark`: spokes, a screw; `data-stuck`, `data-wires`, words in the label). `.board` gets `data-n`, `data-cols`, `data-rows`, `data-grid="hex|cube"`. Real cells are `button[data-cell][data-index]`; square gaps are `[data-gap]`. Hex: each light on two half-columns, odd rows shifted; a tap between lights takes the nearest (`grid.ts hexCellAt`). Cube: six `.cube__face` panels folded by `lib/cube.ts` frames; tilted view; swipe (Shift+arrows) = quarter turn, the cube follows the finger; presses on release; `[data-cube-line]` counts lit lights out of sight; a hint turns its face to the front. A stuck tap shakes (`data-jam`).
 - Presses by measured board (`src/lib/aim.ts`): normally on `pointerdown` → `board:press {index}` (trailing click swallowed);
-  a tall board (rows ≥ 2 × cols, the Tower) gets `data-scroll="true"`, fits its width, scrolls, presses on release unless the finger moved,
+  a tall board (rows ≥ 2 × cols, at most 8 across: the Tower) gets `data-scroll="true"`, fits its width, scrolls, presses on release unless the finger moved,
   starts each level at the top and scrolls a new hint/pointer into view; a slot (board / cols, gutter included) under `--aim-below`
   (ResizeObserver + each grid build) gets `data-aim="true"`: hold shows the bubble, slide, lift to press. Clicks never press twice; Enter/Space press.
   The gutter/padding presses the real cell whose grid slot holds the point (`grid.ts`); a gap's own slot does nothing. Arrows/Home/End rove over real cells.

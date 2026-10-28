@@ -3,13 +3,17 @@ import { describe, expect, test } from 'vitest';
 import { bootModule, fixtureData } from '../../../test/fake-ctx';
 import { createRng } from '../../kernel';
 import { CLASSIC_SHAPE, type Cells, type Shape, type SolverService } from '../../contracts';
-import { cellIndexes, emptyCells, gridSize, isCell, parseShape, pressTargets } from '../../lib/shape';
+import { cubeShape } from '../../lib/cube';
+import { cellIndexes, emptyCells, gridSize, hexagonShape, isCell, parseShape, pressTargets } from '../../lib/shape';
 import solverModule from './index';
 import { createShaped } from './shaped';
 
-type Room = { id: string; cols?: number; rows?: number; picture?: string[] };
+type Room = { id: string; kind: string; cols?: number; rows?: number; side?: number; picture?: string[] };
 const rooms = (fixtureData.rules as { levels: { rooms: Room[] } }).levels.rooms;
-const shapeOfRoom = (r: Room): Shape => (r.picture ? parseShape(r.picture) : { cols: r.cols!, rows: r.rows!, mask: null });
+const shapeOfRoom = (r: Room): Shape => (r.kind === 'shape' ? parseShape(r.picture!)
+  : r.kind === 'hex' ? hexagonShape(r.side!)
+  : r.kind === 'cube' ? cubeShape(r.side!)
+  : { cols: r.cols!, rows: r.rows!, mask: null });
 const SHAPES: [string, Shape][] = rooms.map((r) => [r.id, shapeOfRoom(r)]);
 
 // ---- independent reference: BigInt rows over grid positions, full null-space search ----
@@ -84,7 +88,8 @@ describe('solver on every room shape', () => {
   test('null-space dimensions are small enough to search fully', () => {
     const dims = Object.fromEntries(SHAPES.map(([id, s]) => [id, createShaped(s).nullDim]));
     console.log('solver: null-space dimension per room', JSON.stringify(dims));
-    expect(dims).toEqual({ '5x6': 0, '6x6': 0, '7x7': 0, cross: 2, ring: 2, diamond: 0, '8x8': 0, '10x10': 0, tower: 0 });
+    // stuck and wired rooms are listed by their plain grid (each level adds its own stuck cells or wiring)
+    expect(dims).toEqual({ '7x7': 0, ring: 2, diamond: 0, stuck: 0, hex: 4, cube: 6, wired: 2, '8x8': 0, tower: 0 });
     for (const [, s] of SHAPES) expect(createShaped(s).approximate).toBe(false);
   });
 
@@ -92,14 +97,14 @@ describe('solver on every room shape', () => {
     const s = boot();
     for (let g = 0; g < gridSize(shape); g++) {
       if (!isCell(shape, g)) {
-        expect(() => s.press(emptyCells(shape), g, shape)).toThrow(/not on this/);
+        expect(() => s.press(emptyCells(shape), g, shape)).toThrow(/not on (this|the) /);
         continue;
       }
       const after = s.press(emptyCells(shape), g, shape);
       expect(after.flatMap((on, i) => (on ? [i] : []))).toEqual([...pressTargets(shape, g)].sort((a, b) => a - b));
       for (let i = 0; i < after.length; i++) if (!isCell(shape, i)) expect(after[i]).toBe(false);
     }
-    expect(() => s.press(emptyCells(shape), gridSize(shape), shape)).toThrow(/not on this/);
+    expect(() => s.press(emptyCells(shape), gridSize(shape), shape)).toThrow(/not on (this|the) /);
   });
 
   test.each(SHAPES)('%s: matches the reference on 300 random boards; solutions clear the board and avoid gaps', (_, shape) => {

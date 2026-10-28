@@ -1,10 +1,11 @@
-// GF(2) maths for a board of any shape (with gaps, up to MAX_CELLS real cells). Only real cells are variables:
-// variable j is the j-th real cell in row-major order, held in a mask of W 32-bit words (bit j%32 of word j>>5).
-// createShaped() eliminates the press matrix once per shape; a solve is one pass over the board
-// (building the board mask and its particular solution together), the parity checks, then the
-// lightest of that solution XOR each null-space vector.
+// GF(2) maths for a board of any shape and grid (gaps, honeycombs, cubes, wiring, stuck cells; up to MAX_CELLS).
+// Equations are the real cells (cell e = the e-th real cell, row-major); variables are the cells that can be pressed
+// (variable j = the j-th pressable cell). Masks are W 32-bit words (bit k%32 of word k>>5). The press map need not be
+// symmetric (wiring) or square (stuck cells): row e of the matrix = the presses that flip cell e.
+// createShaped() eliminates once per shape; a solve is one pass over the board (building the board mask and its
+// particular solution together), the parity checks, then the lightest of that solution XOR each null-space vector.
 import { type Cells, type Shape } from '../../contracts';
-import { cellIndexes, gridSize, pressTargets, shapeKey } from '../../lib/shape';
+import { cellIndexes, gridSize, isPressable, pressTargets, shapeKey } from '../../lib/shape';
 import { popcount } from './gf2';
 
 /** above this many free presses the null space (2^dim vectors) is too big to search fully */
@@ -12,8 +13,10 @@ export const MAX_NULL_DIM = 12;
 
 export interface Shaped {
   key: string;
-  /** real cells (the number of variables) */
+  /** real cells (the number of equations) */
   cells: number;
+  /** cells that can be pressed (the number of variables) */
+  presses: number;
   rank: number;
   /** dimension of the null space: every solvable board has 2^dim solutions */
   nullDim: number;
@@ -43,21 +46,22 @@ export function createShaped(shape: Shape): Shaped {
   const size = gridSize(shape);
   const key = shapeKey(shape);
   const realCells = cellIndexes(shape);
-  const n = realCells.length;
-  const W = Math.max(1, Math.ceil(n / 32));
-  /** grid index → variable, or -1 for a gap */
-  const varOf = new Int32Array(size).fill(-1);
-  realCells.forEach((g, j) => { varOf[g] = j; });
+  const pressCells = realCells.filter((g) => isPressable(shape, g));
+  const n = realCells.length; // equations
+  const m = pressCells.length; // variables
+  const Wn = Math.max(1, Math.ceil(n / 32));
+  const Wm = Math.max(1, Math.ceil(m / 32));
+  /** grid index → equation (real cell), or -1 for a gap */
+  const eqOf = new Int32Array(size).fill(-1);
+  realCells.forEach((g, e) => { eqOf[g] = e; });
   const targets = Array.from({ length: size }, (_, g) => pressTargets(shape, g));
 
-  // Gauss-Jordan on [A | I]. A is symmetric: row j = what pressing variable j toggles.
-  const L = masks(n, W), R = masks(n, W);
-  for (let j = 0; j < n; j++) {
-    for (const g of targets[realCells[j]!]!) L.set(j, varOf[g]!);
-    R.set(j, j);
-  }
+  // Gauss-Jordan on [M | I]: row e of M = the presses that flip cell e; I tracks which cells each row combines
+  const L = masks(n, Wm), R = masks(n, Wn);
+  pressCells.forEach((g, j) => { for (const t of targets[g]!) L.set(eqOf[t]!, j); });
+  for (let e = 0; e < n; e++) R.set(e, e);
   const pivots: number[] = [];
-  for (let col = 0; col < n; col++) {
+  for (let col = 0; col < m; col++) {
     const rank = pivots.length;
     let p = -1;
     for (let r = rank; r < n; r++) if (L.has(r, col)) { p = r; break; }
@@ -69,25 +73,28 @@ export function createShaped(shape: Shape): Shaped {
     pivots.push(col);
   }
   const rank = pivots.length;
-  const nullDim = n - rank;
+  const nullDim = m - rank;
 
-  // b is solvable iff it is orthogonal to every row that eliminated to zero
+  // b is solvable iff it is orthogonal to every row of R whose M part eliminated to zero
   const checks: Int32Array[] = [];
   for (let r = rank; r < n; r++) checks.push(R.row(r));
-  // particular solution (free presses = 0) is linear in b: one press mask per lit variable
-  const col = masks(n, W);
+  // particular solution (free presses = 0) is linear in b: one press mask (Wm words) per lit cell
+  const col = masks(n, Wm);
   for (let r = 0; r < rank; r++) {
     const pv = pivots[r]!;
-    for (let j = 0; j < n; j++) if (R.has(r, j)) col.set(j, pv);
+    for (let e = 0; e < n; e++) if (R.has(r, e)) col.set(e, pv);
   }
   // null basis: one vector per free column
-  const free = [...Array(n).keys()].filter((c) => !pivots.includes(c));
-  const basis = masks(free.length, W);
+  const isPivot = new Uint8Array(m);
+  for (const p of pivots) isPivot[p] = 1;
+  const free = [...Array(m).keys()].filter((c) => !isPivot[c]);
+  const basis = masks(free.length, Wm);
   free.forEach((f, k) => {
     basis.set(k, f);
     for (let r = 0; r < rank; r++) if (L.has(r, f)) basis.set(k, pivots[r]!);
   });
   const approximate = nullDim > MAX_NULL_DIM;
+  const W = Wm;
   // every null vector (index 0 = zero) when the space is small enough to search; otherwise just the basis
   let nulls: Int32Array;
   let nullCount: number;
@@ -111,20 +118,20 @@ export function createShaped(shape: Shape): Shaped {
 
   const weightOf = (x: Int32Array) => { let w = 0; for (let i = 0; i < W; i++) w += popcount(x[i]!); return w; };
 
-  /** lightest press mask (W words) that clears the board, or null (also when a gap is lit) */
+  /** lightest press mask (Wm words) that clears the board, or null (also when a gap is lit) */
   function solveMask(cells: Cells): Int32Array | null {
     check(cells);
-    const b = new Int32Array(W), x = new Int32Array(W);
+    const b = new Int32Array(Wn), x = new Int32Array(W);
     for (let g = 0; g < size; g++) {
       if (!cells[g]) continue;
-      const j = varOf[g]!;
-      if (j < 0) return null; // a lit gap can never be switched off
-      b[j >> 5]! ^= bitOf(j);
-      for (let i = 0; i < W; i++) x[i]! ^= col.a[j * W + i]!;
+      const e = eqOf[g]!;
+      if (e < 0) return null; // a lit gap can never be switched off
+      b[e >> 5]! ^= bitOf(e);
+      for (let i = 0; i < W; i++) x[i]! ^= col.a[e * W + i]!;
     }
     for (const c of checks) {
       let parity = 0;
-      for (let i = 0; i < W; i++) parity += popcount(c[i]! & b[i]!);
+      for (let i = 0; i < Wn; i++) parity += popcount(c[i]! & b[i]!);
       if (parity & 1) return null;
     }
     let weight = weightOf(x);
@@ -153,12 +160,13 @@ export function createShaped(shape: Shape): Shaped {
   return {
     key,
     cells: n,
+    presses: m,
     rank,
     nullDim,
     approximate,
     press(cells, index) {
       check(cells);
-      if (!Number.isInteger(index) || index < 0 || index >= size || varOf[index]! < 0) {
+      if (!Number.isInteger(index) || index < 0 || index >= size || eqOf[index]! < 0) {
         throw new Error(`Cell ${index} is not on this ${shape.cols}×${shape.rows} board`);
       }
       const out = cells.slice();
@@ -170,11 +178,11 @@ export function createShaped(shape: Shape): Shaped {
       if (!x) return null;
       const out: number[] = [];
       for (let w = 0; w < W; w++) {
-        let m = x[w]!;
-        while (m) {
-          const low = m & -m;
-          out.push(realCells[w * 32 + 31 - Math.clz32(low)]!);
-          m ^= low;
+        let mm = x[w]!;
+        while (mm) {
+          const low = mm & -mm;
+          out.push(pressCells[w * 32 + 31 - Math.clz32(low)]!);
+          mm ^= low;
         }
       }
       return out;

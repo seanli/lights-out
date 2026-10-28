@@ -8,5 +8,6 @@ Optional services: `storage`, `view` (works in memory without storage). Rules: `
 - `unlockedUpTo` / `allSolved` count only classic ids (1..classic count). `packs[room]` = `{ unlockedUpTo: highest solved index + 1 (≥1, ≤count), solved, stars }`. `varietyOpen` = classic level `varietyAfter` is solved.
 - `levels:started` → `lastLevel` (any board: home's Continue follows the board last played). `hints:shown` → `pendingHints[id] += 1`.
 - `board:solved` → stars = tier(moves − par) − hints × hintCost, min `minStars`; keeps the best, clears pending hints, emits `progress:level_completed` with `pack` and `unlocked` (next level in the same pack, or null).
+- Custom puzzles (`CUSTOM_LEVEL_ID`) are never saved: their hints count in the slice's `customHints` (reset on `custom:started`), and a solve emits `progress:level_completed {pack:'custom', unlocked:null}` with the stars.
 - `progress:clear` → fresh save, `progress:cleared`. Every change merges with storage, then saves; on failure `progress:save_failed` + a warn notice once.
 - Console: `progress.stars`, `progress.unlock [n]` (classic 1..n at 3★), `progress.clear`.

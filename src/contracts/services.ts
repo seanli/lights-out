@@ -61,7 +61,7 @@ export interface StorageService {
 
 /** Provided by the solver module. Pure functions over boards of any shape; shape absent = classic 5×5. */
 export interface SolverService {
-  /** the board after pressing index (toggles it and its up/down/left/right neighbours that exist) */
+  /** the board after pressing index (toggles what a press there reaches: lib/shape.ts pressTargets; a stuck cell: nothing) */
   press(cells: Cells, index: number, shape?: Shape): Cells;
   /** a fewest-presses solution as a sorted list of indexes, or null if unsolvable */
   solve(cells: Cells, shape?: Shape): number[] | null;

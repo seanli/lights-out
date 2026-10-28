@@ -28,6 +28,8 @@ const solver: ModuleDef = {
       let e = byKey.get(key);
       if (e === undefined) {
         e = key === '5x5' ? null : createShaped(shape);
+        // levels with their own stuck cells or wiring are shapes of their own; custom boards come and go
+        if (byKey.size >= 512) byKey.clear();
         byKey.set(key, e);
         if (e?.approximate) {
           ctx.log.warn(`Board ${key} has ${2 ** e.nullDim} solutions per board; solve gives a short one, not always the shortest`, { key, nullDim: e.nullDim });
@@ -46,7 +48,8 @@ const solver: ModuleDef = {
       debug: () => ({
         rank: gf2.rank,
         solutionsPerBoard: gf2.nulls.length,
-        shapes: [...byKey].map(([key, e]) => (e ? { key, cells: e.cells, rank: e.rank, nullDim: e.nullDim } : { key })),
+        shapes: byKey.size,
+        nullDims: [...new Set([...byKey.values()].map((e) => e?.nullDim ?? 2))],
       }),
       commands: {
         /** solve the board that's showing */

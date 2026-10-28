@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { bootModule, createFakeView } from '../../../test/fake-ctx';
 import type { BoardState, Cells, HintsState, LearnState, LevelsState, ProgressState, Shape, State, TutorialState } from '../../contracts';
 import { SEL } from '../../contracts';
-import { parseShape } from '../../lib/shape';
+import { CUSTOM_LEVEL_ID } from '../../contracts';
+import { cubeShape } from '../../lib/cube';
+import { hexagonShape, parseShape } from '../../lib/shape';
 import playView from './index';
 import { cellAt } from './grid';
 
@@ -548,6 +550,91 @@ describe('play-view', () => {
       cell(8).scrollIntoView = seen;
       t.kernel.seed('hints', { status: 'showing', levelId: 7, cell: 8 } satisfies HintsState);
       expect(seen).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('honeycomb, cube, stuck and wired boards', () => {
+    const up = (el: Element, init: PointerEventInit = {}) =>
+      el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, pointerType: 'touch', ...init }));
+    const move = (el: Element, init: PointerEventInit) =>
+      el.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, button: 0, pointerType: 'touch', ...init }));
+
+    test('a honeycomb places each light on two half-columns, odd rows half a light right; no gap slots; taps press at once', () => {
+      const hex = hexagonShape(4);
+      const first = hex.mask!.indexOf(true);
+      const { q, cell, presses } = boot({ board: shaped(hex, { start: hex.mask!.map((m, i) => i === first), cells: hex.mask!.map((m, i) => i === first) }) });
+      expect(q('[data-board]').dataset.grid).toBe('hex');
+      expect(document.querySelectorAll(SEL.cells)).toHaveLength(37);
+      expect(document.querySelectorAll('[data-board] [data-gap]')).toHaveLength(0);
+      // row 3 (odd, the long middle row) starts at column 0 shifted half a light; row 2 (even) at column 1
+      expect(cell(3 * 7).style.gridColumn).toBe('2 / span 2');
+      expect(cell(2 * 7 + 1).style.gridColumn).toBe('3 / span 2');
+      pointer(cell(3 * 7 + 3));
+      expect(presses()).toEqual([3 * 7 + 3]);
+    });
+
+    test('a cube folds six faces, names each light by its face, presses on release and turns on a swipe', () => {
+      const cube = cubeShape(3);
+      const lit = cube.mask!.map(() => false);
+      const front = (1 * 3 + 1) * 9 + 4; // the front face's centre (face row 1, column 1 in the net)
+      lit[front] = true;
+      const { t, q, cell, presses } = boot({ board: shaped(cube, { start: lit, cells: lit }) });
+      expect(q('[data-board]').dataset.grid).toBe('cube');
+      expect(document.querySelectorAll('.cube__face')).toHaveLength(6);
+      expect(document.querySelectorAll('.cube__face[data-facing]')).toHaveLength(3);
+      expect(cell(front).closest<HTMLElement>('.cube__face')!.dataset.face).toBe('front');
+      expect(cell(front).getAttribute('aria-label')).toBe('Front face, light 2, 2: on');
+      // a tap presses when it lifts, once
+      pointer(cell(front), { pointerId: 1, clientX: 100, clientY: 100 });
+      expect(presses()).toEqual([]);
+      up(cell(front), { pointerId: 1, clientX: 100, clientY: 100 });
+      click(cell(front), 1);
+      expect(presses()).toEqual([front]);
+      // a swipe turns the cube and presses nothing; the faces that show change
+      const board = q('[data-board]');
+      pointer(cell(front), { pointerId: 2, clientX: 200, clientY: 100 });
+      move(board, { pointerId: 2, clientX: 150, clientY: 100 });
+      move(board, { pointerId: 2, clientX: 120, clientY: 100 });
+      up(board, { pointerId: 2, clientX: 120, clientY: 100 });
+      expect(presses()).toEqual([front]);
+      expect([...document.querySelectorAll<HTMLElement>('.cube__face[data-facing]')].map((f) => f.dataset.face).sort()).toEqual(['back', 'right', 'up']);
+      // lights out of sight are counted under the cube
+      expect(q('[data-cube-line]').hidden).toBe(false);
+      expect(q('[data-cube-line]').textContent).toBe('1 lit light out of sight · swipe to turn');
+      expect(t.instance!.commands!.turn!(['right'])).toMatch(/front/);
+    });
+
+    test('stuck cells carry a mark and a word, and shake when tapped (the board refuses the press)', () => {
+      const s = { ...square(5), stuck: [6] };
+      const { cell, presses } = boot({ board: shaped(s, { levelId: 11001 }) });
+      expect(cell(6).dataset.stuck).toBe('true');
+      expect(cell(6).querySelector('.cell__stuck')).not.toBeNull();
+      expect(cell(6).getAttribute('aria-label')).toMatch(/stuck/);
+      pointer(cell(6));
+      expect(cell(6).hasAttribute('data-jam')).toBe(true);
+      expect(presses()).toEqual([6]);
+      expect(cell(7).hasAttribute('data-stuck')).toBe(false);
+    });
+
+    test('wired switches draw one spoke per direction and say where they reach; a new level redraws them in place', () => {
+      const wires = new Array(25).fill(0b01000100); // left and right
+      const { t, cell } = boot({ board: shaped({ ...square(5), wires }, { levelId: 14001 }) });
+      expect(cell(12).querySelectorAll('.cell__wires line')).toHaveLength(2);
+      expect(cell(12).getAttribute('aria-label')).toMatch(/also flips right, left/);
+      const before = cell(12);
+      t.kernel.seed('board', shaped({ ...square(5), wires: new Array(25).fill(0b10101010) }, { levelId: 14002 }));
+      expect(cell(12)).toBe(before); // same grid: the cells stay, the marks change
+      expect(cell(12).querySelectorAll('.cell__wires line')).toHaveLength(4);
+      t.kernel.seed('board', shaped(square(5), { levelId: 14003 }));
+      expect(cell(12).querySelector('.cell__mark')).toBeNull();
+    });
+
+    test('a custom puzzle shows its board in words over its number, with the custom hints on the tiers', () => {
+      const custom = { status: 'playing' as const, settings: { grid: 'hex' as const, cols: 6, rows: 6, hexSide: 4, cubeSide: 3, twist: 'none' as const, difficulty: 'hard' as const }, played: 3, label: 'Hex · 37 lights · Hard' };
+      const { q } = boot({ board: board({ levelId: CUSTOM_LEVEL_ID }), custom, progress: { ...progress(), customHints: 1 } });
+      expect(q('[data-level-label]').textContent).toBe('Puzzle 3');
+      expect(q('.screen-header .eyebrow').textContent).toBe('Hex · 37 lights · Hard');
+      expect(q('.chip[data-state="hint"]').hidden).toBe(false);
     });
   });
 

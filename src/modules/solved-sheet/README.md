@@ -11,6 +11,7 @@ The end-of-level sheet in `view.region('sheet:solved')`. Uses `view`, `clock`; o
 - After a boss (`levels:started.boss`, else the level's def): `data-boss="true"`, a skull over the title, "Boss beaten." Same star rules.
 - `next` → `levels:start {next}` ("Next · Level 8", hidden when next is null), `replay`, `levels` → `variety:open {room: pack}` (this board's
   level screen, classic included; home when no `variety` slice). Last level of a board: "Back to the levels" is primary (classic: all-done copy).
+- A custom puzzle (`CUSTOM_LEVEL_ID`): eyebrow = `custom.label`; "New puzzle" → `custom:play`, Replay → `board:restart`, "Change board" → `custom:open`.
 - The backdrop does nothing. Copy: `copy.json → solved-sheet`. Layout: `--sheet-pad` all round, every button `--bar-h` tall (`--bar-h-short` on short screens).
 
 Delete it and a solve just leaves the dimmed board with its back button.

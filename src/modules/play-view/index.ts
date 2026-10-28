@@ -1,14 +1,17 @@
 // play-view: the play screen. Renders the board, hints, tutorial and progress slices and turns taps into commands.
-// The DOM is built once (the grid again only when the board's shape changes); every change only touches what differs.
-// How a touch presses depends on the measured board: instant on pointerdown (normal boards), on release unless the
-// finger moved (a tall board that scrolls), or aim-and-release with a magnifier (slots under the tap minimum).
+// The DOM is built once (the grid again only when the board's grid changes; a level's stuck cells and wiring are
+// redrawn on the cells in place); every change only touches what differs.
+// How a touch presses depends on the board: instant on pointerdown (normal boards and the honeycomb), on release
+// unless the finger moved (a tall board that scrolls; the cube, where a swipe turns it), or aim-and-release with a
+// magnifier (slots under the tap minimum).
 import * as v from 'valibot';
-import { MAX_CELLS, type BoardState, type HintsState, type LevelsState, type ModuleDef, type ProgressState, type Shape, type TutorialState } from '../../contracts';
-import { cellAt, isTall, rowEdge, stepFrom } from './grid';
+import { CUSTOM_LEVEL_ID, MAX_CELLS, type BoardState, type CustomState, type HintsState, type LevelsState, type ModuleDef, type ProgressState, type Shape, type TutorialState } from '../../contracts';
+import { cellAt, hexCellAt, isTall, rowEdge, stepFrom } from './grid';
 import { attachAim, type AimMode } from '../../lib/aim';
 import { fmt, h, setAttr, setText } from '../../lib/dom';
-import { skull } from '../../lib/icons';
-import { cellIndexes, gridSize, isCell, shapeKey, shapeOf } from '../../lib/shape';
+import { skull, stuckIcon, wireIcon } from '../../lib/icons';
+import { FACES, IDENTITY, cellFace, cssMatrix, cubeSide, faceMatrix, facesShowing, frontFace, turn, type FaceId, type Mat } from '../../lib/cube';
+import { cellIndexes, gridOf, gridSize, isCell, isStuck, shapeKey, shapeOf } from '../../lib/shape';
 import './play-view.css';
 
 const text = v.pipe(v.string(), v.minLength(1));
@@ -16,6 +19,14 @@ const CopySchema = v.object({
   chapter: text, level: text, boss: text, moves: text, par: text, undo: text, restart: text, hint: text, hintCost: text,
   back: text, patterns: text, board: text, maxAria: text, hintLine: text, hintChipCost: text, hintChipWord: text, hintChipAria: text,
   cellOn: text, cellOff: text, tierWithin: text, tierOver: text, tierWithinAria: text, tierOverAria: text,
+  /** the cube: its faces' names, a light's name on a face, and the line that says how to turn it */
+  faces: v.object({ up: text, left: text, front: text, right: text, down: text, back: text }),
+  cubeOn: text, cubeOff: text, cubeTurn: text, cubeHidden: text,
+  /** said after a light's name: a stuck light, and a wired one (with the directions its press reaches) */
+  stuck: text, wired: text, list: text,
+  dirs: v.tuple([text, text, text, text, text, text, text, text]),
+  /** a custom puzzle's header */
+  custom: text, puzzle: text,
 });
 type Copy = v.InferOutput<typeof CopySchema>;
 
@@ -43,6 +54,13 @@ function icon(paths: string[]): SVGSVGElement {
 }
 
 const ARROWS: Record<string, [number, number]> = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
+/** the cube's fixed view: tipped toward you, turned a little, so the front, the top and the right side show */
+const CUBE_TILT = -30;
+const CUBE_SPIN = -35;
+/** a swipe this long (px) turns the cube a quarter; shorter, it springs back */
+const CUBE_SWIPE = 36;
+/** degrees the cube follows the finger per px while it is dragged */
+const CUBE_DRAG = 0.45;
 
 /** a CSS time token in ms ("800ms" / ".8s"), or NaN */
 function ms(value: string): number {
@@ -50,9 +68,9 @@ function ms(value: string): number {
   return /ms\s*$/.test(value) ? n : /s\s*$/.test(value) ? n * 1000 : NaN;
 }
 
-/** same grid: size and gaps (store writes clone, so shapes are compared by value) */
+/** same grid: kind, size and gaps (store writes clone, so shapes are compared by value); stuck cells and wiring aside */
 function sameGrid(a: Shape, b: Shape): boolean {
-  if (a.cols !== b.cols || a.rows !== b.rows) return false;
+  if (a.cols !== b.cols || a.rows !== b.rows || gridOf(a) !== gridOf(b)) return false;
   if (!a.mask || !b.mask) return !a.mask === !b.mask || (a.mask ?? b.mask)!.every(Boolean);
   for (let k = 0; k < a.mask.length; k++) if (a.mask[k] !== b.mask[k]) return false;
   return true;
@@ -120,8 +138,10 @@ const playView: ModuleDef = {
     // the line over the board: the hint line, or the tutorial's coach line (slot:coach); shown whole or not at all
     const hintLine = h('p', { class: 'tutorial-line', 'data-tone': 'hint', role: 'status', hidden: true }, copy.hintLine);
     const line = h('div', { class: 'play-line', 'data-hint': 'false' }, hintLine, view.region('slot:coach'));
+    // the cube says how to turn it, under the board, until the first turn
+    const cubeLine = h('p', { class: 'play-cube-line', 'data-cube-line': '', hidden: true }, copy.cubeTurn);
     // the status row travels with the board: the pair sits together, centred in the space between the header and the bar
-    const slot = h('div', { class: 'board-slot' }, line, status, board);
+    const slot = h('div', { class: 'board-slot' }, line, status, board, cubeLine);
 
     // the tools: always icon + label (the shared .bar); Hint is the wider one
     const label = (...kids: (Node | string)[]) => h('span', { class: 'play-act__label' }, ...kids);
@@ -158,6 +178,15 @@ const playView: ModuleDef = {
     /** a tall board scrolls (presses land on release); `aim`: its slots are under the tap minimum (measured) */
     let tall = false;
     let aim = false;
+    /** the level's own shape (stuck cells and wiring change per level on the same grid) and what's drawn of it */
+    let levelShape: Shape | null = null;
+    let decorKey = '';
+    /** said after each light's name: ", stuck" or ", wired up and down" (per level) */
+    let suffix: string[] = [];
+    // ---- the cube: its element, its faces, the orientation (a quarter-turn rotation) and the faces that show ----
+    let cube: { el: HTMLElement; n: number; faces: Map<FaceId, HTMLElement>; showing: Set<FaceId> } | null = null;
+    let orient: Mat = IDENTITY;
+    let turned = false;
     const rowOf = (i: number) => Math.floor(i / shape!.cols);
     const colOf = (i: number) => i % shape!.cols;
     const resetOrder = () => { for (const i of real) cells[i]!.style.setProperty('--i', String(rowOf(i) + colOf(i))); };
@@ -167,26 +196,64 @@ const playView: ModuleDef = {
       shape = next;
       real = cellIndexes(next);
       labels = { on: [], off: [] };
+      suffix = [];
+      decorKey = '';
       cells = [];
+      const grid = gridOf(next);
+      const side = grid === 'cube' ? cubeSide(next) : 0;
       const slots: HTMLElement[] = [];
       for (let i = 0; i < gridSize(next); i++) {
-        const pos = { row: rowOf(i) + 1, col: colOf(i) + 1 };
-        labels.on.push(fmt(copy.cellOn, pos));
-        labels.off.push(fmt(copy.cellOff, pos));
+        const at = side ? cellFace(side, i) : null;
+        // a cube light is named by its face and its place on that face
+        const pos: Record<string, string | number> = at ? { face: copy.faces[at.face.id], row: at.b + 1, col: at.a + 1 } : { row: rowOf(i) + 1, col: colOf(i) + 1 };
+        labels.on.push(fmt(at ? copy.cubeOn : copy.cellOn, pos));
+        labels.off.push(fmt(at ? copy.cubeOff : copy.cellOff, pos));
+        suffix.push('');
         if (!isCell(next, i)) {
           // a gap keeps its grid slot and nothing else: not a button, not focusable, invisible to assistive tech
+          // (a honeycomb and a cube place their cells themselves: no gap slots)
           cells.push(null);
-          slots.push(h('div', { 'data-gap': '', 'aria-hidden': 'true' }));
+          if (grid === 'square') slots.push(h('div', { 'data-gap': '', 'aria-hidden': 'true' }));
           continue;
         }
         const cell = h('button', {
           class: 'cell', type: 'button', 'data-cell': '', 'data-index': i, 'data-lit': 'false',
           'aria-pressed': 'false', 'aria-label': labels.off[i], tabindex: i === real[0] ? '0' : '-1',
         });
+        if (grid === 'hex') {
+          // two half-columns per cell; odd rows start half a cell to the right
+          cell.style.gridColumn = `${2 * colOf(i) + 1 + (rowOf(i) & 1)} / span 2`;
+          cell.style.gridRow = String(rowOf(i) + 1);
+        }
+        if (at) {
+          cell.style.gridColumn = String(at.a + 1);
+          cell.style.gridRow = String(at.b + 1);
+        }
         cells.push(cell);
         slots.push(cell);
       }
-      board.replaceChildren(...slots);
+      if (side) {
+        // six panels folded into a cube (lib/cube.ts frames); the board is the stage it turns on
+        const faces = new Map<FaceId, HTMLElement>();
+        const el = h('div', { class: 'cube' });
+        el.style.setProperty('--cube-n', String(side));
+        for (const f of FACES) {
+          const face = h('div', { class: 'cube__face', 'data-face': f.id });
+          face.style.transform = `${faceMatrix(f)} translateZ(var(--cube-half))`;
+          faces.set(f.id, face);
+          el.append(face);
+        }
+        for (const cell of cells) if (cell) faces.get(cellFace(side, Number(cell.dataset.index))!.face.id)!.append(cell);
+        board.replaceChildren(el);
+        cube = { el, n: side, faces, showing: new Set() };
+        orient = IDENTITY;
+        showOrient(false);
+      } else {
+        cube = null;
+        board.replaceChildren(...slots);
+      }
+      setAttr(board, 'data-grid', grid === 'square' ? null : grid);
+      board.style.setProperty('--board-halves', String(2 * next.cols + 1));
       resetOrder();
       const n = Math.max(next.cols, next.rows);
       board.dataset.n = String(n);
@@ -195,7 +262,7 @@ const playView: ModuleDef = {
       board.style.setProperty('--board-n', String(n));
       board.style.setProperty('--board-cols', String(next.cols));
       board.style.setProperty('--board-rows', String(next.rows));
-      tall = isTall(next);
+      tall = grid === 'square' && isTall(next);
       setAttr(board, 'data-scroll', tall ? 'true' : null);
       shown.fill(-1);
       delays.fill(-1);
@@ -210,6 +277,8 @@ const playView: ModuleDef = {
     // ---------- input ----------
     const press = (index: number) => {
       if (ctx.read('board')?.status !== 'playing') return; // solved / sweeping: taps do nothing
+      // a stuck switch is jammed: it gives a little shake (the board refuses the press, no move is spent)
+      if (levelShape && isStuck(levelShape, index)) cells[index]?.setAttribute('data-jam', '');
       ctx.emit('board:press', { index });
     };
     const cellIndex = (target: EventTarget | null): number => {
@@ -218,10 +287,12 @@ const playView: ModuleDef = {
     };
     /** the real cell whose grid slot holds a client point (gutter and padding included; a scrolled board's content counts) */
     const pointCell = (x: number, y: number): number => {
-      if (!shape) return -1;
+      if (!shape || gridOf(shape) === 'cube') return -1; // a cube is hit by its lights only
       const r = board.getBoundingClientRect();
       const css = getComputedStyle(board);
       const px = (v: string) => parseFloat(v) || 0;
+      // a honeycomb: the nearest light (its gaps belong to the lights around them)
+      if (gridOf(shape) === 'hex') return hexCellAt(shape, x - r.left, y - r.top, { width: r.width, height: r.height, padX: px(css.paddingLeft), padY: px(css.paddingTop) });
       return cellAt(shape, x - r.left + board.scrollLeft, y - r.top + board.scrollTop, {
         width: r.width, height: tall ? Math.max(board.scrollHeight, r.height) : r.height,
         padX: px(css.paddingLeft), padY: px(css.paddingTop), gapX: px(css.columnGap), gapY: px(css.rowGap),
@@ -238,7 +309,7 @@ const playView: ModuleDef = {
       onAim: (i) => { aimedCell = mark('data-aimed', aimedCell, i); },
     });
     board.addEventListener('pointerdown', (e) => {
-      if (e.button !== 0 || pointerMode()) return; // primary mouse button; every touch/pen contact is button 0
+      if (e.button !== 0 || pointerMode() || cube) return; // primary mouse button; every touch/pen contact is button 0
       let i = cellIndex(e.target);
       // the space between cells and the board's padding are hit area too (layout is clean: nothing written yet)
       if (i < 0 && e.target === board) i = pointCell(e.clientX, e.clientY);
@@ -251,9 +322,72 @@ const playView: ModuleDef = {
       if (i < 0) return;
       if (e.detail === 0) return press(i); // keyboard (Enter/Space) or assistive tech
       if (pending[i]) { pending[i] = 0; return; } // already pressed on pointerdown
-      if (pointerMode() || aimer.active()) return; // pressed (or not) on release by the aim helper: never twice
+      if (pointerMode() || aimer.active() || cube) return; // pressed (or not) on release by the aim helper or the cube: never twice
       press(i); // a click with no pointerdown before it
     });
+
+    // ---------- the cube: a tap presses on release; a swipe turns it a quarter (the cube follows the finger meanwhile) ----------
+    function showOrient(animate: boolean, extra = '') {
+      if (!cube) return;
+      cube.el.classList.toggle('cube--still', !animate);
+      cube.el.style.transform = `rotateX(${CUBE_TILT}deg) rotateY(${CUBE_SPIN}deg) ${extra}${cssMatrix(orient)}`;
+      const showing = new Set(facesShowing(orient, CUBE_TILT, CUBE_SPIN));
+      cube.showing = showing;
+      for (const [id, face] of cube.faces) setAttr(face, 'data-facing', showing.has(id) ? 'true' : null);
+      cubeLineNow();
+    }
+    /** under the cube: how many lit lights are out of sight (or, before the first turn, how to turn it) */
+    function cubeLineNow() {
+      if (!cube) { cubeLine.hidden = true; return; }
+      let hidden = 0;
+      for (const i of real) if (shown[i] === 1 && !cube.showing.has(cellFace(cube.n, i)!.face.id)) hidden++;
+      const text = hidden ? fmt(copy.cubeHidden, { n: hidden }) : turned ? '' : copy.cubeTurn;
+      setText(cubeLine, text);
+      cubeLine.hidden = !text;
+    }
+    const turnCube = (dir: 'left' | 'right' | 'up' | 'down') => {
+      orient = turn(orient, dir);
+      turned = true;
+      showOrient(true);
+    };
+    /** bring a light's face round to the front when it is out of sight (a hint, or keyboard focus) */
+    const reveal = (i: number) => {
+      if (!cube || i < 0) return;
+      const id = cellFace(cube.n, i)?.face.id;
+      if (!id || cube.showing.has(id)) return;
+      orient = frontFace(id);
+      showOrient(true);
+    };
+    let drag: { id: number; x: number; y: number; cell: number; dx: number; dy: number; moved: boolean } | null = null;
+    board.addEventListener('pointerdown', (e) => {
+      if (!cube || e.button !== 0 || drag) return;
+      drag = { id: e.pointerId, x: e.clientX, y: e.clientY, cell: cellIndex(e.target), dx: 0, dy: 0, moved: false };
+    });
+    board.addEventListener('pointermove', (e) => {
+      if (!cube || !drag || e.pointerId !== drag.id) return;
+      drag.dx = e.clientX - drag.x;
+      drag.dy = e.clientY - drag.y;
+      if (!drag.moved && Math.hypot(drag.dx, drag.dy) < 10) return;
+      drag.moved = true;
+      // follow the finger along the stronger axis (in the world, before the view's tilt)
+      const across = Math.abs(drag.dx) >= Math.abs(drag.dy);
+      showOrient(false, across ? `rotateY(${drag.dx * CUBE_DRAG}deg) ` : `rotateX(${-drag.dy * CUBE_DRAG}deg) `);
+    });
+    const endDrag = (e: PointerEvent, cancelled: boolean) => {
+      if (!cube || !drag || e.pointerId !== drag.id) return;
+      const d = drag;
+      drag = null;
+      if (!d.moved) {
+        if (!cancelled && d.cell >= 0) { pending[d.cell] = 1; press(d.cell); }
+        return;
+      }
+      const across = Math.abs(d.dx) >= Math.abs(d.dy);
+      const dist = across ? d.dx : d.dy;
+      if (!cancelled && Math.abs(dist) >= CUBE_SWIPE) turnCube(across ? (dist > 0 ? 'right' : 'left') : (dist > 0 ? 'down' : 'up'));
+      else showOrient(true);
+    };
+    board.addEventListener('pointerup', (e) => endDrag(e, false));
+    board.addEventListener('pointercancel', (e) => endDrag(e, true));
 
     // the slot (board size / cols, gutter included: DECISIONS #40) decides aim mode; measured, never on a tap
     let aimBelow = 0;
@@ -270,7 +404,7 @@ const playView: ModuleDef = {
       if (shape && !tall && !r.width) return; // hidden: measured again when it shows
       aimBelow ||= parseFloat(getComputedStyle(board).getPropertyValue('--aim-below')) || 40;
       // a scrolling board keeps its slots big (it fits its width) and needs its swipes: never aim there
-      aim = !!shape && !tall && Math.min(r.width / shape.cols, r.height / shape.rows) < aimBelow - 0.5;
+      aim = !!shape && !tall && gridOf(shape) === 'square' && Math.min(r.width / shape.cols, r.height / shape.rows) < aimBelow - 0.5;
       setAttr(board, 'data-aim', aim ? 'true' : null);
       edges();
       // the status row lines up with the board's edges (narrower when Patterns shrinks the board)
@@ -285,10 +419,16 @@ const playView: ModuleDef = {
       cells[i]!.tabIndex = 0;
       focusIndex = i;
     };
-    board.addEventListener('focusin', (e) => { const i = cellIndex(e.target); if (i >= 0) rove(i); });
+    board.addEventListener('focusin', (e) => { const i = cellIndex(e.target); if (i >= 0) { rove(i); reveal(i); } });
     board.addEventListener('keydown', (e) => {
       const i = cellIndex(e.target);
       if (i < 0 || !shape) return;
+      // the cube: Shift + an arrow turns it
+      if (cube && e.shiftKey && e.key in ARROWS) {
+        e.preventDefault();
+        turnCube(({ ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' } as const)[e.key as 'ArrowUp']);
+        return;
+      }
       const step = ARROWS[e.key];
       const next = step ? stepFrom(shape, i, step[0], step[1])
         : e.key === 'Home' ? rowEdge(shape, i, -1)
@@ -301,7 +441,9 @@ const playView: ModuleDef = {
     // a flip marker lives for one animation (bloom / afterglow); the cell's own, not its rings'
     board.addEventListener('animationend', (e) => {
       const el = e.target as HTMLElement;
-      if (!e.pseudoElement && el.hasAttribute?.('data-flip')) el.removeAttribute('data-flip');
+      if (e.pseudoElement) return;
+      if (e.animationName === 'lo-jam') el.removeAttribute('data-jam');
+      else if (el.hasAttribute?.('data-flip')) el.removeAttribute('data-flip');
     });
     board.addEventListener('contextmenu', (e) => e.preventDefault());
     board.addEventListener('touchstart', () => {}, { passive: true }); // lets iOS apply :active on the cells
@@ -434,11 +576,35 @@ const playView: ModuleDef = {
     const setStars = (list: HTMLElement[], on: number) => list.forEach((s, k) => setAttr(s, 'data-state', k < on ? 'on' : 'off'));
     const disable = (el: HTMLElement, off: boolean) => setAttr(el, 'aria-disabled', off ? 'true' : null);
 
+    /** a level's stuck cells and wiring, drawn on the cells it already has (same grid, new level) */
+    const decorate = (s: Shape) => {
+      const key = shapeKey(s);
+      if (key === decorKey) return;
+      decorKey = key;
+      for (const i of real) {
+        const cell = cells[i]!;
+        const stuck = isStuck(s, i);
+        const bits = s.wires?.[i];
+        setAttr(cell, 'data-stuck', stuck ? 'true' : null);
+        setAttr(cell, 'data-wires', bits === undefined ? null : String(bits));
+        const marks: Node[] = [];
+        if (bits !== undefined) marks.push(wireIcon(bits));
+        if (stuck) marks.push(stuckIcon());
+        if (marks.length || cell.firstChild) cell.replaceChildren(...(marks.length ? [h('span', { class: 'cell__mark', 'aria-hidden': 'true' }, ...marks)] : []));
+        const dirs = bits === undefined ? [] : copy.dirs.filter((_, k) => bits & (1 << k));
+        suffix[i] = (stuck ? copy.stuck : '') + (dirs.length ? fmt(copy.wired, { dirs: dirs.join(copy.list) }) : '');
+        const on = shown[i] === 1;
+        cell.setAttribute('aria-label', (on ? labels.on[i]! : labels.off[i]!) + suffix[i]);
+      }
+    };
+
     const renderBoard = (b: BoardState | undefined) => {
       if (!b) return;
       const next = shapeOf(b.shape);
       const rebuilt = !shape || !sameGrid(shape, next);
       if (rebuilt) buildGrid(next);
+      levelShape = next;
+      decorate(next);
       const load = rebuilt || b.levelId !== lastLevel;
       // a single new press ripples out from that cell; undo, restart and loads change everything at once
       const pressed = !load && b.history.length === lastHistory + 1 ? b.history.at(-1)! : -1;
@@ -452,7 +618,7 @@ const playView: ModuleDef = {
         const cell = cells[i]!;
         cell.dataset.lit = on ? 'true' : 'false';
         cell.setAttribute('aria-pressed', on ? 'true' : 'false');
-        cell.setAttribute('aria-label', on ? labels.on[i]! : labels.off[i]!);
+        cell.setAttribute('aria-label', (on ? labels.on[i]! : labels.off[i]!) + suffix[i]);
         if (first) continue;
         // the pressed cell answers at once, its neighbours a stagger later; everything else changes together
         const delay = pressed < 0 || i === pressed ? 0 : 1;
@@ -465,6 +631,9 @@ const playView: ModuleDef = {
       }
       if (load && tall) board.scrollTop = 0; // a new level starts at the top of the Tower
       if (load) edges();
+      // a new cube level starts square on, with the line that says how to turn it (until the player has turned one)
+      if (load && cube) { orient = IDENTITY; showOrient(false); }
+      cubeLineNow();
       if (load) startIntro(lit);
       else if (cancelIntro || board.classList.contains('board--intro')) endIntro(); // the first press ends the intro
       const solved = b.status === 'solved';
@@ -489,8 +658,14 @@ const playView: ModuleDef = {
       return bosses.ids.has(id);
     };
 
-    const renderHeader = (b: BoardState | undefined, levels: LevelsState | undefined, progress: ProgressState | undefined) => {
+    const renderHeader = (b: BoardState | undefined, levels: LevelsState | undefined, progress: ProgressState | undefined, custom: CustomState | undefined) => {
       const id = b?.levelId ?? null;
+      if (id === CUSTOM_LEVEL_ID) {
+        // a custom puzzle: the board in words over its number in this session
+        setText(levelText, fmt(copy.puzzle, { n: custom?.played ?? 1 }));
+        setText(chapterEl, custom?.label ?? copy.custom);
+        setAttr(header, 'data-boss', null);
+      } else {
       // a Variety level: the room's name over its place in the room; a classic level: its chapter over its number
       const pack = id === null ? undefined : levels?.packs?.find((p) => p.kind !== 'classic' && id >= p.first && id < p.first + p.count);
       setText(levelText, id === null ? '' : fmt(copy.level, { level: pack ? id - pack.first + 1 : id }));
@@ -499,11 +674,12 @@ const playView: ModuleDef = {
       const boss = id !== null && isBoss(levels, id);
       setText(chapterEl, boss ? fmt(copy.boss, { name }) : name);
       setAttr(header, 'data-boss', boss ? 'true' : null);
+      }
 
       const scoring = progress?.scoring;
       tiersEl.hidden = !scoring || id === null;
       if (!scoring || !b || id === null) return;
-      const used = progress?.save.pendingHints[String(id)] ?? 0;
+      const used = id === CUSTOM_LEVEL_ID ? (progress?.customHints ?? 0) : (progress?.save.pendingHints[String(id)] ?? 0);
       const starsFor = (base: number) => Math.min(3, Math.max(scoring.minStars, base - used * scoring.hintCost));
       const max = starsFor(3);
       setAttr(tiersEl, 'aria-label', fmt(copy.maxAria, { stars: max }));
@@ -541,6 +717,7 @@ const playView: ModuleDef = {
       if (pointing) hintCell = mark('data-hint', hintCell, -1);
       pointerCell = mark('data-pointer', pointerCell, pointing ? tutorial!.target! : -1);
       hintCell = mark('data-hint', hintCell, showing ? hints!.cell! : -1);
+      if (cube && hintCell >= 0 && hintCell !== before[0]) reveal(hintCell);
       // on a scrolling board a new mark is brought into view (never on a normal board: no layout work on a tap)
       const fresh = hintCell >= 0 && hintCell !== before[0] ? hintCell : pointerCell >= 0 && pointerCell !== before[1] ? pointerCell : -1;
       if (tall && fresh >= 0) cells[fresh]!.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: view.reducedMotion() ? 'auto' : 'smooth' });
@@ -557,18 +734,18 @@ const playView: ModuleDef = {
     let headKey = '';
     const render = () => {
       const b = ctx.read('board'), hints = ctx.read('hints'), tutorial = ctx.read('tutorial');
-      const levels = ctx.read('levels'), progress = ctx.read('progress');
-      const now = [b, hints, tutorial, levels, progress];
+      const levels = ctx.read('levels'), progress = ctx.read('progress'), custom = ctx.read('custom');
+      const now = [b, hints, tutorial, levels, progress, custom];
       if (now.every((s, k) => s === seen[k])) return;
       if (b !== seen[0]) renderBoard(b);
       renderMarks(b, hints, tutorial);
       // the header only depends on level, moves and par (moves move the "now" tier chip)
       const key = `${b?.levelId}|${b?.moves}|${b?.par}`;
-      if (key !== headKey || levels !== seen[3] || progress !== seen[4]) renderHeader(b, levels, progress);
+      if (key !== headKey || levels !== seen[3] || progress !== seen[4] || custom !== seen[5]) renderHeader(b, levels, progress, custom);
       headKey = key;
       seen = now;
     };
-    for (const slice of ['board', 'hints', 'tutorial', 'levels', 'progress'] as const) ctx.watch(slice, render);
+    for (const slice of ['board', 'hints', 'tutorial', 'levels', 'progress', 'custom'] as const) ctx.watch(slice, render);
     if (!ctx.read('board')) buildGrid(shapeOf(null));
     render();
 
@@ -586,10 +763,27 @@ const playView: ModuleDef = {
         document.removeEventListener('keydown', onKey);
       },
       debug: () => ({
-        shape: shape ? shapeKey(shape) : null, press: pointerMode() ?? 'instant', hintCell, pointerCell, focusIndex,
+        shape: shape ? shapeKey(shape) : null, press: cube ? 'cube' : pointerMode() ?? 'instant', hintCell, pointerCell, focusIndex,
+        cube: cube ? { showing: [...cube.showing], orient: [...orient] } : null,
         reference: refOpen ? 'open' : 'closed', sweeping: board.classList.contains('board--sweep'), intro: board.classList.contains('board--intro'),
       }),
       commands: {
+        /** show <index>: turns the cube so that light's face is in view */
+        show(args) {
+          const i = Number(args[0]);
+          if (!cube) return 'The board is not a cube';
+          if (!Number.isInteger(i) || !cells[i]) return 'Usage: play-view.show <light index>';
+          reveal(i);
+          return `showing ${[...cube.showing].join(', ')}`;
+        },
+        /** turn left|right|up|down: turns the cube a quarter */
+        turn(args) {
+          const dir = args[0] as 'left' | 'right' | 'up' | 'down';
+          if (!cube) return 'The board is not a cube';
+          if (!['left', 'right', 'up', 'down'].includes(dir)) return 'Usage: play-view.turn left|right|up|down';
+          turnCube(dir);
+          return `showing ${[...cube.showing].join(', ')}`;
+        },
         /** reference [open|close]: toggles the in-game pattern reference */
         reference(args) {
           setReference(args[0] === 'open' ? true : args[0] === 'close' ? false : !refWanted);

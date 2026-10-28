@@ -2,7 +2,7 @@
 // stars from progress (when present), moves vs par, and next / replay / levels. Works for the classic path and
 // for Variety rooms (levels:started says which pack, the index inside it, the next level and whether it is a boss).
 import * as v from 'valibot';
-import type { Events, LevelId, ModuleDef, Scoring } from '../../contracts';
+import { CUSTOM_LEVEL_ID, type Events, type LevelId, type ModuleDef, type Scoring } from '../../contracts';
 import { fmt, h, setAttr, setText } from '../../lib/dom';
 import { skull } from '../../lib/icons';
 import './solved-sheet.css';
@@ -15,6 +15,8 @@ const Copy = v.object({
   next: Text, replay: Text, levels: Text,
   allDoneTitle: Text, allDoneBody: Text, allDonePerfect: Text, backToLevels: Text, lastLevel: Text,
   roomEyebrow: Text, roomDone: Text, roomLast: Text, nextMeta: Text,
+  /** a custom puzzle: another one with the same settings, or back to the settings */
+  customNext: Text, customSettings: Text,
 });
 type CopyT = v.InferOutput<typeof Copy>;
 type Solved = Events['board:solved'];
@@ -34,7 +36,7 @@ function baseStars(moves: number, par: number, s: Scoring): number {
 const solvedSheet: ModuleDef = {
   manifest: {
     name: 'solved-sheet',
-    emits: ['nav:open_sheet', 'nav:close_sheet', 'nav:go', 'levels:start', 'variety:open'],
+    emits: ['nav:open_sheet', 'nav:close_sheet', 'nav:go', 'levels:start', 'variety:open', 'custom:play', 'custom:open', 'board:restart'],
     listens: ['board:solved', 'progress:level_completed', 'levels:started', 'board:loaded', 'board:restarted', 'kernel:state_loaded'],
     owns: [],
     uses: ['view', 'clock'],
@@ -67,8 +69,9 @@ const solvedSheet: ModuleDef = {
     const note = h('p', { class: 'sheet__note' });
     const extra = h('p', { class: 'sheet__note', hidden: true });
     const nextLevel = h('span');
-    const next = h('button', { type: 'button', class: 'btn btn--primary btn--block', 'data-action': 'next' },
-      copy.next, h('span', { class: 'btn__meta', 'aria-hidden': 'true' }, '·'), nextLevel);
+    const nextText = h('span', {}, copy.next);
+    const nextDot = h('span', { class: 'btn__meta', 'aria-hidden': 'true' }, '·');
+    const next = h('button', { type: 'button', class: 'btn btn--primary btn--block', 'data-action': 'next' }, nextText, nextDot, nextLevel);
     const replay = h('button', { type: 'button', class: 'btn btn--ghost', 'data-action': 'replay' }, copy.replay);
     const levels = h('button', { type: 'button', class: 'btn btn--ghost', 'data-action': 'levels' }, copy.levels);
     const row = h('div', { class: 'solved__row' }, replay, levels);
@@ -84,6 +87,7 @@ const solvedSheet: ModuleDef = {
     };
     /** from levels:started when it was about this level; otherwise worked out from the levels slice (e.g. after a hot reload) */
     function placeOf(levelId: LevelId): Place {
+      if (levelId === CUSTOM_LEVEL_ID) return { pack: 'custom', index: ctx.read('custom')?.played ?? 1, next: null, boss: false };
       if (started && started.levelId === levelId && started.pack !== undefined && started.index !== undefined && started.next !== undefined) {
         return { pack: started.pack, index: started.index, next: started.next, boss: !!started.boss };
       }
@@ -105,6 +109,13 @@ const solvedSheet: ModuleDef = {
       if (!action || !solved) return;
       const id: LevelId = solved.levelId;
       const place = placeOf(id);
+      if (place.pack === 'custom') {
+        // a custom puzzle: New puzzle (same settings), Replay this one, or back to the settings
+        if (action === 'next') ctx.emit('custom:play', {});
+        else if (action === 'replay') { ctx.emit('nav:close_sheet', {}); ctx.emit('board:restart', {}); }
+        else if (action === 'levels') ctx.emit('custom:open', {});
+        return;
+      }
       if (action === 'next' && place.next !== null) ctx.emit('levels:start', { levelId: place.next });
       else if (action === 'replay') ctx.emit('levels:start', { levelId: id });
       else if (action === 'levels') {
@@ -131,18 +142,19 @@ const solvedSheet: ModuleDef = {
       const { levelId, moves, par } = solved;
       const done = completed && completed.levelId === levelId ? completed : null;
       const place = placeOf(levelId);
+      const custom = place.pack === 'custom';
       const lv = ctx.read('levels');
-      const room = place.pack === 'classic' ? null : (lv?.packs?.find((p) => p.id === place.pack) ?? { id: place.pack, name: place.pack, count: place.index });
+      const room = place.pack === 'classic' || custom ? null : (lv?.packs?.find((p) => p.id === place.pack) ?? { id: place.pack, name: place.pack, count: place.index });
       const progress = ctx.read('progress');
       const count = classicCount();
       const last = place.next === null;
       // only the solve that finished the classic set celebrates it; later replays get the normal note
-      const allDone = !room && !!done && done.allSolved && done.firstSolve;
+      const allDone = !room && !custom && !!done && done.allSolved && done.firstSolve;
       const classicResults = Object.entries(progress?.save.results ?? {}).filter(([k]) => count === undefined || Number(k) <= count).map(([, r]) => r);
       const perfect = count !== undefined && classicResults.length >= count && classicResults.every((r) => r.stars === MAX_STARS);
       const roomDone = !!room && (progress?.packs?.[room.id]?.solved ?? 0) >= room.count;
 
-      setText(eyebrow, room ? fmt(copy.roomEyebrow, { room: room.name, level: place.index }) : fmt(copy.eyebrow, { level: levelId }));
+      setText(eyebrow, custom ? (ctx.read('custom')?.label ?? '') : room ? fmt(copy.roomEyebrow, { room: room.name, level: place.index }) : fmt(copy.eyebrow, { level: levelId }));
       setText(title, allDone ? fmt(copy.allDoneTitle, { total: count ?? levelId }) : place.boss ? copy.bossTitle : copy.title);
       mark.hidden = !place.boss;
       setAttr(sheet, 'data-boss', place.boss ? 'true' : null);
@@ -167,9 +179,24 @@ const solvedSheet: ModuleDef = {
       const text = allDone ? (perfect ? copy.allDonePerfect : copy.allDoneBody) : line;
       setText(note, text);
       note.hidden = !text;
-      extra.hidden = !last || allDone;
+      extra.hidden = !last || allDone || custom;
       setText(extra, room ? (roomDone ? copy.roomDone : copy.roomLast) : copy.lastLevel);
 
+      if (custom) {
+        // a custom puzzle never runs out: New puzzle first, then Replay and Change board
+        next.hidden = false;
+        setText(nextText, copy.customNext);
+        setText(nextDot, '');
+        setText(nextLevel, '');
+        levels.className = 'btn btn--ghost';
+        setText(levels, copy.customSettings);
+        row.append(levels);
+        setAttr(next, 'data-autofocus', '');
+        setAttr(levels, 'data-autofocus', null);
+        return;
+      }
+      setText(nextText, copy.next);
+      setText(nextDot, '·');
       // the last level has no next: the primary action goes back to the board's levels
       next.hidden = last;
       setText(nextLevel, place.next === null ? '' : fmt(copy.nextMeta, { level: room ? place.index + 1 : place.next }));

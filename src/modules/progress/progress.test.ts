@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { CLASSIC_SHAPE, type LevelsState, type Pack, type ProgressSave, type StorageService, type Tone, type ViewService } from '../../contracts';
+import { CUSTOM_LEVEL_ID } from '../../contracts';
 import { bootModule, createMemoryStorage } from '../../../test/fake-ctx';
 import progress from './index';
 import { migrate, readSave, starsFor } from './save';
@@ -238,6 +239,26 @@ describe('progress', () => {
   });
 });
 
+describe('custom puzzles', () => {
+  test('are scored with their own hints but never saved, and unlock nothing', () => {
+    const { t, storage } = boot();
+    const before = JSON.stringify(storage.get('progress') ?? null);
+    t.emit('custom:started', { par: 4, label: 'Square 6×6 · Medium', puzzle: 1 });
+    t.emit('hints:shown', { levelId: CUSTOM_LEVEL_ID, index: 3 });
+    expect(t.state('progress').customHints).toBe(1);
+    expect(t.state('progress').save.pendingHints).toEqual({});
+    t.emit('board:solved', { levelId: CUSTOM_LEVEL_ID, moves: 4, par: 4 });
+    expect(t.seen('progress:level_completed')).toEqual({
+      levelId: CUSTOM_LEVEL_ID, stars: 2, moves: 4, par: 4, hintsUsed: 1, improved: false, unlocked: null, allSolved: false, pack: 'custom', firstSolve: false,
+    });
+    expect(t.state('progress').save.results[String(CUSTOM_LEVEL_ID)]).toBeUndefined();
+    expect(JSON.stringify(storage.get('progress') ?? null)).toBe(before);
+    // the next puzzle starts with no hints taken
+    t.emit('custom:started', { par: 5, label: 'Square 6×6 · Medium', puzzle: 2 });
+    expect(t.state('progress').customHints).toBeUndefined();
+  });
+});
+
 describe('a save from a newer version', () => {
   test('is shown where readable, explained, and never overwritten', () => {
     const newer = { version: 2, results: { '1': { stars: 3, bestMoves: 1, solvedAt: 5 } }, pendingHints: {}, lastLevel: 1, extra: 'v2-only' };
@@ -302,12 +323,12 @@ describe('Variety rooms', () => {
     expect(t.state('progress').packs!.ring).toEqual({ unlockedUpTo: 4, solved: 4, stars: 12 });
   });
 
-  test('Variety opens when classic level varietyAfter (20) is solved', () => {
+  test('Variety opens when classic level varietyAfter (10, the first boss) is solved', () => {
     const { t, solve } = rooms();
     expect(t.state('progress').varietyOpen).toBe(false);
-    t.instance!.commands!.unlock!(['19']);
+    t.instance!.commands!.unlock!(['9']);
     expect(t.state('progress').varietyOpen).toBe(false);
-    solve(20, 3);
+    solve(10, 3);
     expect(t.state('progress').varietyOpen).toBe(true);
   });
 
@@ -322,13 +343,13 @@ describe('Variety rooms', () => {
   test('an existing v1 save loads unchanged and gains room results in the same shape', () => {
     const v1: ProgressSave = {
       version: 1,
-      results: { '1': { stars: 3, bestMoves: 1, solvedAt: 10 }, '2': { stars: 2, bestMoves: 5, solvedAt: 20 }, '20': { stars: 1, bestMoves: 12, solvedAt: 30 } },
+      results: { '1': { stars: 3, bestMoves: 1, solvedAt: 10 }, '2': { stars: 2, bestMoves: 5, solvedAt: 20 }, '10': { stars: 1, bestMoves: 12, solvedAt: 30 } },
       pendingHints: { '3': 1 },
       lastLevel: 3,
     };
     const storage = createMemoryStorage({ progress: v1 });
     const { t, solve } = boot({ storage, levels: levelsWithRooms() });
-    expect(t.seen('progress:loaded')).toEqual({ source: 'saved', solved: 3, unlockedUpTo: 21 });
+    expect(t.seen('progress:loaded')).toEqual({ source: 'saved', solved: 3, unlockedUpTo: 11 });
     expect(t.state('progress').save).toEqual(v1);
     expect(t.state('progress').varietyOpen).toBe(true);
     expect(storage.get('progress.backup')).toBeUndefined(); // nothing was migrated or recovered
@@ -337,6 +358,6 @@ describe('Variety rooms', () => {
     expect(saved).toEqual({ ...v1, results: { ...v1.results, '1001': { stars: 3, bestMoves: 3, solvedAt: expect.any(Number) } } });
     // and an older build (no rooms) reading this save still sees the classic path where it was
     const old = boot({ storage });
-    expect(old.t.state('progress').unlockedUpTo).toBe(21);
+    expect(old.t.state('progress').unlockedUpTo).toBe(11);
   });
 });

@@ -293,6 +293,69 @@ button, input { font: inherit; color: inherit; }
 }
 .board[data-scroll="true"]::-webkit-scrollbar { display: none; }
 .board[data-scroll="true"] > .cell { scroll-margin-block: var(--board-pad); }
+/* ---------- the honeycomb (data-grid="hex"): odd rows sit half a light to the right; round lights, each touching six.
+   Two half-columns per light (play-view places each cell), rows 0.866 of the pitch apart: neighbours are one pitch
+   apart in every direction, and a light fills --hex-fill of it, so no two hit boxes overlap. ---------- */
+.board[data-grid="hex"] {
+  --hex-pitch: min((var(--fit-w) - 2 * var(--board-pad)) / (var(--board-cols) + .5), (var(--fit-h) - 2 * var(--board-pad)) / (var(--board-rows) * .866));
+  --cell-size: calc(var(--hex-pitch) * var(--hex-fill));
+  --cell-radius: 50%;
+  width: calc((var(--board-cols) + .5) * var(--hex-pitch) + 2 * var(--board-pad));
+  height: calc(var(--board-rows) * .866 * var(--hex-pitch) + 2 * var(--board-pad));
+  grid-template-columns: repeat(var(--board-halves), calc(var(--hex-pitch) / 2));
+  grid-template-rows: repeat(var(--board-rows), calc(var(--hex-pitch) * .866));
+  gap: 0; place-content: center;
+}
+.board[data-grid="hex"] > .cell { width: var(--cell-size); height: var(--cell-size); place-self: center; }
+
+/* ---------- the cube (data-grid="cube"): six panels folded by play-view (lib/cube.ts frames); the board is its stage.
+   It turns in quarter turns (a swipe, or Shift + arrows); only the faces toward you take taps. ---------- */
+.board[data-grid="cube"] {
+  --cube-edge: min(var(--fit-w) / 1.46, var(--fit-h) / 1.66);
+  --cube-half: calc(var(--cube-edge) / 2);
+  width: calc(var(--cube-edge) * 1.46); height: calc(var(--cube-edge) * 1.66);
+  display: grid; place-items: center; padding: 0; gap: 0; grid-template: 1fr / 1fr;
+  background: none; box-shadow: none; border-radius: 0;
+  perspective: calc(var(--cube-edge) * 6);
+  touch-action: none;
+}
+.cube {
+  position: relative; width: var(--cube-edge); height: var(--cube-edge); transform-style: preserve-3d;
+  transition: transform var(--dur-cube-turn) var(--ease-out);
+}
+.cube--still { transition: none; }
+.cube__face {
+  --cell-size: calc(var(--cube-edge) / (var(--cube-n) + 2 * var(--cube-pad-k) + (var(--cube-n) - 1) * var(--cube-gap-k)));
+  --cell-radius: calc(var(--cell-size) * .2); --glow-blur: calc(var(--cell-size) * .3);
+  position: absolute; inset: 0; display: grid;
+  grid-template-columns: repeat(var(--cube-n), minmax(0, 1fr)); grid-template-rows: repeat(var(--cube-n), minmax(0, 1fr));
+  gap: calc(var(--cell-size) * var(--cube-gap-k)); padding: calc(var(--cell-size) * var(--cube-pad-k));
+  /* nearly square corners: three panels meet at each corner of the cube, and round ones would leave a notch */
+  background: var(--c-board); border-radius: calc(var(--cell-size) * .08); box-shadow: var(--shadow-board);
+  backface-visibility: hidden; -webkit-backface-visibility: hidden;
+}
+.cube__face:not([data-facing]) { pointer-events: none; }
+.play-cube-line { margin: var(--stack) 0 0; text-align: center; font-size: var(--text-xs); line-height: var(--leading-snug); color: var(--c-text-dim); }
+/* the cube's line under it is part of the board's height budget (reserved even while it is empty, so nothing jumps) */
+.board-slot:has(> .board[data-grid="cube"]) {
+  --board-chrome-y: calc(var(--play-status-h) + var(--stack) + var(--text-xs) * var(--leading-snug));
+  min-height: 0;
+}
+
+/* ---------- marks on a cell: a wired switch's spokes (where its press reaches), a stuck switch's screw ---------- */
+.cell__mark { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; color: var(--c-mark); }
+.cell[data-lit="true"] .cell__mark { color: var(--c-mark-on); }
+.cell__mark > svg { grid-area: 1 / 1; width: 64%; height: 64%; overflow: visible; }
+.cell__mark > .cell__stuck { width: 44%; height: 44%; }
+.cell__wires line, .cell__stuck line { stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
+.cell__wires circle { fill: currentColor; }
+.cell__stuck circle { fill: none; stroke: currentColor; stroke-width: 2.4; }
+.cell[data-stuck="true"] { cursor: not-allowed; }
+.cell[data-stuck="true"]:active { transform: none; }
+/* a stuck switch tapped: a short shake, nothing flips */
+.cell[data-jam] { animation: lo-jam var(--dur-jam) var(--ease-out); }
+@keyframes lo-jam { 20% { translate: -3px 0; } 45% { translate: 3px 0; } 70% { translate: -2px 0; } 90% { translate: 1px 0; } }
+
 /* aim-and-release (src/lib/aim.ts): the cell under the finger, also magnified in the bubble */
 .board[data-aim="true"] { touch-action: none; }
 .cell[data-aimed="true"] { outline: var(--ring-w) dashed var(--c-tile-on); outline-offset: var(--focus-offset-tight); }
@@ -625,6 +688,17 @@ button, input { font: inherit; color: inherit; }
 }
 .room-glyph > i { border-radius: 28%; background: var(--c-line-strong); }
 .room-glyph > i[data-lit="true"] { background: var(--c-tile-on); box-shadow: 0 0 var(--glyph-dot) var(--c-glow); }
+/* a honeycomb: odd rows half a dot to the right, rows a little closer */
+.room-glyph[data-grid="hex"] > i[data-odd] { translate: calc((var(--glyph-dot) + var(--glyph-dot-gap)) / 2) 0; }
+.room-glyph[data-grid="hex"] > i { border-radius: 50%; }
+/* a stuck room: some dots are hollow (a jammed switch); a wired one: diamond dots */
+.room-glyph > i[data-stuck] { background: none; box-shadow: inset 0 0 0 max(1px, calc(var(--glyph-dot) * .22)) var(--c-line-strong); }
+.room-glyph > i[data-stuck][data-lit="true"] { box-shadow: inset 0 0 0 max(1px, calc(var(--glyph-dot) * .22)) var(--c-tile-on); }
+.room-glyph[data-kind="wired"] > i { border-radius: 1px; rotate: 45deg; scale: .78; }
+/* a cube: an isometric picture of three faces */
+.room-glyph--cube { display: block; width: var(--glyph-box); height: var(--glyph-box); overflow: visible; }
+.room-glyph--cube polygon { fill: var(--c-line-strong); }
+.room-glyph--cube polygon[data-lit="true"] { fill: var(--c-tile-on); }
 .room-glyph > i[data-gap] { visibility: hidden; }
 
 /* aim bubble (src/lib/aim.ts): magnifies the aimed cell and its neighbours above the finger on boards with small cells */
