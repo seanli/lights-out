@@ -1,0 +1,127 @@
+/* Learn screen. Module-scoped; every value comes from the design-system tokens.
+   `.board--mini` is the mini board variant (requested for the design system in requests.md). */
+
+.learn-screen { --learn-practice-min: calc(5 * var(--tap-min) + 4 * var(--space-1-5) + 2 * var(--space-2)); }
+
+/* ---------- lesson list ---------- */
+.learn-intro { text-align: center; text-wrap: balance; }
+.learn-list { list-style: none; margin: 0; padding: 0 0 var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
+.lesson-tile {
+  width: 100%; min-height: var(--level-tile-h); display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) var(--space-3) var(--space-3); border: 0; border-radius: var(--radius-md); cursor: pointer; text-align: left;
+  color: var(--c-text); background: var(--c-surface-2); box-shadow: var(--shadow-raised);
+  touch-action: manipulation; transition: transform var(--dur-press) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+}
+.lesson-tile:active { transform: scale(var(--press-scale-btn)); }
+@media (hover: hover) { .lesson-tile:hover { background-color: var(--c-surface-3); } }
+.lesson-tile__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-1); }
+.lesson-tile__title { display: flex; align-items: baseline; gap: var(--space-2); font: var(--fw-display) var(--text-lg) / var(--leading-snug) var(--font-display); }
+.lesson-tile__num { font: var(--fw-bold) var(--text-sm) / var(--leading-tight) var(--font-ui); color: var(--c-accent); }
+.lesson-tile__summary { font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--c-text-dim); }
+.lesson-tile__done { width: var(--icon); height: var(--icon); flex: none; color: var(--c-hint); }
+.lesson-tile__done .icon { display: block; }
+.lesson-tile[data-completed="true"] { box-shadow: inset 0 var(--hairline) 0 var(--c-sheen), 0 0 0 var(--hairline) var(--c-line-strong); }
+
+/* ---------- mini boards ---------- */
+.board--mini {
+  --board-size: auto; --cell-gap: var(--space-1-5); --board-pad: var(--space-2); --cell-radius: var(--radius-sm);
+  width: auto; border-radius: var(--radius-md);
+}
+.board--mini .cell[data-suggest="true"]::before {
+  content: ""; position: absolute; inset: calc(-1 * var(--space-1)); pointer-events: none;
+  border-radius: calc(var(--cell-radius) + var(--space-1));
+  border: var(--ring-w) solid var(--c-hint); box-shadow: var(--shadow-hint);
+}
+.board--mini .cell[data-suggest="true"]::after {
+  content: ""; position: absolute; left: 50%; top: 50%; pointer-events: none;
+  width: var(--dot); height: var(--dot); translate: -50% -50%;
+  border-radius: var(--radius-pill); background: var(--c-hint); box-shadow: 0 0 0 var(--space-1) var(--c-hint-glow);
+}
+.board--show, .board--demo { pointer-events: none; }
+.board--show .cell, .board--demo .cell { display: block; cursor: default; }
+.board--practice .cell { min-width: var(--tap-min); min-height: var(--tap-min); }
+.board--practice[data-status="solved"] .cell { pointer-events: none; opacity: var(--solved-dim); }
+
+/* tiny 5×5 picture on a lesson tile */
+.board--glyph {
+  display: grid; grid-template-columns: repeat(5, var(--glyph-cell-sm)); grid-template-rows: none; gap: var(--glyph-gap-sm);
+  padding: var(--space-1-5); flex: none; aspect-ratio: auto; border-radius: var(--radius-sm); box-shadow: var(--shadow-board);
+}
+.mini-dot { width: var(--glyph-cell-sm); height: var(--glyph-cell-sm); border-radius: var(--space-half); background: var(--c-tile-off-hi); }
+.mini-dot[data-lit="true"] { background: var(--c-tile-on); box-shadow: 0 0 var(--space-1-5) var(--c-glow); }
+.mini-dot[data-suggest="true"] { background: var(--c-hint); }
+
+/* ---------- a lesson ---------- */
+.learn-lesson { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.learn-step { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.learn-dots { display: flex; justify-content: center; gap: var(--space-1-5); }
+.learn-dots > i { width: var(--dot); height: var(--dot); border-radius: var(--radius-pill); background: var(--c-star-off); }
+.learn-dots > i[data-state="done"] { background: var(--c-accent); }
+.learn-dots > i[data-state="now"] { background: var(--c-tile-on); box-shadow: 0 0 var(--space-2) var(--c-glow); }
+.learn-text { font-size: var(--text-base); line-height: var(--leading-body); text-align: center; text-wrap: pretty; }
+.learn-stage {
+  flex: 1; min-height: 0; container-type: size;
+  display: flex; align-items: center; justify-content: center;
+}
+/* single board: the largest square that fits the stage */
+.learn-stage > .board--mini { width: min(100cqw, 100cqh, var(--board-max)); height: auto; aspect-ratio: 1; }
+.learn-stage--practice > .board--mini { min-width: var(--learn-practice-min); min-height: var(--learn-practice-min); }
+.learn-stage--practice { min-height: var(--learn-practice-min); }
+.learn-figs { display: flex; justify-content: center; gap: var(--space-4); width: 100%; height: 100%; }
+.learn-fig { margin: 0; flex: 1; min-width: 0; max-width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); }
+.learn-fig > .board--mini { width: min(100%, calc(100cqh - var(--line-h) - var(--space-2)), var(--board-max)); aspect-ratio: 1; }
+.learn-caption { font-size: var(--text-sm); color: var(--c-text-dim); text-align: center; min-height: var(--line-h); }
+.learn-under { display: flex; flex-direction: column; gap: var(--space-2); }
+.learn-controls { display: flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: var(--tap-min); }
+.learn-small { min-height: var(--tap-min); padding-inline: var(--space-4); font-size: var(--text-sm); }
+.learn-moves { margin-right: auto; font-size: var(--text-sm); font-weight: var(--fw-bold); color: var(--c-text-dim); }
+.learn-nav { display: grid; grid-template-columns: 1fr 1.6fr; gap: var(--space-2); }
+.learn-nav .btn { min-height: var(--btn-h-compact); }
+
+/* ---------- the bottom-row table ---------- */
+.learn-table {
+  /* 7 rows + a caption line must fit the stage height; 10 cells + arrow must fit its width */
+  --strip-cell: min(
+    var(--tap-min),
+    calc((100cqh - var(--line-h) - var(--space-1) - 6 * var(--space-1-5)) / 7 - 2 * var(--space-1)),
+    calc((100cqw - 12 * var(--space-1) - 2 * var(--space-3) - var(--space-4)) / 10)
+  );
+  width: 100%; max-width: var(--app-max);
+  display: grid; grid-template-columns: auto auto auto; justify-content: center; align-content: center; column-gap: var(--space-3); row-gap: var(--space-1-5);
+}
+.learn-table__head, .learn-table__row { display: contents; }
+.learn-table__head .caption { text-align: center; padding-bottom: var(--space-1); }
+.learn-table__arrow { align-self: center; color: var(--c-text-faint); }
+.learn-row { display: grid; grid-template-columns: repeat(5, var(--strip-cell)); gap: var(--space-1); padding: var(--space-1); border-radius: var(--radius-sm); background: var(--c-board); box-shadow: var(--shadow-board); }
+.learn-row > .cell { width: var(--strip-cell); height: var(--strip-cell); border-radius: var(--radius-xs); cursor: default; }
+.learn-row > .cell[data-suggest="true"]::after {
+  content: ""; position: absolute; inset: 25%; border-radius: var(--radius-pill); background: var(--c-hint); box-shadow: 0 0 0 var(--space-half) var(--c-hint-glow);
+}
+.learn-row > .cell[data-suggest="true"] { box-shadow: inset 0 0 0 var(--ring-w) var(--c-hint); }
+
+/* ---------- wide screens: lesson text left, board right ---------- */
+@media (min-width: 720px) and (min-height: 600px) {
+  .learn-text { font-size: var(--text-lg); }
+}
+
+/* ---------- short landscape: board left, text and controls right ---------- */
+@media (orientation: landscape) and (max-height: 540px) {
+  .learn-lesson {
+    display: grid; column-gap: var(--space-6);
+    grid-template-columns: minmax(0, 1fr) minmax(0, var(--side-w));
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas: "stage head" "stage body" "stage nav";
+  }
+  .learn-lesson > .screen-header { grid-area: head; }
+  .learn-lesson > .learn-nav { grid-area: nav; }
+  .learn-step { display: contents; }
+  .learn-step > .learn-stage { grid-area: stage; }
+  .learn-step > .learn-dots, .learn-step > .learn-text, .learn-step > .learn-under { grid-column: 2; }
+  .learn-lesson { grid-template-areas: none; grid-template-rows: auto auto auto 1fr auto auto; }
+  .learn-lesson > .screen-header { grid-column: 2; grid-row: 1; }
+  .learn-step > .learn-dots { grid-row: 2; }
+  .learn-step > .learn-text { grid-row: 3; text-align: left; font-size: var(--text-md); }
+  .learn-step > .learn-under { grid-row: 5; }
+  .learn-step > .learn-stage { grid-column: 1; grid-row: 1 / -1; }
+  .learn-lesson > .learn-nav { grid-column: 2; grid-row: 6; }
+}
