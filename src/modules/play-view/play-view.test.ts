@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, test } from 'vitest';
 import { bootModule, createFakeView } from '../../../test/fake-ctx';
-import type { BoardState, Cells, HintsState, LevelsState, ProgressState, State, TutorialState } from '../../contracts';
+import type { BoardState, Cells, HintsState, LearnState, LevelsState, ProgressState, State, TutorialState } from '../../contracts';
 import { SEL } from '../../contracts';
 import playView from './index';
 
@@ -21,6 +21,7 @@ const progress = (pending = 0): ProgressState => ({
   scoring: { threeStarsWithin: 0, twoStarsWithin: 3, hintCost: 1, minStars: 1 },
 });
 const IDLE: HintsState = { status: 'idle', levelId: null, cell: null };
+const LEARN: LearnState = { status: 'ready', lessonId: null, step: 0, completed: [], practice: null, assist: false };
 
 function boot(state: Partial<State> = {}, services = {}) {
   const t = bootModule(playView, { state: { board: board(), hints: IDLE, levels, progress: progress(), ...state }, services });
@@ -154,24 +155,89 @@ describe('play-view', () => {
     const { t, q } = boot({ board: board({ moves: 6 }), progress: progress(1) });
     const max = q('.play-max');
     expect(max.querySelectorAll('.star[data-state="on"]')).toHaveLength(2);
-    expect(max.textContent).toBe('Hint used');
+    expect(max.textContent).toBe('Up toHint used');
     expect(max.getAttribute('aria-label')).toBe('At most 2 of 3 stars still possible');
     const chips = [...document.querySelectorAll<HTMLElement>('.play-tiers .chip')];
     expect(chips.map((c) => c.firstChild!.textContent)).toEqual(['≤5', '≤8', '9+']);
     expect(chips.map((c) => c.dataset.state)).toEqual(['lost', 'now', undefined]);
     expect(chips.map((c) => c.querySelectorAll('.star[data-state="on"]').length)).toEqual([2, 1, 1]);
 
+    const used = max.querySelector<HTMLElement>('.caption:last-child')!;
+    expect(used.hidden).toBe(false);
+    t.kernel.seed('progress', progress());
+    expect(used.hidden).toBe(true);
     t.kernel.seed('progress', { ...progress(), scoring: undefined });
     expect(max.hidden).toBe(true);
     expect(q('.play-tiers').hidden).toBe(true);
   });
 
-  test('back goes home and learn opens the Learn screen', () => {
+  test('back goes home', () => {
     const { t, q } = boot();
     q(SEL.action('back')).click();
     expect(t.seen('nav:go')).toEqual({ screen: 'home' });
-    q(SEL.action('learn')).click();
-    expect(t.all('learn:open')).toHaveLength(1);
+  });
+
+  test('the hint button is disabled while the tutorial coaches; its ring wins over a hint mark', () => {
+    const tut: TutorialState = { status: 'active', levelId: 7, step: 0, target: 12, copyKey: '1' };
+    const { t, q, cell } = boot({ tutorial: tut });
+    expect(q(SEL.action('hint')).getAttribute('aria-disabled')).toBe('true');
+    t.kernel.seed('hints', { status: 'showing', levelId: 7, cell: 12 } satisfies HintsState);
+    expect(cell(12).dataset.pointer).toBe('true');
+    expect(document.querySelectorAll('[data-cell][data-hint]')).toHaveLength(0);
+    t.kernel.seed('tutorial', { ...tut, status: 'done', target: null });
+    expect(cell(12).dataset.hint).toBe('true');
+    t.kernel.seed('hints', IDLE);
+    expect(q(SEL.action('hint')).getAttribute('aria-disabled')).toBeNull();
+  });
+
+  describe('pattern reference', () => {
+    const screen = () => document.querySelector<HTMLElement>(SEL.screen('play'))!;
+
+    test('no learn slice: no button', () => {
+      const { q } = boot();
+      expect(q(SEL.action('reference')).hidden).toBe(true);
+    });
+
+    test('the button toggles the panel; Escape closes it; the slot is placed once', () => {
+      const { t, q } = boot({ learn: LEARN });
+      const btn = q(SEL.action('reference'));
+      expect(btn.hidden).toBe(false);
+      expect(screen().dataset.reference).toBe('closed');
+      expect(btn.getAttribute('aria-expanded')).toBe('false');
+      const slot = t.view!.region('slot:reference');
+      expect(document.getElementById(btn.getAttribute('aria-controls')!)!.contains(slot)).toBe(true);
+
+      btn.click();
+      expect(screen().dataset.reference).toBe('open');
+      expect(btn.getAttribute('aria-expanded')).toBe('true');
+      expect(screen().querySelectorAll('[data-slot="reference"]')).toHaveLength(1);
+      btn.click();
+      expect(screen().dataset.reference).toBe('closed');
+      btn.click();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      expect(screen().dataset.reference).toBe('closed');
+      expect(btn.getAttribute('aria-expanded')).toBe('false');
+    });
+
+    test('board presses still work while it is open, and it stays open on the next level', () => {
+      const { t, q, cell, presses } = boot({ learn: LEARN });
+      q(SEL.action('reference')).click();
+      pointer(cell(6));
+      click(cell(6), 1);
+      click(cell(7), 0);
+      expect(presses()).toEqual([6, 7]);
+      t.kernel.seed('board', board({ levelId: 8 }));
+      expect(screen().dataset.reference).toBe('open');
+    });
+
+    test('a toggle during a press waits for the finger to lift', () => {
+      const { q, cell } = boot({ learn: LEARN });
+      pointer(cell(3));
+      q(SEL.action('reference')).click();
+      expect(screen().dataset.reference).toBe('closed');
+      document.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'touch' }));
+      expect(screen().dataset.reference).toBe('open');
+    });
   });
 
   test('a solve ripples from the winning tap, then the sweep class is removed', () => {

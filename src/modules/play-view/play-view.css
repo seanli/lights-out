@@ -1,20 +1,88 @@
 /* play-view: only what the design system doesn't cover yet (see requests.md). Tokens only. */
+.screen--play {
+  /* the 5×5 board at its smallest playable size: every cell still a full tap target */
+  --play-board-min: calc(5 * var(--tap-min) + 4 * var(--cell-gap) + 2 * var(--board-pad));
+  --play-stats-h: calc(var(--text-xs) * var(--leading-tight) + var(--space-1-5) + var(--text-2xl) * var(--leading-num));
+}
 
-/* header right slot: max-stars indicator + learn button side by side */
+/* header right slot: max-stars indicator + reference button side by side */
 .play-head-end { flex-direction: row; align-items: center; gap: var(--space-2); }
 .play-max { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-1); text-align: right; }
 .play-max .caption { white-space: nowrap; }
+
+/* the stats sit in the board slot, so stats + tiers + board + line centre together between header and actions */
+.screen--play { grid-template-rows: auto minmax(0, 1fr) auto; }
+.screen--play .board-slot { --board-chrome-y: calc(var(--play-stats-h) + var(--chip-h) + var(--line-h) + 3 * var(--space-3)); }
+.screen--play .board-slot > .play-stats { align-self: stretch; }
+.board-slot[data-tiers="false"] { --board-chrome-y: calc(var(--play-stats-h) + var(--line-h) + 2 * var(--space-3)); }
 
 /* one line under the board: the hint line, or the tutorial's coach line (slot:coach) */
 .play-line { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: var(--line-h); }
 .play-line[data-hint="true"] > [data-slot] { display: none; }
 
-/* no tier chips (no scoring): the board may use their height */
-.board-slot[data-tiers="false"] { --board-chrome-y: calc(var(--line-h) + var(--space-3)); }
-
 /* the board is a touch surface: no selection, no callout, no double-tap zoom */
 .screen--play .board { touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 
 @media (orientation: landscape) and (max-height: 540px) {
+  .screen--play { grid-template-rows: auto auto auto minmax(0, 1fr) auto; } /* components.css's landscape rows (this file loads later) */
   .screen--play .play-line { grid-area: line; align-self: center; }
+}
+
+/* ---------- in-game pattern reference (learn fills slot:reference) ---------- */
+.play-reference { display: none; min-width: 0; min-height: 0; overflow: hidden; }
+.play-reference > [data-slot] { height: 100%; display: flex; flex-direction: column; }
+.screen--play[data-reference="open"] .play-reference { display: block; animation: play-ref-in var(--dur-sheet) var(--ease-out) both; }
+@keyframes play-ref-in { from { opacity: 0; translate: 0 var(--space-4); } }
+
+/* open: no tiers, no line under the board (the panel gives the advice), stats on one short line */
+.screen--play[data-reference="open"] { gap: var(--space-2); }
+.screen--play[data-reference="open"] .play-tiers,
+.screen--play[data-reference="open"] .play-line { display: none; }
+.screen--play[data-reference="open"] .play-stats { justify-content: flex-start; align-items: center; gap: var(--space-4); }
+.screen--play[data-reference="open"] .stat { flex-direction: row; align-items: baseline; gap: var(--space-1-5); }
+.screen--play[data-reference="open"] .stat__value { font-size: var(--text-lg); }
+
+/* portrait: header, board, [stats | icon actions], panel. The slot spans the board and the stats/actions row;
+   the actions overlap its free right side, so the board keeps every pixel above that row. */
+.screen--play[data-reference="open"] {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(var(--play-board-min), 1fr) auto fit-content(42%);
+}
+.screen--play[data-reference="open"] > .board-slot { grid-row: 2 / 4; grid-column: 1; justify-content: flex-start; gap: var(--space-2); --board-chrome-y: calc(var(--tap-min) + var(--space-2)); }
+.screen--play[data-reference="open"] .board-slot > .play-stats {
+  order: 1; margin-top: auto; min-height: var(--tap-min);
+  /* keep clear of the icon actions on the right; wraps to two lines on the narrowest phones */
+  flex-wrap: wrap; row-gap: 0; padding-inline-end: calc(3 * var(--btn-h) + 3 * var(--space-2));
+}
+.screen--play[data-reference="open"] > .play-actions { grid-row: 3; grid-column: 1; justify-self: end; z-index: 1; grid-template-columns: repeat(3, auto); }
+.screen--play[data-reference="open"] > .play-actions > .btn { min-height: var(--tap-min); min-width: var(--btn-h); padding-inline: var(--space-3); }
+.screen--play[data-reference="open"] .play-act__label {
+  position: absolute; width: var(--hairline); height: var(--hairline); overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.screen--play[data-reference="open"] > .play-reference { grid-row: 4; grid-column: 1; }
+
+/* side by side (phone on its side, tablets, desktops): board left; head, stats, panel, actions right */
+@media (orientation: landscape) and (max-height: 540px), (min-width: 700px) {
+  .app:has(> .screens > .screen--play[data-reference="open"]:not([hidden])) { max-width: var(--app-max-wide); }
+  .screen--play[data-reference="open"] {
+    container-type: size; column-gap: var(--space-6); justify-content: center;
+    grid-template-columns: auto minmax(0, var(--side-w));
+    /* the right column centres against the board; the panel takes what it needs, up to what is left */
+    grid-template-rows: 1fr auto auto minmax(0, auto) auto 1fr;
+    grid-template-areas: "board ." "board head" "board stats" "board ref" "board actions" "board .";
+  }
+  .screen--play[data-reference="open"] > .screen-header { grid-area: head; }
+  .screen--play[data-reference="open"] > .board-slot { display: contents; container-type: normal; }
+  .screen--play[data-reference="open"] .board-slot > .play-stats { grid-area: stats; order: 0; margin-top: 0; min-height: 0; padding-inline-end: 0; }
+  .screen--play[data-reference="open"] .board {
+    grid-area: board; align-self: center;
+    --board-size: min(100cqh, 100cqw - var(--side-w) - var(--space-6), var(--board-max));
+  }
+  .screen--play[data-reference="open"] > .play-actions { grid-area: actions; justify-self: stretch; grid-template-columns: 1fr 1fr 1.35fr; }
+  .screen--play[data-reference="open"] > .play-actions > .btn { min-height: var(--btn-h); }
+  .screen--play[data-reference="open"] .play-act__label { position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
+  .screen--play[data-reference="open"] > .play-reference { grid-area: ref; }
+}
+@media (orientation: landscape) and (max-height: 540px) {
+  .screen--play[data-reference="open"] > .play-actions > .btn { min-height: var(--tap-min); }
 }
