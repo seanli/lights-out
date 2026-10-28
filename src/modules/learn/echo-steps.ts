@@ -9,8 +9,8 @@ import { answer, emptySave, finished, nextCard, planRound, type DrillSave, type 
 
 export interface DrillStore { load(): DrillSave; save(s: DrillSave): void }
 
-/** a 5-cell strip; `lit` columns glow, `ring` columns get the teal tap ring, `cancel` columns get the cancel mark */
-export function strip(opts: { lit?: readonly number[]; ring?: readonly number[]; cancel?: readonly number[]; row?: 'top' | 'bottom'; kind?: string }) {
+/** a 5-cell strip; `lit` columns glow, `ring` columns get the tap pointer and their letter, `cancel` columns the cancel mark */
+export function strip(opts: { lit?: readonly number[]; ring?: readonly number[]; cancel?: readonly number[]; row?: 'top' | 'bottom'; kind?: string; letters?: string }) {
   const r = h('span', { class: `learn-row learn-row--${opts.kind ?? 'bottom'}`, 'aria-hidden': 'true' });
   const base = opts.row === 'top' ? 0 : BOTTOM;
   for (let c = 0; c < SIZE; c++) {
@@ -18,20 +18,19 @@ export function strip(opts: { lit?: readonly number[]; ring?: readonly number[];
       class: 'cell', 'data-mini-cell': '', 'data-index': base + c,
       'data-lit': String(!!opts.lit?.includes(c)),
       'data-suggest': opts.ring?.includes(c) ? 'true' : null,
+      'data-letter': opts.ring?.includes(c) && opts.letters ? opts.letters[c] : null,
       'data-cancel': opts.cancel?.includes(c) ? 'true' : null,
     }));
   }
   return r;
 }
 
-/** "·BC·E": a bottom row in letters, dark spots as dots */
-export const rowText = (copy: LearnCopy, cols: readonly number[]) => [...copy.letters].map((l, c) => (cols.includes(c) ? l : '·')).join('');
 export const names = (copy: LearnCopy, cols: readonly number[]) => cols.map((c) => copy.letters[c]).join(copy.echoJoin);
 
-/** A–E buttons; `onPick(col)`; the chosen one is aria-pressed */
+/** A–E buttons, one over each board column; `onPick(col)`; the chosen one is aria-pressed */
 export function picker(copy: LearnCopy, chosen: number, onPick: (col: number) => void) {
   const row = h('div', { class: 'learn-picker', role: 'group', 'aria-label': copy.echo.pick });
-  const buttons = [...copy.letters].map((l, c) =>
+  const buttons = [...copy.letters.slice(0, SIZE)].map((l, c) =>
     h('button', { class: 'btn btn--ghost learn-pick', type: 'button', 'data-action': 'learn-echo', 'data-col': c, 'aria-pressed': String(c === chosen), onclick: () => pick(c) }, l));
   const pick = (c: number) => { buttons.forEach((b, k) => setAttr(b, 'aria-pressed', String(k === c))); onPick(c); };
   row.append(...buttons);
@@ -55,6 +54,15 @@ export function stackView(copy: LearnCopy, solver: Pick<SolverService, 'press'>,
   return h('div', { class: 'learn-stack' }, ...groups, h('p', { class: 'learn-caption learn-stack__legend' }, h('i', { class: 'learn-cancel-key', 'aria-hidden': 'true' }), copy.stack.cancel));
 }
 
+/** lesson 4's list: every row a chase can leave → the top lights to tap (pointer + letter) */
+export function tableList(copy: LearnCopy, table: readonly TableEntry[]) {
+  return h('div', { class: 'learn-table', role: 'table' },
+    h('div', { class: 'learn-table__head', role: 'row' },
+      h('span', { class: 'caption', role: 'columnheader' }, copy.tableBottom), h('span', { 'aria-hidden': 'true' }), h('span', { class: 'caption', role: 'columnheader' }, copy.tableTop)),
+    ...table.map((e) => h('div', { class: 'learn-table__row', role: 'row', 'data-table-row': e.bottom.join('') },
+      strip({ lit: e.bottom }), h('span', { class: 'learn-table__arrow', 'aria-hidden': 'true' }, '→'), strip({ ring: e.top, row: 'top', kind: 'top', letters: copy.letters }))));
+}
+
 /** the seven rows under their five rules (a presentation over the solver's table) */
 export function rulesView(copy: LearnCopy, table: readonly TableEntry[]) {
   const known = (bottom: readonly number[]) => table.find((e) => e.bottom.join() === bottom.join());
@@ -62,7 +70,7 @@ export function rulesView(copy: LearnCopy, table: readonly TableEntry[]) {
     ...RULES.map((r) => h('div', { class: 'learn-rule', 'data-rule': r.key },
       h('p', { class: 'learn-rule__text' }, copy.rules[r.key as keyof LearnCopy['rules']]),
       ...r.rows.filter((x) => known(x.bottom)).map((x) => h('div', { class: 'learn-rule__row', 'data-table-row': x.bottom.join('') },
-        strip({ lit: x.bottom }), h('span', { class: 'learn-table__arrow', 'aria-hidden': 'true' }, '→'), strip({ ring: x.top, row: 'top', kind: 'top' }))))),
+        strip({ lit: x.bottom }), h('span', { class: 'learn-table__arrow', 'aria-hidden': 'true' }, '→'), strip({ ring: x.top, row: 'top', kind: 'top', letters: copy.letters }))))),
     h('p', { class: 'learn-caption' }, copy.rules.mirror));
   return list;
 }
@@ -73,16 +81,14 @@ export function deriveView(copy: LearnCopy, start = 1) {
   const paint = (col: number) => {
     const { rows, echo } = echoRows(col);
     rowsEl.replaceChildren(
-      ...rows.map((cols, k) => h('div', { class: 'learn-derive__row', style: `--i:${k}` }, h('span', { class: 'caption' }, fmt(copy.derive.row, { n: k + 1 })), strip({ ring: cols, row: 'top', kind: 'top' }))),
+      ...rows.map((cols, k) => h('div', { class: 'learn-derive__row', style: `--i:${k}` }, h('span', { class: 'caption' }, fmt(copy.derive.row, { n: k + 1 })), strip({ ring: cols, row: 'top', kind: 'top', letters: copy.letters }))),
       h('div', { class: 'learn-derive__row learn-derive__echo', style: `--i:${rows.length}`, 'data-derive-echo': echo.join(',') }, h('span', { class: 'caption' }, copy.derive.echo), strip({ lit: echo })),
     );
   };
   paint(start);
   return h('div', { class: 'learn-derive' },
     picker(copy, start, paint),
-    rowsEl,
-    h('p', { class: 'learn-caption' }, copy.derive.rule),
-    h('p', { class: 'learn-caption learn-derive__tip' }, copy.derive.tip));
+    rowsEl);
 }
 
 /** "Whose echo is this?": tap top-row lights, Check; any set that clears the row counts */
@@ -97,7 +103,7 @@ export function createDrill(d: { copy: LearnCopy; rules: LearnRules; solver: Pic
   const root = h('div', { class: 'learn-drill', 'data-drill': 'idle' });
   const count = h('span', { class: 'learn-moves num', 'data-drill-count': '' });
   const line = h('p', { class: 'tutorial-line', 'data-learn-line': 'drill', 'aria-live': 'polite' });
-  const action = h('button', { class: 'btn btn--primary learn-small', type: 'button', 'data-action': 'learn-drill', onclick: () => onAction() }, copy.drill.start);
+  const action = h('button', { class: 'btn btn--primary learn-small', type: 'button', 'data-action': 'learn-drill', onclick: () => onAction() }, copy.drill.check);
   const tops = [...Array(SIZE).keys()].map((c) => h('button', {
     class: 'cell', type: 'button', 'data-mini-cell': '', 'data-index': c, 'data-lit': 'false', 'data-col': c,
     'aria-label': copy.letters[c], 'aria-pressed': 'false', onclick: () => toggle(c),
@@ -116,23 +122,23 @@ export function createDrill(d: { copy: LearnCopy; rules: LearnRules; solver: Pic
     setAttr(root, 'data-drill', state);
     card.hidden = !e;
     bottoms.forEach((el, c) => setAttr(el, 'data-lit', String(!!e?.bottom.includes(c))));
-    // after a miss, the ring shows the answer instead of the guess
-    const ringed = state === 'wrong' ? e!.top : chosen;
+    // a chosen light is pressed; after a miss, the pointer and letter show the right one
+    const reveal = state === 'wrong' ? e!.top : [];
     tops.forEach((el, c) => {
       setAttr(el, 'aria-pressed', String(chosen.includes(c)));
-      setAttr(el, 'data-suggest', ringed.includes(c) ? 'true' : null);
+      setAttr(el, 'data-suggest', reveal.includes(c) ? 'true' : null);
+      setAttr(el, 'data-letter', reveal.includes(c) ? copy.letters[c]! : null);
       (el as HTMLButtonElement).disabled = state !== 'asking';
     });
     setText(count, round && !finished(round) ? fmt(copy.drill.card, { n: round.pos + 1, total: round.queue.length }) : '');
-    if (state === 'idle') setText(line, copy.drill.intro);
-    else if (state === 'asking') setText(line, copy.drill.prompt);
+    if (state === 'idle' || state === 'asking') setText(line, '');
     else if (state === 'right') setText(line, copy.drill.right);
     else if (state === 'wrong') setText(line, fmt(copy.drill.wrong, { taps: names(copy, e!.top) }));
     else setText(line, `${fmt(copy.drill.score, { n: round!.right, total: round!.queue.length })}. ${copy.drill.scoreLine}`);
     setAttr(line, 'data-tone', state === 'wrong' ? 'warn' : state === 'right' ? 'hint' : 'coach');
-    setText(action, state === 'idle' ? copy.drill.start : state === 'asking' ? copy.drill.check : state === 'done' ? copy.drill.again : copy.drill.next);
+    setText(action, state === 'asking' ? copy.drill.check : state === 'done' ? copy.drill.again : copy.drill.next);
     action.disabled = state === 'asking' && chosen.length === 0;
-    action.className = `btn ${state === 'idle' || state === 'done' ? 'btn--primary' : 'btn--ghost'} learn-small`;
+    action.className = 'btn btn--ghost learn-small';
   }
 
   function judge(right: boolean) {
@@ -163,6 +169,6 @@ export function createDrill(d: { copy: LearnCopy; rules: LearnRules; solver: Pic
     paint();
   }
 
-  paint();
+  onAction(); // the first card shows at once
   return { root, line, controls: h('div', { class: 'learn-controls' }, count, action), state: () => ({ round, save, chosen }) };
 }

@@ -18,8 +18,11 @@ export interface MiniSpec {
 
 export type Step =
   | { kind: 'show'; boards: MiniSpec[] }
-  | { kind: 'demo'; from: number[]; play: number[] | 'chase' | 'method' }
+  /** `bottom`: start from a board whose only lights are these bottom-row columns (instead of `from`) */
+  | { kind: 'demo'; from: number[]; bottom?: number[]; play: number[] | 'chase' | 'method' }
   | { kind: 'practice' }
+  /** the bottom-row list: each leftover row and the top lights that clear it */
+  | { kind: 'table' }
   /** pick a top-row light A–E, watch it tap and chase down to its echo */
   | { kind: 'echo' }
   /** two echoes stacked: lights in both cancel */
@@ -43,6 +46,8 @@ export interface Lesson {
   showPar?: boolean;
   /** an extra lesson behind a quiet "Go deeper" link on the last step */
   deeper?: string;
+  /** practice: name the echo once only the bottom row is left, and show the guess-and-chase tip */
+  echoHelp?: boolean;
 }
 
 const range = (from: number, to: number) => Array.from({ length: to - from }, (_, k) => from + k);
@@ -50,8 +55,6 @@ const range = (from: number, to: number) => Array.from({ length: to - from }, (_
 const CHASE_ME = [6, 8, 12, 17];
 /** a board the chase alone can't finish */
 const STUBBORN = [1, 8, 12, 16, 24];
-/** a board whose chase leaves B's echo (ABC··): built from B plus taps below the top row */
-const ECHO_B = [1, 12, 18];
 /** a board whose chase-method answer is long but whose shortest answer is 5 taps */
 const LONG_WAY = [0, 4, 12, 20, 24];
 
@@ -69,7 +72,6 @@ export const LESSONS: Record<string, Lesson> = {
     assist: null,
     steps: [
       { kind: 'demo', from: [], play: [12, 12] },
-      { kind: 'show', boards: [{ from: [6, 8], marks: 'taps' }] },
       { kind: 'show', boards: [{ from: [0, 13, 21], marks: 'taps', caption: 'set' }] },
       { kind: 'practice' },
     ],
@@ -84,29 +86,37 @@ export const LESSONS: Record<string, Lesson> = {
       { kind: 'practice' },
     ],
   },
+  /** the one move: find your row, tap the top light it shows, chase again */
   'bottom-row': {
     assist: 'method',
     deeper: 'echo-more',
+    echoHelp: true,
     steps: [
-      { kind: 'show', boards: [{ from: STUBBORN, chased: true }] },
       { kind: 'echo' },
-      { kind: 'demo', from: ECHO_B, play: 'method' },
-      { kind: 'stack', pairs: [[0, 3], [0, 1]] },
+      { kind: 'demo', from: [], bottom: [0, 1, 2], play: 'method' },
+      { kind: 'table' },
       { kind: 'practice' },
     ],
   },
   /** not in the lesson list: opened from "Go deeper" at the end of lesson 4 */
   'echo-more': {
     assist: null,
-    steps: [{ kind: 'rules' }, { kind: 'derive' }, { kind: 'drill' }],
+    steps: [{ kind: 'rules' }, { kind: 'stack', pairs: [[0, 3], [0, 1]] }, { kind: 'derive' }, { kind: 'drill' }],
   },
   shortest: {
     assist: null,
     showPar: true,
+    deeper: 'shortest-more',
     steps: [
-      { kind: 'show', boards: [{ from: [], quiet: 0, marks: 'quiet', caption: 'quiet' }, { from: [], quiet: 1, marks: 'quiet', caption: 'quiet' }] },
       { kind: 'show', boards: [{ from: LONG_WAY, marks: 'method', caption: 'method' }, { from: LONG_WAY, marks: 'shortest', caption: 'shortest' }] },
       { kind: 'practice' },
+    ],
+  },
+  /** not in the lesson list: opened from "Go deeper" at the end of lesson 5 */
+  'shortest-more': {
+    assist: null,
+    steps: [
+      { kind: 'show', boards: [{ from: [], quiet: 0, marks: 'quiet', caption: 'quiet' }, { from: [], quiet: 1, marks: 'quiet', caption: 'quiet' }] },
     ],
   },
 };

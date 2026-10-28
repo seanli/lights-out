@@ -4,7 +4,7 @@ import type { Cells, SolverService } from '../../contracts';
 import { createMemoryStorage, bootModule, fixtureData } from '../../../test/fake-ctx';
 import { refPress, refSolve } from '../../../test/ref-solver';
 import learn from './index';
-import { BOTTOM, blank, bottomColumns, bottomRowTable, chase, chaseSuggest, clearsBottom, echoOf, echoOfSet, echoRows, isClear, lit, methodTaps, onlyBottom, pressAll, quietPatterns } from './method';
+import { BOTTOM, blank, bottomColumns, bottomRowTable, chase, chaseRect, chaseSuggest, clearsBottom, echoOf, echoOfSet, echoRows, isClear, lit, methodTaps, onlyBottom, pressAll, quietPatterns, rectTaps, rectTopSets } from './method';
 import { RULES } from './lessons';
 import { createAdvisor, kindOf } from './reference';
 import { answer, emptySave, finished, nextCard, planRound, type Round } from './drill';
@@ -236,30 +236,33 @@ describe('learn: module', () => {
     expect(t.seen('learn:refused', { reason: 'bad_index' })).toBeTruthy();
   });
 
-  test('the bottom-row lesson: five steps; the method demo plays to dark (by tap under reduced motion)', () => {
+  test('the bottom-row lesson: find your row, tap its top light, chase again; the demo starts from the bottom row', () => {
     const t = boot();
     t.emit('learn:open', { lessonId: 'bottom-row' });
-    expect(qa('.learn-dots > i')).toHaveLength(5);
+    expect(qa('.learn-dots > i')).toHaveLength(4);
     t.emit('learn:step', { delta: 1 });
-    t.emit('learn:step', { delta: 1 });
-    const button = q('[data-action="learn-demo"]')!;
     const lit = () => qa('[data-mini-board="demo"] [data-lit="true"]').length;
-    expect(lit()).toBeGreaterThan(0);
+    const litIdx = () => qa('[data-mini-board="demo"] [data-mini-cell]').flatMap((e, i) => (e.dataset.lit === 'true' ? [i] : []));
+    expect(litIdx()).toEqual([20, 21, 22]); // B's echo, nothing above
+    expect(q('[data-mini-board="demo"] [data-mark="true"]')!.dataset.index).toBe('1'); // B is marked first
+    const button = q('[data-action="learn-demo"]')!;
     for (let k = 0; k < 40 && lit() > 0; k++) button.click();
     expect(lit()).toBe(0);
     expect(button.textContent).toBe('Replay');
+    t.emit('learn:step', { delta: 1 });
+    expect(qa('[data-table-row]')).toHaveLength(7);
+    expect(qa('[data-table-row="012"] [data-letter]').map((e) => e.dataset.letter)).toEqual(['B']);
   });
 
   test('the echo step: pick a top light, the demo taps it and chases down to its echo', () => {
     const t = boot();
     t.emit('learn:open', { lessonId: 'bottom-row' });
-    t.emit('learn:step', { delta: 1 });
     q('[data-action="learn-echo"][data-col="3"]')!.click();
     const button = q('[data-action="learn-demo"]')!;
     for (let k = 0; k < 20 && button.textContent !== 'Replay'; k++) button.click();
     const bottom = qa('[data-mini-board="demo"] [data-mini-cell]').slice(20).map((e) => e.dataset.lit === 'true');
     expect(bottom).toEqual([false, false, true, true, true]);
-    expect(q('[data-learn-line="demo"]')!.textContent).toBe('D echoes as ··CDE');
+    expect(q('[data-learn-line="demo"]')!.textContent).toBe("D's echo");
     expect(q('[data-action="learn-echo"][data-col="3"]')!.getAttribute('aria-pressed')).toBe('true');
   });
 
@@ -267,12 +270,12 @@ describe('learn: module', () => {
     const t = boot();
     t.emit('learn:open', { lessonId: 'bottom-row' });
     expect(q('[data-action="learn-deeper"]')).toBeNull();
-    for (let k = 0; k < 4; k++) t.emit('learn:step', { delta: 1 });
+    for (let k = 0; k < 3; k++) t.emit('learn:step', { delta: 1 });
     q('[data-action="learn-deeper"]')!.click();
     expect(t.state('learn').lessonId).toBe('echo-more');
     expect(qa('[data-rule]')).toHaveLength(5);
     expect(qa('[data-rule] [data-table-row]')).toHaveLength(7);
-    for (let k = 0; k < 3; k++) t.emit('learn:step', { delta: 1 });
+    for (let k = 0; k < 4; k++) t.emit('learn:step', { delta: 1 });
     expect(t.state('learn').completed).not.toContain('echo-more');
     expect(qa('[data-lesson-tile]').map((e) => e.dataset.lesson)).not.toContain('echo-more');
   });
@@ -281,13 +284,10 @@ describe('learn: module', () => {
     const storage = createMemoryStorage();
     const t = boot({ services: { storage } });
     t.emit('learn:open', { lessonId: 'echo-more' });
-    t.emit('learn:step', { delta: 1 });
-    t.emit('learn:step', { delta: 1 });
+    for (let k = 0; k < 3; k++) t.emit('learn:step', { delta: 1 });
     const action = q('[data-action="learn-drill"]')!;
     const drill = q('[data-drill]')!;
-    expect(drill.dataset.drill).toBe('idle');
-    action.click();
-    expect(drill.dataset.drill).toBe('asking');
+    expect(drill.dataset.drill).toBe('asking'); // the first card shows at once
     const bottom = () => qa('.learn-drill .learn-row--bottom [data-mini-cell]').flatMap((e, c) => (e.dataset.lit === 'true' ? [c] : []));
     const top = (c: number) => q(`.learn-row--pick [data-col="${c}"]`)!;
     // card 1: answer with the table's taps plus a no-echo set (A·C·E): a different, still valid answer
@@ -303,7 +303,8 @@ describe('learn: module', () => {
     top(wrong).click();
     action.click();
     expect(drill.dataset.drill).toBe('wrong');
-    expect(q('[data-learn-line="drill"]')!.textContent).toMatch(/cancels it/);
+    expect(q('[data-learn-line="drill"]')!.textContent).toMatch(/tap/);
+    expect(qa('.learn-row--pick [data-letter]').map((e) => Number(e.dataset.col))).toEqual(e2.top);
     const saved = storage.get('learn-drill') as { boxes: Record<string, number> };
     expect(saved.boxes[e2.bottom.join(',')]).toBe(1);
     expect(saved.boxes[entry.bottom.join(',')]).toBe(2);
@@ -413,11 +414,12 @@ describe('learn: in-game pattern reference', () => {
       const t = boot({ state: { board: boardState(cells) } });
       const rule = panel(t).querySelector<HTMLElement>('[data-reference-rule]')!;
       expect(rule.hidden).toBe(false);
-      expect(rule.textContent).toBe('Echo of B · Three in a row: tap above the middle one.');
+      expect(rule.textContent).toBe('Echo of B');
+      expect([...panel(t).querySelectorAll<HTMLElement>('[data-match="true"] [data-letter]')].map((e) => e.dataset.letter)).toEqual(['B']);
       expect(calls).toEqual(['0,1,2']);
       t.kernel.seed('board', boardState(lit([BOTTOM + 1, BOTTOM + 3])));
       t.emit('learn:set_assist', { on: false });
-      expect(rule.textContent).toMatch(/^Echo of A \+ D · Two with a gap/);
+      expect(rule.textContent).toBe('Echo of A + D');
       expect(calls).toEqual(['0,1,2', '1,3']);
       t.kernel.seed('board', boardState(pressAll(solver, blank(), [12])));
       t.emit('learn:set_assist', { on: false });
@@ -436,9 +438,18 @@ describe('learn: in-game pattern reference', () => {
 });
 
 describe('learn: the reference on Variety boards', () => {
+  /** presses on any full rectangle; solving stays classic (all the reference needs) */
+  const shapedSolver = { ...solver, press: (cells: boolean[], i: number, shape?: { cols: number; rows: number }) => {
+    const s = shape ?? { cols: 5, rows: 5 };
+    const out = cells.slice();
+    const r = Math.floor(i / s.cols), c = i % s.cols;
+    const flip = (k: number) => { out[k] = !out[k]; };
+    flip(i); if (r > 0) flip(i - s.cols); if (r < s.rows - 1) flip(i + s.cols); if (c > 0) flip(i - 1); if (c < s.cols - 1) flip(i + 1);
+    return out;
+  } } as unknown as SolverService;
   const table = bottomRowTable(solver);
-  const status = { start: 'start', chase: 'Row {row}: tap under each lit light.', match: 'match', progress: 'progress', clear: 'clear', nomatch: 'nomatch', rectBottom: 'Only the bottom row is left.' };
-  const advise = createAdvisor(solver, table, status, 'shaped line');
+  const status = { start: 'start', chase: 'Row {row}: tap under each lit light.', match: 'match', progress: 'progress', clear: 'clear', nomatch: 'nomatch', rectBottom: 'Only the bottom row is left.', rectMatch: 'rect match' };
+  const advise = createAdvisor(shapedSolver, table, status, 'shaped line');
   const rect = (n: number) => ({ cols: n, rows: n, mask: null });
   const ring = { cols: 7, rows: 7, mask: [...'XXXXXXXXXXXXXXXX...XXXX...XXXX...XXXXXXXXXXXXXXXX'].map((ch) => ch === 'X') };
   const on = (n: number, idx: number[]) => { const c = new Array<boolean>(n).fill(false); for (const i of idx) c[i] = true; return c; };
@@ -454,12 +465,44 @@ describe('learn: the reference on Variety boards', () => {
     expect(kindOf(ring)).toBe('shaped');
   });
 
-  test('4×4 and 7×7: chase advice by the real row; only the bottom row lit points to Hint', () => {
+  test('4×4 and 7×7: chase advice by the real row; at bottom-row time the top taps for the player\'s row', () => {
     expect(advise({ status: 'playing', cells: on(16, [5]), shape: rect(4) })).toMatchObject({ status: 'chase', text: 'Row 2: tap under each lit light.' });
     expect(advise({ status: 'playing', cells: on(49, [40, 3]), shape: rect(7) })).toMatchObject({ status: 'chase', text: 'Row 1: tap under each lit light.' });
     expect(advise({ status: 'playing', cells: on(49, [36]), shape: rect(7) }).text).toBe('Row 6: tap under each lit light.');
-    expect(advise({ status: 'playing', cells: on(49, [43, 45]), shape: rect(7) })).toMatchObject({ status: 'nomatch', text: 'Only the bottom row is left.', match: -1 });
-    expect(advise({ status: 'playing', cells: on(16, [12]), shape: rect(4) }).status).toBe('nomatch');
+    // bottom C and E lit on 7×7: B C D xor D E F = B C E F
+    expect(advise({ status: 'playing', cells: on(49, [44, 46]), shape: rect(7) })).toMatchObject({ status: 'match', text: 'rect match', rect: { bottom: [2, 4], taps: [1, 2, 4, 5] } });
+    // 4×4: a lone bottom light can't be cleared from the top (a chase clears every solvable board)
+    expect(advise({ status: 'playing', cells: on(16, [12]), shape: rect(4) })).toMatchObject({ status: 'nomatch', text: 'Only the bottom row is left.' });
+  });
+
+  const letters = (sets: (number[] | null)[]) => sets.map((x) => (x ? x.map((c) => 'ABCDEFG'[c]).join('') : '-'));
+
+  test('per-light top taps from the solver: 7×7 three above, 6×6 its own sets, 4×4 chasing clears everything', () => {
+    expect(letters(rectTopSets(shapedSolver, rect(7) as never).perLight)).toEqual(['AB', 'ABC', 'BCD', 'CDE', 'DEF', 'EFG', 'FG']);
+    expect(letters(rectTopSets(shapedSolver, rect(6) as never).perLight)).toEqual(['AC', 'D', 'AE', 'BF', 'C', 'DF']);
+    expect(rectTopSets(shapedSolver, rect(4) as never).chaseClears).toBe(true);
+    expect(rectTopSets(shapedSolver, rect(7) as never).chaseClears).toBe(false);
+  });
+
+  test('the strip\'s taps then a chase clear random 6×6 and 7×7 bottom-row-only boards', () => {
+    for (const n of [6, 7]) {
+      const shape = rect(n) as never;
+      const { perLight } = rectTopSets(shapedSolver, shape);
+      for (let p = 1; p < 1 << n; p++) {
+        const bottom = [...Array(n).keys()].filter((c) => (p >> c) & 1);
+        const taps = rectTaps(perLight, bottom)!;
+        let b = on(n * n, bottom.map((c) => (n - 1) * n + c));
+        for (const t of taps) b = shapedSolver.press(b, t, shape);
+        expect(chaseRect(shapedSolver, b, shape).every((x) => !x), `${n}×${n} bottom ${bottom}`).toBe(true);
+      }
+    }
+  });
+
+  test('the strategy line per size', () => {
+    const lines = { chaseClears: '{cols}×{rows} chase', threeAbove: 'three', ownTaps: 'own' };
+    expect(advise.rectLine(rect(4) as never, lines)).toBe('4×4 chase');
+    expect(advise.rectLine(rect(7) as never, lines)).toBe('three');
+    expect(advise.rectLine(rect(6) as never, lines)).toBe('own');
   });
 
   test('shaped rooms: one calm line, whatever is lit', () => {
@@ -467,19 +510,28 @@ describe('learn: the reference on Variety boards', () => {
     expect(advise({ status: 'solved', cells: on(49, []), shape: ring }).status).toBe('clear');
   });
 
-  test('on a 7×7 board the panel shows chase advice and no table; on a Ring it shows the shape line; classic is unchanged', () => {
-    const t = boot({ state: { board: boardState(on(49, [9]), rect(7)) } });
+  test('on a 7×7 board the panel shows chase advice, then the strip pair; on a Ring the shape line; classic is unchanged', () => {
+    const t = boot({ state: { board: boardState(on(49, [9]), rect(7)) }, services: { solver: shapedSolver } });
     const root = panel(t).querySelector<HTMLElement>('[data-reference]')!;
     expect(root.dataset.referenceKind).toBe('rect');
     expect(root.querySelector('[data-reference-status]')!.textContent).toBe('Row 2: tap under each lit light.');
+    expect(root.querySelector('[data-reference-rule]')!.textContent).toMatch(/three top lights above it/);
     expect(root.querySelectorAll('[data-match="true"]')).toHaveLength(0);
     expect(root.querySelectorAll('[data-reference-bottom] [data-lit="true"]')).toHaveLength(0);
     expect(root.querySelector('[data-action="learn"]')).toBeTruthy();
+    expect(root.querySelector<HTMLElement>('.reference__rect')!.hidden).toBe(true);
+
+    t.kernel.seed('board', boardState(on(49, [42]), rect(7)));
+    t.emit('learn:set_assist', { on: false });
+    expect(root.querySelector<HTMLElement>('.reference__rect')!.hidden).toBe(false);
+    expect([...root.querySelectorAll<HTMLElement>('.reference__rect [data-letter]')].map((e) => e.dataset.letter)).toEqual(['A', 'B']);
+    expect(root.querySelectorAll('.reference__rect .learn-row--bottom [data-lit="true"]')).toHaveLength(1);
 
     t.kernel.seed('board', boardState(on(49, [0]), ring));
     t.emit('learn:set_assist', { on: false });
     expect(root.dataset.referenceKind).toBe('shaped');
-    expect(root.querySelector('[data-reference-status]')!.textContent).toMatch(/full rectangle/);
+    expect(root.querySelector('[data-reference-status]')!.textContent).toMatch(/doesn't fit this shape/);
+    expect(root.querySelector<HTMLElement>('[data-reference-rule]')!.hidden).toBe(true);
     expect(root.querySelector('[data-reference-status]')!.getAttribute('data-tone')).toBe('coach');
 
     t.kernel.seed('board', boardState(lit([BOTTOM, BOTTOM + 1, BOTTOM + 2])));
