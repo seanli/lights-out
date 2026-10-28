@@ -17,13 +17,15 @@ const scoring = { threeStarsWithin: 0, twoStarsWithin: 3, hintCost: 1, minStars:
 const progress: State['progress'] = { status: 'ready', save: { version: 1, results: {}, pendingHints: {}, lastLevel: 7 }, unlockedUpTo: 8, scoring };
 const DELAY = 800;
 
-function boot(state: Partial<State> = {}) {
-  return bootModule(solvedSheet, { state: { levels, progress, nav: { screen: 'play', sheet: null }, ...state } });
+function boot(state: Partial<State> = {}, reduced = false) {
+  const view = createFakeView();
+  view.reducedMotion = () => reduced;
+  return bootModule(solvedSheet, { services: { view }, state: { levels, progress, nav: { screen: 'play', sheet: null }, ...state } });
 }
 const sheet = () => document.querySelector<HTMLElement>(SEL.sheet('solved'))!;
 const q = <T extends HTMLElement = HTMLElement>(sel: string) => sheet().querySelector<T>(sel)!;
-const completed = (o: Partial<{ levelId: number; stars: 1 | 2 | 3; moves: number; par: number; hintsUsed: number; unlocked: number | null; allSolved: boolean }> = {}) => ({
-  levelId: 7, stars: 2 as const, moves: 6, par: 5, hintsUsed: 0, improved: true, unlocked: 8, allSolved: false, ...o,
+const completed = (o: Partial<{ levelId: number; stars: 1 | 2 | 3; moves: number; par: number; hintsUsed: number; unlocked: number | null; allSolved: boolean; firstSolve: boolean }> = {}) => ({
+  levelId: 7, stars: 2 as const, moves: 6, par: 5, hintsUsed: 0, improved: true, unlocked: 8, allSolved: false, firstSolve: true, ...o,
 });
 
 /** a module that reacts to board:solved by emitting progress's verdict, to put both in one drain */
@@ -66,7 +68,7 @@ describe('solved-sheet', () => {
       if (!first) t.emit('progress:level_completed', completed({ stars: 3, moves: 5 }));
       t.clock.advance(DELAY);
       expect(q('[data-stars-earned]').dataset.starsEarned).toBe('3');
-      expect(q('.sheet__note').textContent).toBe('Solved in par.');
+      expect(q('.sheet__note').textContent).toBe('Solved at par.');
     }
   });
 
@@ -113,7 +115,7 @@ describe('solved-sheet', () => {
     expect(t.seen('nav:open_sheet')).toEqual({ sheet: 'solved' });
     expect(q('.stars').hidden).toBe(true);
     expect(q('[data-result]').textContent).toBe('3 moves · par 3');
-    expect(q('.sheet__note').textContent).toBe('Solved in par.');
+    expect(q('.sheet__note').textContent).toBe('Solved at par.');
   });
 
   test('next, replay and levels emit the right events', () => {
@@ -131,7 +133,7 @@ describe('solved-sheet', () => {
   test('the last level shows the all-done copy and the primary action goes to the levels', () => {
     const t = boot();
     t.emit('board:solved', { levelId: COUNT, moves: 15, par: 15 });
-    t.emit('progress:level_completed', completed({ levelId: COUNT, stars: 3, moves: 15, par: 15, unlocked: null, allSolved: true }));
+    t.emit('progress:level_completed', completed({ levelId: COUNT, stars: 3, moves: 15, par: 15, unlocked: null, allSolved: true, firstSolve: true }));
     t.clock.advance(DELAY);
     expect(q('.sheet__title').textContent).toBe('All 50 levels solved.');
     expect(q('.sheet__note').textContent).toBe('Replay any level to collect the stars you missed.');
@@ -147,7 +149,7 @@ describe('solved-sheet', () => {
   test('the last level with gaps left still has no next level', () => {
     const t = boot();
     t.emit('board:solved', { levelId: COUNT, moves: 16, par: 15 });
-    t.emit('progress:level_completed', completed({ levelId: COUNT, stars: 2, moves: 16, par: 15, unlocked: null, allSolved: false }));
+    t.emit('progress:level_completed', completed({ levelId: COUNT, stars: 2, moves: 16, par: 15, unlocked: null, allSolved: false, firstSolve: true }));
     t.clock.advance(DELAY);
     expect(q('.sheet__title').textContent).toBe('Lights out.');
     expect(q(SEL.action('next')).hidden).toBe(true);
@@ -180,5 +182,22 @@ describe('solved-sheet', () => {
     sheet().click();
     q<HTMLElement>('.sheet__title').click();
     expect(t.events().length).toBe(before);
+  });
+
+  test('with reduced motion the sheet opens without waiting for a sweep', () => {
+    const t = boot({}, true);
+    t.emit('board:solved', { levelId: 7, moves: 6, par: 5 });
+    t.clock.advance(150);
+    expect(t.all('nav:open_sheet')).toEqual([{ sheet: 'solved' }]);
+  });
+
+  test('replaying the last level after finishing the set shows the normal note, not the celebration', () => {
+    const t = boot();
+    t.emit('board:solved', { levelId: COUNT, moves: 19, par: 15 });
+    t.emit('progress:level_completed', completed({ levelId: COUNT, stars: 1, moves: 19, par: 15, unlocked: null, allSolved: true, firstSolve: false }));
+    t.clock.advance(DELAY);
+    expect(q('[data-result]').textContent).toMatch(/19 moves/);
+    expect(sheet().textContent).toMatch(/4 over par/);
+    expect(sheet().textContent).not.toMatch(/All \d+ levels solved/);
   });
 });

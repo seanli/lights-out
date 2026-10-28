@@ -38,6 +38,8 @@ export interface Events {
     unlocked: LevelId | null;
     /** true when every level is now solved */
     allSolved: boolean;
+    /** true when this was the level's first solve (so allSolved && firstSolve = this solve finished the set) */
+    firstSolve: boolean;
   };
   'progress:cleared': Record<string, never>;
   'progress:save_failed': { reason: string };
@@ -46,7 +48,7 @@ export interface Events {
   'hints:request': Record<string, never>;
   'hints:shown': { levelId: LevelId; index: number };
   'hints:cleared': { reason: 'pressed' | 'level_changed' | 'undone' | 'restarted' | 'solved' };
-  'hints:refused': { reason: 'not_playing' | 'already_showing' | 'unsolvable' | 'no_solver' };
+  'hints:refused': { reason: 'not_playing' | 'already_showing' | 'unsolvable' | 'no_solver' | 'tutorial_active' };
 
   // ---- nav ----
   'nav:go': { screen: Screen };

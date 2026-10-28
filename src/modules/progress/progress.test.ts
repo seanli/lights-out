@@ -63,9 +63,11 @@ describe('progress', () => {
 
   test('solving the frontier unlocks the next level once; replays never unlock again', () => {
     const { t, solve } = boot();
-    expect(solve(1, 3)).toEqual({ levelId: 1, stars: 3, moves: 3, par: 3, hintsUsed: 0, improved: true, unlocked: 2, allSolved: false });
+    expect(solve(1, 3)).toEqual({ levelId: 1, stars: 3, moves: 3, par: 3, hintsUsed: 0, improved: true, unlocked: 2, allSolved: false, firstSolve: true });
     expect(t.state('progress').unlockedUpTo).toBe(2);
-    expect(solve(1, 3).unlocked).toBeNull();
+    const again = solve(1, 3);
+    expect(again.unlocked).toBeNull();
+    expect(again.firstSolve).toBe(false);
     expect(solve(2, 5)).toMatchObject({ stars: 2, unlocked: 3 });
     expect(solve(1, 3).unlocked).toBeNull();
     expect(t.state('progress').unlockedUpTo).toBe(3);

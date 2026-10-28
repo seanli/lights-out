@@ -11,7 +11,7 @@ const Copy = v.object({
   eyebrow: Text, title: Text, moves: Text, move: Text, par: Text, stars: Text,
   atPar: Text, overPar: Text, hinted: Text,
   next: Text, replay: Text, levels: Text,
-  allDoneTitle: Text, allDoneBody: Text, allDoneAction: Text, lastLevel: Text,
+  allDoneTitle: Text, allDoneBody: Text, allDonePerfect: Text, allDoneAction: Text, lastLevel: Text,
 });
 type CopyT = v.InferOutput<typeof Copy>;
 type Solved = Events['board:solved'];
@@ -92,7 +92,10 @@ const solvedSheet: ModuleDef = {
       const done = completed && completed.levelId === levelId ? completed : null;
       const count = ctx.read('levels')?.list.length;
       const last = count !== undefined && levelId >= count;
-      const allDone = !!done?.allSolved && last;
+      // only the solve that finished the set celebrates it; later replays get the normal note
+      const allDone = !!done && done.allSolved && done.firstSolve;
+      const results = Object.values(ctx.read('progress')?.save.results ?? {});
+      const perfect = count !== undefined && results.length >= count && results.every((r) => r.stars === MAX_STARS);
 
       setText(eyebrow, fmt(copy.eyebrow, { level: levelId }));
       setText(title, allDone ? fmt(copy.allDoneTitle, { total: count ?? levelId }) : copy.title);
@@ -113,7 +116,7 @@ const solvedSheet: ModuleDef = {
       const line = done && done.hintsUsed > 0 ? copy.hinted
         : moves <= par ? copy.atPar
         : fmt(copy.overPar, { over: moves - par, par });
-      setText(note, allDone ? copy.allDoneBody : line);
+      setText(note, allDone ? (perfect ? copy.allDonePerfect : copy.allDoneBody) : line);
       extra.hidden = !last || allDone;
       setText(extra, copy.lastLevel);
 
@@ -142,13 +145,15 @@ const solvedSheet: ModuleDef = {
       // keep a verdict that already arrived for this level in this same drain
       if (completed && completed.levelId !== p.levelId) completed = null;
       render();
+      // with reduced motion there is no sweep to wait for
+      const wait = ctx.service('view')?.reducedMotion() ? Math.min(delayMs, 150) : delayMs;
       cancelTimer = clock.setTimeout(() => {
         cancelTimer = null;
         if (!solved || solved !== p || !playing()) return;
         delete stars.dataset.key; // fresh star nodes so the fill-in plays on every open
         render();
         ctx.emit('nav:open_sheet', { sheet: 'solved' });
-      }, delayMs);
+      }, wait);
     });
     ctx.on('progress:level_completed', (p) => {
       completed = p;

@@ -16,9 +16,14 @@ export function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Attrs = 
   return el;
 }
 
-/** fill "{moves} moves · par {par}" from vars; unknown names stay visible so mistakes are obvious */
+/**
+ * fill "{moves} moves · par {par}" from vars; unknown names stay visible so mistakes are obvious.
+ * "{n|tap|taps}" picks the singular when vars.n is 1, otherwise the plural.
+ */
 export function fmt(template: string, vars: Record<string, string | number> = {}): string {
-  return template.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));
+  return template
+    .replace(/\{(\w+)\|([^|{}]*)\|([^|{}]*)\}/g, (m, k: string, one: string, many: string) => (k in vars ? (Number(vars[k]) === 1 ? one : many) : m))
+    .replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));
 }
 
 /** set an attribute only when it changes (keeps DOM writes minimal on every tap) */

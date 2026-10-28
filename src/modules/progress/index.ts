@@ -154,7 +154,7 @@ const progress: ModuleDef = {
         allSolved = true;
         for (let id = 1; id <= count; id++) if (!after.save.results[String(id)]) { allSolved = false; break; }
       }
-      ctx.emit('progress:level_completed', { levelId, stars, moves, par, hintsUsed, improved, unlocked, allSolved });
+      ctx.emit('progress:level_completed', { levelId, stars, moves, par, hintsUsed, improved, unlocked, allSolved, firstSolve: !prev });
     });
 
     ctx.on('progress:clear', () => {

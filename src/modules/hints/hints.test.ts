@@ -30,6 +30,14 @@ function shown(t: ReturnType<typeof boot>) {
 }
 
 describe('hints', () => {
+  test('refused while the tutorial already points at a cell (it would only cost a star)', () => {
+    const t = boot();
+    t.kernel.seed('tutorial', { status: 'active', levelId: 4, step: 0, target: 2, copyKey: '1.0' });
+    t.emit('hints:request', {});
+    expect(t.seen('hints:refused')).toEqual({ reason: 'tutorial_active' });
+    expect(t.all('hints:shown')).toEqual([]);
+  });
+
   test('starts idle', () => {
     expect(boot().state('hints')).toEqual({ status: 'idle', levelId: null, cell: null });
   });

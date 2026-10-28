@@ -23,6 +23,8 @@ export function createView(root: HTMLElement): ShellView {
   const regions = new Map<string, HTMLElement>();
   const reduce = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
   let openSheet: string | null = null;
+  let returnFocus: HTMLElement | null = null;
+  let shownScreen: string | null = null;
 
   function region(name: string): HTMLElement {
     const existing = regions.get(name);
@@ -64,6 +66,14 @@ export function createView(root: HTMLElement): ShellView {
       if (reduce?.matches) hide(); else setTimeout(hide, 320);
     }
     const next = id ? region(`sheet:${id}`) : undefined;
+    // a sheet is modal: the screen behind it can't be tabbed into or tapped
+    screens.inert = !!next;
+    if (next && !prev) returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    if (!next && returnFocus) {
+      const target = returnFocus;
+      returnFocus = null;
+      if (target.isConnected && !target.closest('[hidden]')) target.focus({ preventScroll: true });
+    }
     backdrop.hidden = !next;
     backdrop.dataset.open = next ? 'true' : 'false';
     if (next) {
@@ -98,7 +108,20 @@ export function createView(root: HTMLElement): ShellView {
       const screen = nav?.screen ?? 'home';
       for (const [name, node] of regions) if (name.startsWith('screen:')) node.hidden = name !== `screen:${screen}`;
       root.dataset.activeScreen = screen;
+      const changed = shownScreen !== null && shownScreen !== screen;
+      shownScreen = screen;
+      if (changed) returnFocus = null; // a new screen: the old focus target is gone
       showSheet(nav?.sheet ?? null);
+      // keep keyboard and screen-reader users in place: focus lands on the new screen, not <body>
+      const active = document.activeElement;
+      const lost = !active || active === document.body || !!(active as HTMLElement).closest?.('[hidden]');
+      if (changed && !nav?.sheet && lost) {
+        const node = regions.get(`screen:${screen}`);
+        if (node) {
+          if (!node.hasAttribute('tabindex')) node.setAttribute('tabindex', '-1');
+          node.focus({ preventScroll: true });
+        }
+      }
     },
   };
 }
