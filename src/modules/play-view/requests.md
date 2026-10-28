@@ -19,3 +19,10 @@ After a hint the header caption says "Hint used" (not "Max · Hint used"): with 
 Wide or short-landscape: board left; head, stats, panel, actions right, centred against the board. The `.app` widens via `:has()`.
 The stats moved into `.board-slot` (closed layout) so stats + tiers + board centre as one group between header and actions; `--board-chrome-y` includes them.
 If the design system adopts these, the rules can move to components.css.
+
+## Polish pass (for the design-system owner)
+- `play-view.css` sets `grid-template-columns/rows` from `--board-cols`/`--board-rows` (set inline with `--board-n`) so a non-square shape would lay out; components.css only knows `--board-n`.
+- C1 layout lives in `play-view.css`: the slot is `justify-content: flex-end`; the rest space under the line is a `margin-bottom` that only takes height the board can't use (`clamp(0px, free height, clamp(12px, 3vh, 24px))`), so 375×667 and 320×568 keep the full board.
+- Disabled actions use `var(--rest-opacity, .55)`; desktop play widens `.app` to `var(--app-max-play, 560px)`. Tokens welcome.
+- Below 390px the tier chips tighten (`--space-2` padding); below 360px the hint chip's word is visually hidden ("−1★" stays, the aria-label says it all).
+- Short portrait (`max-height: 640px`): stats on one baseline line (Moves `--text-xl`, Par `--text-lg`), `--space-2` gaps, compact action height (`--btn-h-compact`). 320×568 (#debug): board 238 → 288px, 7×7 slot 34 → 41px.

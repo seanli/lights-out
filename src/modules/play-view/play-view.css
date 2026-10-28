@@ -15,10 +15,23 @@
    the free height collects as headroom under the header, and the board's top row comes down toward the thumb */
 .screen--play { grid-template-rows: auto minmax(0, 1fr) auto; }
 .screen--play .board-slot {
-  justify-content: flex-end; padding-bottom: clamp(var(--space-3), 3vh, var(--space-6));
+  justify-content: flex-end; justify-content: safe flex-end; /* safe: never over the header if something overflows */
   --board-chrome-y: calc(var(--play-stats-h) + var(--chip-h) + var(--line-h) + 3 * var(--space-3));
 }
+/* a little air above the actions, taken only from height the board can't use (short phones keep every pixel) */
+.screen--play .board-slot > .play-line {
+  margin-bottom: clamp(0px, 100cqh - var(--board-chrome-y) - min(100cqw, 100cqh - var(--board-chrome-y), var(--board-max)), clamp(var(--space-3), 3vh, var(--space-6)));
+}
 .board-slot[data-tiers="false"] { --board-chrome-y: calc(var(--play-stats-h) + var(--line-h) + 2 * var(--space-3)); }
+
+/* the tier row (+ the hint chip) stays one line on phones: tighter chips below 390, the hint's word only for screen readers below 360 */
+@media (max-width: 389px) {
+  .screen--play .play-tiers { gap: var(--space-1); }
+  .screen--play .play-tiers > .chip { padding-inline: var(--space-2); }
+}
+@media (max-width: 359px) {
+  .play-hint-word { position: absolute; width: var(--hairline); height: var(--hairline); overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
 
 /* Moves and Par: one centred pair with a hairline between; Par is the reference, so it is smaller and dimmer */
 .screen--play .board-slot > .play-stats { align-self: center; justify-content: center; align-items: stretch; gap: var(--space-8); padding-inline: 0; }
@@ -32,6 +45,19 @@
 
 /* Undo / Restart with nothing to take back are resting, not broken */
 .screen--play .play-actions > .btn[aria-disabled="true"] { opacity: var(--rest-opacity, .55); }
+
+/* short phones (320×568, a 375×667 in Safari, inside a frame): the chrome folds so 6×6/7×7 slots stay ≥ 40px.
+   Stats go on one baseline line, gaps tighten, actions use the compact height; the tiers stay (same stakes on every board). */
+@media (orientation: portrait) and (max-height: 640px) {
+  .screen--play { gap: var(--space-2); --play-stats-h: calc(var(--text-xl) * var(--leading-num)); }
+  .screen--play .board-slot { gap: var(--space-2); --board-chrome-y: calc(var(--play-stats-h) + var(--chip-h) + var(--line-h) + 3 * var(--space-2)); }
+  .screen--play .board-slot[data-tiers="false"] { --board-chrome-y: calc(var(--play-stats-h) + var(--line-h) + 2 * var(--space-2)); }
+  .play-stats > .stat { flex-direction: row; align-items: baseline; gap: var(--space-2); }
+  .play-stats .stat__value { font-size: var(--text-xl); }
+  .play-stats [data-par] { font-size: var(--text-lg); }
+  .play-stats > .stat + .stat::before { height: var(--space-6); }
+  .screen--play > .play-actions > .btn { min-height: var(--btn-h-compact); }
+}
 
 /* desktop: room for the board to reach --board-max */
 @media (min-width: 1000px) and (min-height: 820px) {
@@ -51,7 +77,7 @@
     grid-template-rows: auto minmax(0, 1fr) auto auto auto auto;
     grid-template-areas: "board head" "board ." "board stats" "board tiers" "board line" "board actions";
   }
-  .screen--play .board-slot { padding-bottom: 0; }
+  .screen--play .board-slot > .play-line { margin-bottom: 0; }
   .screen--play .board-slot > .play-stats { grid-area: stats; }
   .screen--play .play-line { grid-area: line; align-self: center; }
 }

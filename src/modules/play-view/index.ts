@@ -11,7 +11,7 @@ import './play-view.css';
 const text = v.pipe(v.string(), v.minLength(1));
 const CopySchema = v.object({
   chapter: text, level: text, moves: text, par: text, undo: text, restart: text, hint: text, hintCost: text,
-  back: text, patterns: text, board: text, maxAria: text, hintLine: text, hintChip: text, hintChipAria: text,
+  back: text, patterns: text, board: text, maxAria: text, hintLine: text, hintChipCost: text, hintChipWord: text, hintChipAria: text,
   cellOn: text, cellOff: text, tierWithin: text, tierOver: text, tierWithinAria: text, tierOverAria: text,
 });
 type Copy = v.InferOutput<typeof CopySchema>;
@@ -99,7 +99,9 @@ const playView: ModuleDef = {
       return { base, el, label, stars: list };
     });
     // hints already taken on this level: the stars they cost, next to the tiers they lowered
-    const hintChip = h('span', { class: 'chip', 'data-state': 'hint', role: 'listitem', hidden: true });
+    const hintCost = h('span', {});
+    const hintWord = h('span', { class: 'play-hint-word' });
+    const hintChip = h('span', { class: 'chip', 'data-state': 'hint', role: 'listitem', hidden: true }, hintCost, hintWord);
     const tiersEl = h('div', { class: 'play-tiers', role: 'list' }, ...tiers.map((t) => t.el), hintChip);
 
     const board = h('div', { class: 'board', 'data-board': '', 'data-status': 'playing', role: 'group', 'aria-label': copy.board });
@@ -440,7 +442,8 @@ const playView: ModuleDef = {
       setAttr(tiersEl, 'aria-label', fmt(copy.maxAria, { stars: max }));
       hintChip.hidden = used === 0;
       if (used > 0) {
-        setText(hintChip, fmt(copy.hintChip, { stars: 3 - max, count: used }));
+        setText(hintCost, fmt(copy.hintChipCost, { stars: 3 - max }));
+        setText(hintWord, fmt(copy.hintChipWord, { count: used }));
         setAttr(hintChip, 'aria-label', fmt(copy.hintChipAria, { stars: 3 - max, count: used }));
       }
 
