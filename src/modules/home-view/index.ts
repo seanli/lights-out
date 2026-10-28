@@ -286,10 +286,6 @@ const homeView: ModuleDef = {
       legend.replaceChildren(...items.flatMap((it, i) => (i ? [h('span', { class: 'home__sep', 'aria-hidden': 'true' }), it] : [it])));
     }
 
-    function afterPaint(fn: () => void) {
-      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(fn); else fn();
-    }
-
     /** keep the current tile on screen when home appears; no smooth scroll, no move if it is already visible */
     let pendingReveal = false;
     function revealCurrent() {
@@ -341,8 +337,11 @@ const homeView: ModuleDef = {
       if (key === lastNav) return;
       lastNav = key;
       if (nav?.screen === 'home' && !nav.sheet) revealCurrent();
-      // the safe choice gets focus (the shell focuses the first button otherwise)
-      if (nav?.sheet === 'confirm_reset') afterPaint(() => cancelBtn.focus({ preventScroll: true }));
+      // the shell focuses the first button (the destructive one); move focus to the safe choice
+      if (nav?.sheet === 'confirm_reset') {
+        if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => cancelBtn.focus({ preventScroll: true }));
+        else cancelBtn.focus({ preventScroll: true });
+      }
     });
     showLearn();
     update();

@@ -143,12 +143,15 @@ describe('home-view', () => {
     expect(t.seen('learn:open')).toEqual({});
   });
 
-  test('reset opens the confirmation sheet; only confirm clears progress', () => {
+  test('reset opens the confirmation sheet with focus on cancel; only confirm clears progress', async () => {
     const t = boot({ progress: progress([3]) });
     $<HTMLButtonElement>(SEL.action('reset')).click();
     expect(t.seen('nav:open_sheet')).toEqual({ sheet: 'confirm_reset' });
     const sheet = $(SEL.sheet('confirm_reset'));
     expect(sheet.textContent).toContain('Reset all progress?');
+    t.kernel.seed('nav', { screen: 'home', sheet: 'confirm_reset' });
+    await new Promise((r) => requestAnimationFrame(r));
+    expect(document.activeElement?.getAttribute('data-action')).toBe('reset-cancel');
     sheet.querySelector<HTMLButtonElement>('[data-action="reset-cancel"]')!.click();
     expect(t.all('nav:close_sheet').length).toBe(1);
     expect(t.all('progress:clear')).toEqual([]);

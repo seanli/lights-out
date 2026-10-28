@@ -145,6 +145,7 @@ const solvedSheet: ModuleDef = {
       cancelTimer = clock.setTimeout(() => {
         cancelTimer = null;
         if (!solved || solved !== p || !playing()) return;
+        delete stars.dataset.key; // fresh star nodes so the fill-in plays on every open
         render();
         ctx.emit('nav:open_sheet', { sheet: 'solved' });
       }, delayMs);
