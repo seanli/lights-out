@@ -17,40 +17,74 @@ export function skull(): Element {
 
 const SVG = 'http://www.w3.org/2000/svg';
 
-/** a wired switch: a spoke toward each cell its press reaches, round a hub (drawn in currentColor) */
+/**
+ * A wired switch, drawn like a circuit board: a hub ring in the middle and a trace toward each cell its press also
+ * flips, ending in a solder pad at the cell's edge. Drawn opaque in currentColor; the whole mark fades as one layer
+ * (CSS opacity on the svg), so crossing strokes never darken where they overlap.
+ */
 export function wireIcon(bits: number): SVGSVGElement {
   const svg = document.createElementNS(SVG, 'svg');
   svg.setAttribute('viewBox', '-12 -12 24 24');
   svg.setAttribute('aria-hidden', 'true');
   svg.setAttribute('class', 'cell__wires');
+  const traces = document.createElementNS(SVG, 'path');
+  let d = '';
+  const pads: [number, number][] = [];
   WIRE_DIRS.forEach(([dr, dc], k) => {
     if (!(bits & (1 << k))) return;
-    const len = dr && dc ? 7.4 : 9.5;
-    const line = document.createElementNS(SVG, 'line');
-    line.setAttribute('x1', String(dc * 3));
-    line.setAttribute('y1', String(dr * 3));
-    line.setAttribute('x2', String(dc * len));
-    line.setAttribute('y2', String(dr * len));
-    svg.append(line);
+    // a diagonal runs to the corner; a straight one to the middle of the edge
+    const reach = dr && dc ? 8.2 : 10;
+    const from = dr && dc ? 2.4 : 3.4;
+    d += `M${dc * from} ${dr * from}L${dc * reach} ${dr * reach}`;
+    pads.push([dc * reach, dr * reach]);
   });
+  traces.setAttribute('d', d);
+  traces.setAttribute('class', 'cell__trace');
+  svg.append(traces);
+  for (const [x, y] of pads) {
+    const pad = document.createElementNS(SVG, 'circle');
+    pad.setAttribute('cx', String(x));
+    pad.setAttribute('cy', String(y));
+    pad.setAttribute('r', '1.9');
+    pad.setAttribute('class', 'cell__pad');
+    svg.append(pad);
+  }
   const hub = document.createElementNS(SVG, 'circle');
-  hub.setAttribute('r', '2.2');
+  hub.setAttribute('r', '3.1');
+  hub.setAttribute('class', 'cell__hub');
   svg.append(hub);
   return svg;
 }
-/** a stuck switch: a screw head (a ring with a slot), drawn in currentColor */
+
+/**
+ * A stuck switch: a hazard-striped cover held down by four rivets. Opaque in currentColor; the mark fades as one
+ * layer (CSS), so nothing doubles up where shapes meet.
+ */
 export function stuckIcon(): SVGSVGElement {
   const svg = document.createElementNS(SVG, 'svg');
   svg.setAttribute('viewBox', '-12 -12 24 24');
   svg.setAttribute('aria-hidden', 'true');
   svg.setAttribute('class', 'cell__stuck');
-  const ring = document.createElementNS(SVG, 'circle');
-  ring.setAttribute('r', '6.5');
-  const slot = document.createElementNS(SVG, 'line');
-  slot.setAttribute('x1', '-4');
-  slot.setAttribute('y1', '4');
-  slot.setAttribute('x2', '4');
-  slot.setAttribute('y2', '-4');
-  svg.append(ring, slot);
+  // the stripes: parallel bars (x + y = k) cut to the cover square, so no two strokes cross; the rim rounds the corners
+  const cover = document.createElementNS(SVG, 'rect');
+  for (const [k, v] of [['x', '-8'], ['y', '-8'], ['width', '16'], ['height', '16'], ['rx', '2.6']]) cover.setAttribute(k!, v!);
+  cover.setAttribute('class', 'cell__rim');
+  const stripes = document.createElementNS(SVG, 'path');
+  let d = '';
+  for (let k = -12.8; k <= 12.8; k += 6.4) {
+    const x1 = Math.max(-6.8, k - 6.8), x2 = Math.min(6.8, k + 6.8);
+    if (x2 - x1 > 0.5) d += `M${x1.toFixed(2)} ${(k - x1).toFixed(2)}L${x2.toFixed(2)} ${(k - x2).toFixed(2)}`;
+  }
+  stripes.setAttribute('d', d);
+  stripes.setAttribute('class', 'cell__stripes');
+  svg.append(stripes, cover);
+  for (const [x, y] of [[-10.2, -10.2], [10.2, -10.2], [-10.2, 10.2], [10.2, 10.2]] as const) {
+    const rivet = document.createElementNS(SVG, 'circle');
+    rivet.setAttribute('cx', String(x));
+    rivet.setAttribute('cy', String(y));
+    rivet.setAttribute('r', '1.5');
+    rivet.setAttribute('class', 'cell__rivet');
+    svg.append(rivet);
+  }
   return svg;
 }

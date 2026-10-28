@@ -566,9 +566,13 @@ describe('play-view', () => {
       expect(q('[data-board]').dataset.grid).toBe('hex');
       expect(document.querySelectorAll(SEL.cells)).toHaveLength(37);
       expect(document.querySelectorAll('[data-board] [data-gap]')).toHaveLength(0);
-      // row 3 (odd, the long middle row) starts at column 0 shifted half a light; row 2 (even) at column 1
-      expect(cell(3 * 7).style.gridColumn).toBe('2 / span 2');
-      expect(cell(2 * 7 + 1).style.gridColumn).toBe('3 / span 2');
+      // tiles sit by half-columns counted from the first one used, so the comb is centred: the long middle row (3, odd,
+      // so half a tile right) starts at half 1, row 2 (even) at half 2 — no empty half-column on either side
+      expect(cell(3 * 7).style.getPropertyValue('--hx')).toBe('0');
+      expect(cell(2 * 7 + 1).style.getPropertyValue('--hx')).toBe('1');
+      expect(cell(3 * 7 + 6).style.getPropertyValue('--hx')).toBe('12');
+      expect(q('[data-board]').style.getPropertyValue('--board-halves')).toBe('14');
+      expect(cell(3 * 7).querySelector('.cell__face')).not.toBeNull();
       pointer(cell(3 * 7 + 3));
       expect(presses()).toEqual([3 * 7 + 3]);
     });
@@ -619,12 +623,12 @@ describe('play-view', () => {
     test('wired switches draw one spoke per direction and say where they reach; a new level redraws them in place', () => {
       const wires = new Array(25).fill(0b01000100); // left and right
       const { t, cell } = boot({ board: shaped({ ...square(5), wires }, { levelId: 14001 }) });
-      expect(cell(12).querySelectorAll('.cell__wires line')).toHaveLength(2);
+      expect(cell(12).querySelectorAll('.cell__wires .cell__pad')).toHaveLength(2);
       expect(cell(12).getAttribute('aria-label')).toMatch(/also flips right, left/);
       const before = cell(12);
       t.kernel.seed('board', shaped({ ...square(5), wires: new Array(25).fill(0b10101010) }, { levelId: 14002 }));
       expect(cell(12)).toBe(before); // same grid: the cells stay, the marks change
-      expect(cell(12).querySelectorAll('.cell__wires line')).toHaveLength(4);
+      expect(cell(12).querySelectorAll('.cell__wires .cell__pad')).toHaveLength(4);
       t.kernel.seed('board', shaped(square(5), { levelId: 14003 }));
       expect(cell(12).querySelector('.cell__mark')).toBeNull();
     });

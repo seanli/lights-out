@@ -25,12 +25,15 @@
 /* a room's board (data-mini-n = its longer side): tighter from 6 up so the lights stay big; a gap keeps its slot, empty */
 .board--mini[data-mini-n]:not([data-mini-n="5"]) { --cell-gap: var(--space-1); --board-pad: var(--space-1-5); --cell-radius: var(--radius-xs); }
 /* a honeycomb (view.ts places each light): two half-columns per light, odd rows one later; rows .866 of a light apart;
-   round lights filling --hex-fill of the distance between neighbours, as on the play board */
+   hexagon tiles filling --hex-fill of the distance between neighbours, as on the play board */
 .board--mini[data-mini-grid="hex"][data-mini-n] {
   --cell-radius: 50%; gap: 0;
   grid-template-columns: repeat(var(--board-halves), minmax(0, 1fr)); grid-template-rows: repeat(var(--hex-rows), minmax(0, 1fr));
 }
-.board--mini[data-mini-grid="hex"] > .cell { width: calc(var(--hex-fill) * 100%); height: auto; aspect-ratio: 1; place-self: center; }
+.board--mini[data-mini-grid="hex"] > .cell {
+  width: calc(var(--hex-fill) * 100%); height: auto; aspect-ratio: .866; place-self: center;
+  border-radius: 0; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+}
 /* a cube's net (view.ts places each light): six face panels like the play cube's, a seam track between faces */
 .board--mini[data-mini-grid="cube"][data-mini-n] {
   --face-seam: var(--space-2); --face-pad: var(--space-1); --board-pad: var(--space-1-5);

@@ -518,8 +518,8 @@ describe('learn: in-game pattern reference', () => {
       expect(panel(t).querySelector('[data-pattern-row]')!.getAttribute('data-pattern')).toBe('0,1,2');
       t.kernel.seed('board', boardState(lit([BOTTOM + 1, BOTTOM + 3])));
       t.emit('learn:set_assist', { on: false });
-      expect(rule.textContent).toBe('Echo of A + D');
-      expect([...panel(t).querySelectorAll<HTMLElement>('[data-match="true"] [data-letter]')].map((e) => e.dataset.letter)).toEqual(['A', 'D']);
+      expect(rule.textContent).toBe('Echo of A + B + C');
+      expect([...panel(t).querySelectorAll<HTMLElement>('[data-match="true"] [data-letter]')].map((e) => e.dataset.letter)).toEqual(['A', 'B', 'C']);
       t.kernel.seed('board', boardState(pressAll(solver, blank(), [12])));
       t.emit('learn:set_assist', { on: false });
       expect(rule.hidden).toBe(true);
@@ -689,8 +689,14 @@ describe('learn: any shape — chase, start and end cells, the start-cell fix', 
       const b = randomBoard(classic, k, 7);
       expect(chaseShape(roomSolver, b, classic)).toEqual(chase(solver, b));
     }
-    // the fewest start taps on 5×5 are as short as the bottom-row table's top taps
-    for (const e of bottomRowTable(solver)) expect(fixFor(roomSolver, classic, lit(e.bottom.map((c) => BOTTOM + c)))!.length).toBe(e.top.length);
+    // the bottom-row table and the any-shape fixer both pick the fix with the fewest taps in all (fewer top lights only
+    // break a tie), so they agree; for B·D that is A·B·C (3 + 8 = 11 taps), not the fewer top lights A·D (2 + 13 = 15)
+    const total = (b: Cells, top: readonly number[]) => top.length + chase(solver, pressAll(solver, b, top)).taps.length;
+    for (const e of bottomRowTable(solver)) {
+      const b = lit(e.bottom.map((c) => BOTTOM + c));
+      expect(fixFor(roomSolver, classic, b)).toEqual(e.top);
+      if (e.bottom.join() === '1,3') expect([total(b, e.top), total(b, [0, 3])]).toEqual([11, 15]);
+    }
   });
 
   test.each(ROOM_IDS)('%s: a chase leaves lights only on end cells; chase → fix → chase clears random boards', (id) => {
@@ -709,17 +715,20 @@ describe('learn: any shape — chase, start and end cells, the start-cell fix', 
     }
   });
 
-  test.each(ROOM_IDS)('%s: the fix is the fewest start taps (checked against every smaller set)', (id) => {
+  test.each(ROOM_IDS)('%s: the fix takes the fewest taps in all, start taps plus the chase after (checked against every other fix)', (id) => {
     const shape = SHAPES[id]!;
     const fx = createFixer(roomSolver, shape);
     const leaves = (set: number[]) => chaseShape(roomSolver, pressAll(roomSolver, emptyCells(shape), set, shape), shape).cells.join();
+    const total = (left: Cells, set: number[]) => set.length + chaseShape(roomSolver, pressAll(roomSolver, left, set, shape), shape).taps.length;
     for (let k = 1; k <= 12; k++) {
       const left = chaseShape(roomSolver, randomBoard(shape, k * 7, 6), shape).cells;
       const fix = fx.fixFor(left);
       if (!fix) continue;
+      expect(isClear(chaseShape(roomSolver, pressAll(roomSolver, left, fix, shape), shape).cells)).toBe(true);
       for (let m = 0; m < 1 << fx.starts.length; m++) {
         const set = fx.starts.filter((_, b) => (m >> b) & 1);
-        if (set.length < fix.length) expect(leaves(set)).not.toBe(left.join());
+        if (leaves(set) !== left.join()) continue;
+        expect(total(left, fix)).toBeLessThanOrEqual(total(left, set));
       }
     }
   });
@@ -1506,7 +1515,7 @@ describe('learn: first-time-player review', () => {
   test('lesson 5 has Assist: it rings a shortest answer, so following it solves at par', () => {
     const t = boot();
     t.emit('learn:open', { lessonId: 'shortest' });
-    t.emit('learn:step', { delta: 1 });
+    for (let k = 0; k < 3; k++) t.emit('learn:step', { delta: 1 }); // past the two-fixes picture and the A·C·E demo
     expect(q('[data-action="learn-assist"]')).not.toBeNull();
     t.emit('learn:set_assist', { on: true });
     const par = solver.solve(t.state('learn').practice!.start)!.length;
@@ -1700,7 +1709,7 @@ describe('learn: the twist guides (Hex, Cube, Wired, Stuck)', () => {
     for (const board of qa('[data-mini-board="show"]')) {
       for (const cell of board.querySelectorAll<HTMLElement>('[data-mini-cell]')) {
         const bits = wires[Number(cell.dataset.index)]!;
-        expect(cell.querySelectorAll('.cell__wires line')).toHaveLength(bits.toString(2).replace(/0/g, '').length);
+        expect(cell.querySelectorAll('.cell__wires .cell__pad')).toHaveLength(bits.toString(2).replace(/0/g, '').length);
       }
     }
 

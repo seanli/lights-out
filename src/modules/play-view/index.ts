@@ -6,7 +6,7 @@
 // magnifier (slots under the tap minimum).
 import * as v from 'valibot';
 import { CUSTOM_LEVEL_ID, MAX_CELLS, type BoardState, type CustomState, type HintsState, type LevelsState, type ModuleDef, type ProgressState, type Shape, type TutorialState } from '../../contracts';
-import { cellAt, hexCellAt, isTall, rowEdge, stepFrom } from './grid';
+import { cellAt, hexCellAt, hexHalf, hexSpan, isTall, rowEdge, stepFrom } from './grid';
 import { attachAim, type AimMode } from '../../lib/aim';
 import { fmt, h, setAttr, setText } from '../../lib/dom';
 import { skull, stuckIcon, wireIcon } from '../../lib/icons';
@@ -221,9 +221,10 @@ const playView: ModuleDef = {
           'aria-pressed': 'false', 'aria-label': labels.off[i], tabindex: i === real[0] ? '0' : '-1',
         });
         if (grid === 'hex') {
-          // two half-columns per cell; odd rows start half a cell to the right
-          cell.style.gridColumn = `${2 * colOf(i) + 1 + (rowOf(i) & 1)} / span 2`;
-          cell.style.gridRow = String(rowOf(i) + 1);
+          // a honeycomb tile: placed by half-columns (odd rows half a tile right) and rows, from the first used half
+          cell.style.setProperty('--hx', String(hexHalf(next, i) - hexSpan(next).first));
+          cell.style.setProperty('--hy', String(rowOf(i)));
+          cell.append(h('span', { class: 'cell__face', 'aria-hidden': 'true' }));
         }
         if (at) {
           cell.style.gridColumn = String(at.a + 1);
@@ -253,7 +254,7 @@ const playView: ModuleDef = {
         board.replaceChildren(...slots);
       }
       setAttr(board, 'data-grid', grid === 'square' ? null : grid);
-      board.style.setProperty('--board-halves', String(2 * next.cols + 1));
+      board.style.setProperty('--board-halves', String(grid === 'hex' ? hexSpan(next).halves : 2 * next.cols + 1));
       resetOrder();
       const n = Math.max(next.cols, next.rows);
       board.dataset.n = String(n);
@@ -292,7 +293,7 @@ const playView: ModuleDef = {
       const css = getComputedStyle(board);
       const px = (v: string) => parseFloat(v) || 0;
       // a honeycomb: the nearest light (its gaps belong to the lights around them)
-      if (gridOf(shape) === 'hex') return hexCellAt(shape, x - r.left, y - r.top, { width: r.width, height: r.height, padX: px(css.paddingLeft), padY: px(css.paddingTop) });
+      if (gridOf(shape) === 'hex') return hexCellAt(shape, x - r.left, y - r.top, { width: r.width, padX: px(css.getPropertyValue('--board-pad')), padY: px(css.getPropertyValue('--board-pad')) });
       return cellAt(shape, x - r.left + board.scrollLeft, y - r.top + board.scrollTop, {
         width: r.width, height: tall ? Math.max(board.scrollHeight, r.height) : r.height,
         padX: px(css.paddingLeft), padY: px(css.paddingTop), gapX: px(css.columnGap), gapY: px(css.rowGap),
@@ -310,8 +311,11 @@ const playView: ModuleDef = {
     });
     board.addEventListener('pointerdown', (e) => {
       if (e.button !== 0 || pointerMode() || cube) return; // primary mouse button; every touch/pen contact is button 0
-      let i = cellIndex(e.target);
+      const hex = !!shape && gridOf(shape) === 'hex';
+      // a honeycomb goes by the nearest tile's centre (tiles' boxes overlap at their points); elsewhere the cell hit, and
       // the space between cells and the board's padding are hit area too (layout is clean: nothing written yet)
+      let i = hex ? pointCell(e.clientX, e.clientY) : cellIndex(e.target);
+      if (i < 0 && hex) i = cellIndex(e.target); // no layout to measure (a synthetic event): the tile it landed on
       if (i < 0 && e.target === board) i = pointCell(e.clientX, e.clientY);
       if (i < 0) return;
       if (cellIndex(e.target) === i) pending[i] = 1; // the click that follows lands on the cell; a gutter click lands on the board
@@ -323,6 +327,7 @@ const playView: ModuleDef = {
       if (e.detail === 0) return press(i); // keyboard (Enter/Space) or assistive tech
       if (pending[i]) { pending[i] = 0; return; } // already pressed on pointerdown
       if (pointerMode() || aimer.active() || cube) return; // pressed (or not) on release by the aim helper or the cube: never twice
+      if (shape && gridOf(shape) === 'hex') return; // a honeycomb presses on pointerdown, by geometry: never by the click
       press(i); // a click with no pointerdown before it
     });
 
@@ -590,7 +595,9 @@ const playView: ModuleDef = {
         const marks: Node[] = [];
         if (bits !== undefined) marks.push(wireIcon(bits));
         if (stuck) marks.push(stuckIcon());
-        if (marks.length || cell.firstChild) cell.replaceChildren(...(marks.length ? [h('span', { class: 'cell__mark', 'aria-hidden': 'true' }, ...marks)] : []));
+        // only the marks are redrawn: a honeycomb tile keeps its face
+        cell.querySelector(':scope > .cell__mark')?.remove();
+        if (marks.length) cell.append(h('span', { class: 'cell__mark', 'aria-hidden': 'true' }, ...marks));
         const dirs = bits === undefined ? [] : copy.dirs.filter((_, k) => bits & (1 << k));
         suffix[i] = (stuck ? copy.stuck : '') + (dirs.length ? fmt(copy.wired, { dirs: dirs.join(copy.list) }) : '');
         const on = shown[i] === 1;

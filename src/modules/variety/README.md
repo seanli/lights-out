@@ -11,7 +11,7 @@ One board's level screen, classic included. Owns the `variety` slice (`{ room }`
 - `[data-room-view]`: five columns on every board. Tiles run in bands (`.variety__band`) that close on a boss (`LevelDef.boss`, every
   10th: two rows of five), a little apart; classic's bands sit in its chapters (eyebrow + range, chapters ahead as one quiet row).
 - Tiles `[data-level-tile][data-level=<global id>][data-stars][data-locked][data-current]` (+ `data-boss="true"` and the shared skull
-  above the number, dim when locked), numbered by index; Play or stars below. Unlock: classic `progress.unlockedUpTo`, rooms
+  as a small badge in the top-right corner, out of the flow, dim when locked), numbered by index; Play or stars below. Unlock: classic `progress.unlockedUpTo`, rooms
   `progress.packs[id].unlockedUpTo`. Current = lowest open unsolved (all solved: the last played). Boss labels: "Boss. Level 10, locked".
 - Star legend under the first chapter. A tile a solve unlocked (`progress:level_completed.unlocked`) powers on once when its board
   next shows; the current tile is scrolled into view. Every tap goes through an event (replay reproduces it).

@@ -18,6 +18,8 @@ export interface MiniSpec {
   ring?: number[];
   /** which quiet pattern (0-based) when marks is 'quiet'; the board is dark */
   quiet?: number;
+  /** a top-row fix to dot (columns): the caption may use {top} (its letters) and {total} (its taps plus the chase after) */
+  fix?: number[];
   /** copy key in learn.captions, filled with {n} = number of marks, {lights} = lights lit, {rings} = lights outlined */
   caption?: string;
 }
@@ -92,6 +94,8 @@ const CHASE_ME = [6, 8, 12, 17];
 const STUBBORN = [1, 8, 12, 16, 24];
 /** a board whose chase-method answer is long but whose shortest answer is 5 taps */
 const LONG_WAY = [0, 4, 12, 20, 24];
+/** A, C, E on a dark board, then the chase that follows: it ends dark (taps under each lit light, row by row) */
+const QUIET_ACE = [0, 2, 4, 5, 7, 9, 15, 17, 19, 20, 22, 24];
 
 export const LESSONS: Record<string, Lesson> = {
   shapes: {
@@ -148,6 +152,10 @@ export const LESSONS: Record<string, Lesson> = {
     deeper: 'shortest-more',
     steps: [
       { kind: 'show', boards: [{ from: LONG_WAY, marks: 'method', caption: 'method' }, { from: LONG_WAY, marks: 'shortest', caption: 'shortest' }] },
+      // every bottom row has four fixes; the fewest top taps isn't always the fewest taps: B·D by A·D (15) and A·B·C (11)
+      { kind: 'show', boards: [{ from: [], lit: [21, 23], fix: [0, 3], caption: 'fixTotal' }, { from: [], lit: [21, 23], fix: [0, 1, 2], caption: 'fixTotal' }] },
+      // where the other fixes come from: A·C·E on a dark board, chased, ends dark (a quiet top row)
+      { kind: 'demo', from: [], play: QUIET_ACE, phases: QUIET_ACE.map((_, k) => (k < 3 ? 'top' : 'chase')) },
       { kind: 'practice' },
     ],
   },
@@ -171,6 +179,7 @@ export const RULES: Rule[] = [
   { key: 'allButMiddle', rows: [{ bottom: [0, 1, 3, 4], top: [2] }] },
   { key: 'pairLoner', rows: [{ bottom: [1, 2, 4], top: [0] }, { bottom: [0, 2, 3], top: [4] }] },
   { key: 'corners', rows: [{ bottom: [0, 4], top: [0, 1] }] },
-  { key: 'gap', rows: [{ bottom: [1, 3], top: [0, 3] }] },
+  // A·D clears B·D too, in 15 taps; A·B·C takes 11 (lesson 5 shows both)
+  { key: 'gap', rows: [{ bottom: [1, 3], top: [0, 1, 2] }] },
 ];
 export const ruleFor = (bottom: readonly number[]): Rule | undefined => RULES.find((r) => r.rows.some((x) => x.bottom.join() === bottom.join()));

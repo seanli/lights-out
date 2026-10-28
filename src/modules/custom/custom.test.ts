@@ -61,6 +61,11 @@ describe('custom: settings', () => {
     expect(document.querySelector<HTMLElement>('[data-custom-big]')!.hidden).toBe(false);
     t.emit('custom:set', { settings: { cols: 6, rows: 6 } });
     expect(document.querySelector<HTMLElement>('[data-custom-big]')!.hidden).toBe(true);
+    // wider than tall: the tip to chase from the shorter side
+    expect(document.querySelector<HTMLElement>('[data-custom-wide]')!.hidden).toBe(true);
+    t.emit('custom:set', { settings: { cols: 12, rows: 5 } });
+    expect(document.querySelector<HTMLElement>('[data-custom-wide]')!.hidden).toBe(false);
+    t.emit('custom:set', { settings: { cols: 6, rows: 6 } });
     const plus = document.querySelector<HTMLElement>('[data-custom-size="rows"] [data-step="1"]')!;
     plus.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
     t.clock.advance(380 + 60 * 4);

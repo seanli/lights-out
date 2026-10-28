@@ -16,13 +16,18 @@
 /* five columns on every board; each band of ten closes on its boss (every second row), the next band --stack-lg apart */
 .variety__bands { display: flex; flex-direction: column; gap: var(--stack-lg); }
 
-/* a tile: its number dead centre, a boss's skull above it, Play or the stars below */
-.variety .level-tile { display: grid; grid-template-rows: 1fr auto 1fr; justify-items: center; gap: 0; }
+/* a tile: its number dead centre, Play or the stars below; a boss wears its skull as a small badge in the top-right
+   corner, out of the flow, so every tile lines up the same */
+.variety .level-tile { position: relative; display: grid; grid-template-rows: 1fr auto 1fr; justify-items: center; gap: 0; }
 .variety .level-tile__num { grid-row: 2; }
-.variety .level-tile .skull { grid-row: 1; align-self: end; width: var(--space-5); height: var(--space-5); margin-bottom: var(--space-half); color: var(--c-text); }
+.variety .level-tile .skull {
+  position: absolute; top: var(--space-1); right: var(--space-1); box-sizing: content-box;
+  width: var(--icon-sm); height: var(--icon-sm); padding: var(--space-half); border-radius: 50%;
+  background: var(--c-board); color: var(--c-accent);
+}
 .variety .level-tile__deco { grid-row: 3; align-self: start; display: flex; margin-top: var(--space-1); }
-.variety .level-tile[data-current="true"] .skull { color: currentColor; }
-.variety .level-tile[data-locked="true"] .skull { color: var(--c-text-dim); }
+.variety .level-tile[data-current="true"] .skull { background: var(--c-accent-ink); color: var(--c-tile-on); }
+.variety .level-tile[data-locked="true"] .skull { background: var(--c-surface-2); color: var(--c-text-dim); }
 /* a boss reads at a glance even while locked: its socket carries a faint ring */
 .variety .level-tile[data-boss="true"][data-locked="true"] { box-shadow: var(--shadow-recessed), inset 0 0 0 var(--hairline) var(--c-line-strong); }
 

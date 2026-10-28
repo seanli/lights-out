@@ -60,13 +60,15 @@ export function chaseSuggest(cells: readonly boolean[]): number | null {
 export interface TableEntry {
   /** lit columns left in the bottom row after a chase */
   bottom: number[];
-  /** top-row columns to tap before chasing again (fewest taps) */
+  /** top-row columns to tap before chasing again: the fix that ends in the fewest taps in all */
   top: number[];
 }
 
 /**
- * For every non-empty bottom row: if a board with only that row lit can be solved, find the fewest
- * top-row taps after which a second chase clears it. On 5×5 exactly 7 rows qualify.
+ * For every non-empty bottom row: if a board with only that row lit can be solved, find the top-row taps after which
+ * a second chase clears it, choosing the fix with the fewest taps in all (its top taps plus the chase after them; ties:
+ * fewer top taps, then the leftmost). Fewer top taps isn't always fewer taps: for B·D, A·D takes 15 and A·B·C 11.
+ * On 5×5 exactly 7 rows qualify, each with four fixes (a fix plus a quiet top row is another fix).
  */
 export function bottomRowTable(solver: Pick<SolverService, 'press' | 'isSolvable'>): TableEntry[] {
   const out: TableEntry[] = [];
@@ -75,10 +77,13 @@ export function bottomRowTable(solver: Pick<SolverService, 'press' | 'isSolvable
     const board = lit(bottom.map((c) => BOTTOM + c));
     if (!solver.isSolvable(board)) continue;
     let best: number[] | null = null;
+    let bestTotal = Infinity;
     for (let t = 0; t < 1 << SIZE; t++) {
       const top = columns(t);
-      if (best && top.length >= best.length) continue;
-      if (isClear(chase(solver, pressAll(solver, board, top)).cells)) best = top;
+      const after = chase(solver, pressAll(solver, board, top));
+      if (!isClear(after.cells)) continue;
+      const total = top.length + after.taps.length;
+      if (total < bestTotal || (total === bestTotal && top.length < best!.length)) { best = top; bestTotal = total; }
     }
     if (!best) throw new Error(`No top-row taps clear the bottom row ${bottom.join(',')}, though the solver says it can be solved`);
     out.push({ bottom, top: best });
@@ -358,26 +363,43 @@ export interface Fixer {
 }
 
 /** Works out, once per shape, what each set of start taps leaves after a chase (from the solver, by trying). */
+/** set bits in a bigint mask */
+function bitCount(x: bigint): number {
+  let n = 0;
+  for (let v = x; v; v &= v - 1n) n++;
+  return n;
+}
+
 export function createFixer(solver: ShapedPress, shape: Shape): Fixer {
   const starts = startCells(shape);
   const ends = endCells(shape);
   if (starts.length > MAX_FIX_STARTS) throw new Error(`This board has ${starts.length} top-edge cells; at most ${MAX_FIX_STARTS} can be looked up`);
   const dark = emptyCells(shape);
   const n = 1 << starts.length;
-  const echo = starts.map((s) => toBits(chaseShape(solver, solver.press(dark, s, shape), shape).cells));
+  const alone = starts.map((s) => chaseShape(solver, solver.press(dark, s, shape), shape));
+  const echo = alone.map((c) => toBits(c.cells));
+  /** the chase's taps after one start tap: chasing is linear, so a set of start taps chases the XOR of these */
+  const chaseOf = alone.map((c) => c.taps.reduce((acc, t) => acc ^ (1n << BigInt(t)), 0n));
   const pressed = starts.map((s) => toBits(solver.press(dark, s, shape)));
-  /** by subset of starts (bit k = starts[k]): what its chase leaves, and what its taps light */
+  /** by subset of starts (bit k = starts[k]): what its chase leaves, what its taps light, and the chase after it */
   const leaves: bigint[] = new Array<bigint>(n).fill(0n);
   const lights: bigint[] = new Array<bigint>(n).fill(0n);
+  const chased: bigint[] = new Array<bigint>(n).fill(0n);
   const size = new Uint8Array(n);
+  /** every tap a fix takes to dark: its start taps plus the chase after them (a leftover sits on end cells, which a
+   *  chase never taps, so the chase after a fix is the fix's own) */
+  const total = new Uint16Array(n);
   const best = new Map<bigint, number>();
   for (let m = 1; m < n; m++) {
     const k = lowBit(m), rest = m & (m - 1);
     leaves[m] = leaves[rest]! ^ echo[k]!;
     lights[m] = lights[rest]! ^ pressed[k]!;
+    chased[m] = chased[rest]! ^ chaseOf[k]!;
     size[m] = size[rest]! + 1;
+    total[m] = size[m]! + bitCount(chased[m]!);
     const had = best.get(leaves[m]!);
-    if (leaves[m] !== 0n && (had === undefined || size[m]! < size[had]!)) best.set(leaves[m]!, m);
+    // the fix with the fewest taps in all; fewer start taps only breaks a tie
+    if (leaves[m] !== 0n && (had === undefined || total[m]! < total[had]! || (total[m] === total[had] && size[m]! < size[had]!))) best.set(leaves[m]!, m);
   }
   let nonEnd = 0n;
   for (let i = 0; i < gridSize(shape); i++) if (hasBelow(shape, i)) nonEnd |= 1n << BigInt(i);
@@ -402,7 +424,7 @@ export function createFixer(solver: ShapedPress, shape: Shape): Fixer {
   };
 }
 
-/** the fewest start taps whose chase leaves exactly `leftover`, or null (works the table out each call) */
+/** the start taps whose chase leaves exactly `leftover` and that take the fewest taps in all, or null (works the table out each call) */
 export const fixFor = (solver: ShapedPress, shape: Shape, leftover: readonly boolean[]): number[] | null => createFixer(solver, shape).fixFor(leftover);
 
 /** the next tap of chase → fix → chase on any shape, from the board alone (survives reloads) */

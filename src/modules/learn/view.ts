@@ -354,6 +354,7 @@ export function createLearnView(d: Deps) {
 
   function marksFor(spec: MiniSpec, cells: Cells): number[] {
     if (spec.quiet !== undefined) return d.quiet()[spec.quiet] ?? [];
+    if (spec.fix) return spec.fix;
     switch (spec.marks) {
       case 'taps': return spec.from;
       case 'chase-first-row': return litIndexes(cells).filter((i) => i < SIZE).map((i) => i + SIZE);
@@ -371,7 +372,12 @@ export function createLearnView(d: Deps) {
     const board = miniBoard(cells, 'show', marks, shape);
     if (spec.ring) patchBoard(board, cells, marks, spec.ring);
     const fig = h('figure', { class: 'learn-fig' }, board);
-    const vars = { n: marks.length, lights: litIndexes(cells).length, rings: spec.ring?.length ?? 0 };
+    const vars: Record<string, string | number> = { n: marks.length, lights: litIndexes(cells).length, rings: spec.ring?.length ?? 0 };
+    if (spec.fix) {
+      // a top-row fix: its letters, and every tap it takes to dark (its own taps plus the chase after them)
+      vars.top = listOf(spec.fix.map((c) => copy.letters[c] ?? ''));
+      vars.total = spec.fix.length + chase(solver, pressAll(solver, cells, spec.fix)).taps.length;
+    }
     if (spec.caption) fig.append(h('figcaption', { class: 'learn-caption' }, fmt(copy.captions[spec.caption] ?? '', vars)));
     return fig;
   }

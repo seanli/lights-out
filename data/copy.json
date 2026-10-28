@@ -229,6 +229,7 @@
       "corner": "Corner: an L",
       "set": "{n} {n|tap|taps}, any order",
       "quiet": "{n} {n|tap|taps}, no change",
+      "fixTotal": "Tap {top}, then chase: {total} taps",
       "method": "Chasing: {n} {n|tap|taps}",
       "shortest": "Shortest: {n} {n|tap|taps}",
       "plus": "A plus",
@@ -311,7 +312,7 @@
         "steps": [
           "Tap right under a lit light and it goes dark. Do that for every lit light in the top row.",
           "Do the same for each row below. The lights move down: this is chasing.",
-          "Sometimes lights are left in the bottom row. The next lesson clears them.",
+          "After the top row, the chase decides every tap. So lights left at the bottom are fixed in the top row: next lesson.",
           "Your turn: chase from the top. Stuck? Assist rings the next tap."
         ]
       },
@@ -319,7 +320,7 @@
         "title": "Clear the bottom row",
         "summary": "Clear what the chase leaves.",
         "steps": [
-          "Tap one top light on a dark board, then chase. The row left at the bottom is its echo.",
+          "Tap one top light on a dark board, then chase: what's left at the bottom is its echo. Echoes never change, so learn them once.",
           "A chase left B's echo? Tap B, then chase again: they cancel.",
           "Every row a chase can leave is on this list. Find yours, tap the top lights it shows, chase again.",
           "Your turn: chase, tap the top lights for your row, chase again."
@@ -330,6 +331,8 @@
         "summary": "Par is the fewest taps.",
         "steps": [
           "Par is the fewest taps that solve a board. Chasing always works, but often takes more.",
+          "Every bottom row has four fixes. Fewer top lights isn't always fewer taps: the chase after them counts too.",
+          "Tap A, C and E, then chase: all dark again. So adding them to any fix gives another fix; B, C and D work too.",
           "Your turn. Any solve counts; hitting par earns three stars in levels."
         ]
       },
@@ -367,7 +370,7 @@
       "allButMiddle": "All but the middle: tap the top middle.",
       "pairLoner": "A pair and a loner: tap the top corner over the dark end.",
       "corners": "Both corners: tap a top corner and its neighbour.",
-      "gap": "Two with a gap: tap above one, plus the far corner on the other side.",
+      "gap": "Two with a gap: tap the three top lights at one end.",
       "mirror": "Each rule works mirrored, left for right."
     },
     "drill": {
@@ -549,6 +552,7 @@
     },
     "wiredNeedsSquare": "Wired needs the square board.",
     "bigNote": "Big boards have small lights: hold one to magnify it, slide to aim, lift to press.",
+    "wideNote": "Wider than tall? Chase sideways: tap right of each lit light, column by column. Then what's left is the short side.",
     "name": { "square": "Square {cols}×{rows}", "hex": "Hex · {lights} lights", "cube": "Cube {n}×{n}×{n}" },
     "summary": {
       "square": "{lights} lights · about {par} {par|press|presses}",

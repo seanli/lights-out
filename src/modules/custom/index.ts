@@ -34,6 +34,8 @@ const Copy = v.object({
   wiredNeedsSquare: Text,
   /** under the size steppers when a square board gets big */
   bigNote: Text,
+  /** under the size steppers when a square board is wider than tall: chase from the shorter side */
+  wideNote: Text,
   /** the board's name; also the start of the label the play header shows */
   name: v.object({ square: Text, hex: Text, cube: Text }),
   /** the preview's line, per grid (hex's name already counts its lights) */
@@ -276,6 +278,7 @@ const custom: ModuleDef = {
     const steppers = Object.fromEntries(SIZE_KEYS.map((k) => [k, stepper(k)])) as Record<SizeKey, Stepper>;
     const lightsNote = h('span', { class: 'custom__lights', 'data-custom-lights': '' });
     const bigNote = h('p', { class: 'custom__note', 'data-custom-big': '', hidden: true }, copy.bigNote);
+    const wideNote = h('p', { class: 'custom__note', 'data-custom-wide': '', hidden: true }, copy.wideNote);
     const twistNote = h('span', { 'data-custom-note': '' });
     const wiredNote = h('span', { class: 'custom__wired-note', id: WIRED_NOTE_ID, 'data-custom-wired-note': '' }, copy.wiredNeedsSquare);
     const error = h('p', { class: 'custom__error', role: 'alert', 'data-custom-error': '', hidden: true });
@@ -290,7 +293,7 @@ const custom: ModuleDef = {
         group('grid'),
         h('section', { class: 'section custom__section' },
           h('span', { class: 'eyebrow' }, copy.sections.size),
-          h('div', { class: 'custom__sizes' }, ...SIZE_KEYS.map((k) => steppers[k].el), lightsNote), bigNote),
+          h('div', { class: 'custom__sizes' }, ...SIZE_KEYS.map((k) => steppers[k].el), lightsNote), bigNote, wideNote),
         group('twist', h('p', { class: 'custom__note' }, twistNote, ' ', wiredNote)),
         group('difficulty')),
       error,
@@ -327,6 +330,8 @@ const custom: ModuleDef = {
       }
       lightsNote.hidden = set.grid === 'square';
       bigNote.hidden = set.grid !== 'square' || (set.cols <= BIG.cols && set.rows <= BIG.rows);
+      // a chase leaves its last line: chase along the longer side so that line is the short one
+      wideNote.hidden = set.grid !== 'square' || set.cols <= set.rows;
       setText(lightsNote, fmt(copy.lights, { n: lights }));
 
       setText(name, nameOf(set, lights));

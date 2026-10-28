@@ -28,30 +28,41 @@ export function cellAt(shape: Shape, x: number, y: number, box: Box): number {
   return isCell(shape, i) ? i : -1;
 }
 
-/**
- * A honeycomb (odd rows half a light right, rows 0.866 of the pitch apart): the real cell whose centre is nearest the
- * point, if the point is within half a pitch of it, else -1. So the space between lights is part of the nearest one.
- */
-export function hexCellAt(shape: Shape, x: number, y: number, box: Pick<Box, 'width' | 'height' | 'padX' | 'padY'>): number {
-  const pitch = (box.width - 2 * box.padX) / (shape.cols + 0.5);
-  if (!(pitch > 0)) return -1;
-  const rowH = pitch * 0.866;
-  const r0 = Math.floor((y - box.padY) / rowH);
-  let best = -1, bestD = Infinity;
-  for (let r = r0 - 1; r <= r0 + 1; r++) {
-    if (r < 0 || r >= shape.rows) continue;
-    const cy = box.padY + (r + 0.5) * rowH;
-    const shift = r & 1 ? pitch / 2 : 0;
-    const c0 = Math.floor((x - box.padX - shift) / pitch);
-    for (let c = c0 - 1; c <= c0 + 1; c++) {
-      if (c < 0 || c >= shape.cols) continue;
-      const i = r * shape.cols + c;
-      if (!isCell(shape, i)) continue;
-      const d = Math.hypot(x - (box.padX + shift + (c + 0.5) * pitch), y - cy);
-      if (d < bestD) { bestD = d; best = i; }
-    }
+/** a honeycomb tile's first half-column: two per tile, odd rows start half a tile right */
+export const hexHalf = (shape: Shape, i: number): number => 2 * (i % shape.cols) + (Math.floor(i / shape.cols) & 1);
+
+/** the half-columns a honeycomb's tiles use: the first, and how many (so the picture sits centred, no empty half) */
+export function hexSpan(shape: Shape): { first: number; halves: number } {
+  let first = Infinity, last = -Infinity;
+  for (let i = 0; i < shape.cols * shape.rows; i++) {
+    if (!isCell(shape, i)) continue;
+    first = Math.min(first, hexHalf(shape, i));
+    last = Math.max(last, hexHalf(shape, i) + 2);
   }
-  return bestD <= pitch * 0.5 ? best : -1;
+  return first === Infinity ? { first: 0, halves: 2 } : { first, halves: last - first };
+}
+
+/** a honeycomb's row pitch and a tile slot's height, as shares of the tile pitch (pointy-top regular hexagons) */
+export const HEX_ROW = Math.sqrt(3) / 2;
+export const HEX_TALL = 2 / Math.sqrt(3);
+
+/**
+ * A honeycomb: the real tile whose centre is nearest the point (board-local px), or -1 off the board. The nearest
+ * centre of a hex lattice is exactly the hexagon around it, so this is the tile under the finger, gaps included.
+ */
+export function hexCellAt(shape: Shape, x: number, y: number, box: { width: number; padX: number; padY: number }): number {
+  const { first, halves } = hexSpan(shape);
+  const pitch = (box.width - 2 * box.padX) / (halves / 2);
+  if (!(pitch > 0)) return -1;
+  let best = -1, bestD = Infinity;
+  for (let i = 0; i < shape.cols * shape.rows; i++) {
+    if (!isCell(shape, i)) continue;
+    const cx = box.padX + ((hexHalf(shape, i) - first) / 2 + 0.5) * pitch;
+    const cy = box.padY + (Math.floor(i / shape.cols) * HEX_ROW + HEX_TALL / 2) * pitch;
+    const d = Math.hypot(x - cx, y - cy);
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  return bestD <= pitch * 0.6 ? best : -1;
 }
 
 /** the next real cell from i in a direction, skipping gaps; i itself when nothing lies that way */

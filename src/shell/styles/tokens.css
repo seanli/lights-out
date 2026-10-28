@@ -205,9 +205,18 @@
   --cell-max-tall: 64px;
   --scroll-fade: 48px;                  /* how far a scrolling board's edge fades where there is more */
   /* marks drawn on a cell (a wired switch's spokes, a stuck switch's screw): quiet on a dark cell, burnt amber on a lit one */
-  --c-mark: rgba(239, 232, 218, .34);
-  --c-mark-on: rgba(120, 52, 0, .62);
-  --hex-fill: .84;                      /* the honeycomb: a light's share of the distance between neighbours */
+  /* wired switches: circuit traces (opaque colours; the mark fades as one layer) */
+  --c-wire: #5fd0c4;
+  --c-wire-on: #7a3a06;
+  --wire-alpha: .62;
+  --wire-alpha-on: .7;
+  /* stuck switches: a hazard-striped cover with rivets, over a slightly darker tile */
+  --c-stuck: #b9a37a;
+  --c-stuck-on: #6b3204;
+  --stuck-alpha: .55;
+  --stuck-alpha-on: .62;
+  --grad-tile-stuck: linear-gradient(180deg, #1f242b, #161a20);
+  --hex-fill: .93;                      /* the honeycomb: a tile's share of the distance between neighbours */
   --cube-pad-k: .14;                    /* the cube: its panel's padding and gap, as shares of a light */
   --cube-gap-k: .1;
   --ring-offset: 5px;
