@@ -1,18 +1,18 @@
 // Board guides: one per room (`guide-<room id>`), built at runtime from the room's real shape and the solver.
 // Which steps a guide has follows from the maths, never from a table:
 //   chase:  a full rectangle where a chase clears every solvable board (none today: 4×4 and 9×9 were dropped)
-//   lights: a full rectangle where each lone bottom light has its own top taps (5×6, 6×6, 7×7, 8×8, 10×10, Tower)
-//   shapes: anything else (Cross, Ring, Diamond): spot tap shapes, or chase and tap the start-cell fix
+//   lights: a full rectangle where each lone bottom light has its own top lights to tap (5×6, 6×6, 7×7, 8×8, 10×10, Tower)
+//   shapes: anything else (Cross, Ring, Diamond): spot tap shapes, or chase, then tap the top-edge fix and chase again
 // Example boards come from a fixed-order search, so they always fit the shape; learn.test.ts proves each.
 import type { Cells, Pack, Shape, SolverService } from '../../contracts';
 import { cellIndexes, emptyCells, isCell, pressTargets } from '../../lib/shape';
 import type { Lesson, Phase, Step } from './lessons';
-import { chaseShape, createFixer, isClear, pressAll, rectTopSets, type Fixer } from './method';
+import { chaseShape, createFixer, isClear, pressAll, rectTopSets, touches, type Fixer } from './method';
 
 type Solver = Pick<SolverService, 'press'>;
 export type GuideKind = 'chase' | 'lights' | 'shapes';
 /** steps per kind: copy.json → learn.guides.<room>.steps has exactly this many sentences */
-export const GUIDE_STEPS: Record<GuideKind, number> = { chase: 3, lights: 4, shapes: 4 };
+export const GUIDE_STEPS: Record<GuideKind, number> = { chase: 3, lights: 4, shapes: 5 };
 export const GUIDE_PREFIX = 'guide-';
 export const guideId = (pack: string): string => `${GUIDE_PREFIX}${pack}`;
 
@@ -108,13 +108,9 @@ const spread = (shape: Shape, taps: readonly number[]) => {
   return taps.reduce((sum, i) => sum + Math.abs((i % shape.cols) - cx) + Math.abs(Math.floor(i / shape.cols) - cy) / 2, 0);
 };
 const overlaps = (shape: Shape, a: number, b: number) => pressTargets(shape, a).some((t) => pressTargets(shape, b).includes(t));
-const touches = (shape: Shape, a: number, b: number) => {
-  const fb = pressTargets(shape, b);
-  return pressTargets(shape, a).some((x) => pressTargets(shape, x).some((y) => fb.includes(y)));
-};
 
 /** a demo step: build the board from `from`, play `play` with its phases */
-const demo = (from: number[], play: number[], phases: (Phase | null)[], lit?: number[]): Step =>
+const demo = (from: number[], play: number[], phases: (Phase | null)[], lit?: number[]): Extract<Step, { kind: 'demo' }> =>
   ({ kind: 'demo', from, play, phases, ...(lit ? { lit } : {}) });
 
 /**
@@ -177,9 +173,9 @@ function lightsGuide(solver: Solver, shape: Shape, fx: Fixer): Step[] {
   const start = emptyCells(shape).map((_, i) => lit.includes(i));
   const again = chaseShape(solver, pressAll(solver, start, tops, shape), shape).taps;
   return [
-    demo(one.from, one.chase.taps, one.chase.taps.map(() => 'chase')),
+    { ...demo(one.from, one.chase.taps, one.chase.taps.map(() => 'chase')), letters: true },
     { kind: 'lights', rows: perLight.map((top, c) => ({ bottom: bottom(c), top })), pick },
-    demo([], [...tops, ...again], [...tops.map(() => 'top' as const), ...again.map(() => 'chase2' as const)], lit),
+    { ...demo([], [...tops, ...again], [...tops.map(() => 'top' as const), ...again.map(() => 'chase2' as const)], lit), letters: true },
     { kind: 'practice' },
   ];
 }
@@ -224,19 +220,38 @@ function shapesGuide(solver: Solver, shape: Shape, fx: Fixer): Step[] {
     return Math.abs(total - 15) * 100 + spread(shape, t);
   }) ?? best(triplesOf(fx.starts, rest), (t) => (plan(t) ? 0 : null));
   const p = stuck ? plan(stuck)! : { c1: [], fix: [], c2: [] };
+  // what the chase leaves: step 4 starts from it
+  const left = cellIndexes(shape).filter((i) => pressAll(solver, pressAll(solver, dark, stuck ?? [], shape), p.c1, shape)[i]);
   return [
     { kind: 'show', boards: examples.map((e) => ({ from: [e.cell], marks: 'taps' as const, caption: e.kind })) },
     demo(spotFrom, spotTaps, spotTaps.map(() => 'spot' as const)),
-    demo(stuck ?? [], [...p.c1, ...p.fix, ...p.c2], [...p.c1.map(() => 'chase' as const), ...p.fix.map(() => 'edge' as const), ...p.c2.map(() => 'chase2' as const)]),
+    // 3. stuck: chase down until only lights with nothing below are left
+    { ...demo(stuck ?? [], p.c1, p.c1.map(() => 'chase' as const)), end: 'stuckShape' },
+    // 4. the top-edge light that fixes them, then chase again
+    demo([], [...p.fix, ...p.c2], [...p.fix.map(() => 'edge' as const), ...p.c2.map(() => 'chase2' as const)], left),
     { kind: 'practice' },
   ];
 }
 
-/** a room's guide: its steps on the room's own shape, practice from any of its cells, assist = chase + fix */
+/** how many of the lowest rows a full rectangle's practice taps come from: the first chase stays short */
+export const PRACTICE_ROWS = 3;
+
+/**
+ * a room's guide: its steps on the room's own shape, assist = chase + fix, a coach line by phase.
+ * Full rectangles practise on taps from the lowest rows (a short first chase that still leaves a bottom row);
+ * shaped rooms from any cell, so spotting shapes stays worth trying.
+ */
 export function buildGuide(solver: Solver, pack: Pick<Pack, 'id' | 'shape'>): { kind: GuideKind; lesson: Lesson; fixer: Fixer } {
   const shape = pack.shape;
   const kind = guideKind(solver, shape);
   const fixer = createFixer(solver, shape);
   const steps = kind === 'chase' ? chaseGuide(solver, shape, fixer) : kind === 'lights' ? lightsGuide(solver, shape, fixer) : shapesGuide(solver, shape, fixer);
-  return { kind, fixer, lesson: { steps, shape, assist: 'fix', pool: cellIndexes(shape), ...(kind === 'lights' ? { leftover: true } : {}) } };
+  const low = cellIndexes(shape).filter((i) => i >= (shape.rows - PRACTICE_ROWS) * shape.cols);
+  return {
+    kind, fixer,
+    lesson: {
+      steps, shape, assist: 'fix', coach: kind === 'shapes' ? 'shape' : 'rect',
+      pool: kind === 'lights' ? low : cellIndexes(shape), ...(kind === 'lights' ? { leftover: true } : {}),
+    },
+  };
 }

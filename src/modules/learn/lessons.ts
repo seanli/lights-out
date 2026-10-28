@@ -21,12 +21,20 @@ export interface MiniSpec {
 /** what a demo tap is part of: the first chase, the top-row (or top-edge) taps, the second chase, or a spotted shape */
 export type Phase = 'chase' | 'top' | 'edge' | 'chase2' | 'spot';
 
+/** how a demo ends, when it doesn't end dark: copy.json → learn.demoEnd.<key> ({n} = lights left) */
+export type DemoEnd = 'left' | 'stuck' | 'stuckShape' | 'cancelled';
+
 export type Step =
   | { kind: 'show'; boards: MiniSpec[] }
   /** `bottom`: start from a board whose only lights are these bottom-row columns (instead of `from`);
-   *  `lit`: start from a board whose only lights are these cells; `phases`: one per tap of an explicit `play` */
-  | { kind: 'demo'; from: number[]; bottom?: number[]; lit?: number[]; play: number[] | 'chase' | 'method'; phases?: (Phase | null)[] }
-  /** full rectangles: each bottom light and the top lights that clear it (tap a row to watch it) */
+   *  `lit`: start from a board whose only lights are these cells; `phases`: one per tap of an explicit `play`;
+   *  `letters`: the column letters over the board; `end`: the end line (default: "All dark.", or `left` with lights on);
+   *  `orders`: each Replay plays the next of these orders of the same taps; `markAll`: dot every tap still to come */
+  | {
+    kind: 'demo'; from: number[]; bottom?: number[]; lit?: number[]; play: number[] | 'chase' | 'method'; phases?: (Phase | null)[];
+    letters?: boolean; end?: DemoEnd; orders?: number[][]; markAll?: boolean;
+  }
+  /** full rectangles: each bottom light and the top lights that clear it (tap a letter to watch it) */
   | { kind: 'lights'; rows: { bottom: number; top: number[] }[]; pick: number }
   | { kind: 'practice' }
   /** the bottom-row list: each leftover row and the top lights that clear it */
@@ -42,8 +50,9 @@ export type Step =
   /** whose echo is this? a short spaced-repetition quiz */
   | { kind: 'drill' };
 
-/** chase: the next chase tap; method: classic chase → table → chase; fix: chase → start-cell fix → chase on any shape */
-export type Assist = 'chase' | 'method' | 'fix' | null;
+/** chase: the next chase tap; method: classic chase → table → chase; fix: chase → start-cell fix → chase on any shape;
+ *  par: the next tap of a shortest answer */
+export type Assist = 'chase' | 'method' | 'fix' | 'par' | null;
 
 export interface Lesson {
   steps: Step[];
@@ -59,8 +68,14 @@ export interface Lesson {
   showPar?: boolean;
   /** an extra lesson behind a quiet "Go deeper" link on the last step */
   deeper?: string;
-  /** practice: name the echo once only the bottom row is left, and show the guess-and-chase tip */
+  /** practice: name the echo once only the bottom row is left */
   echoHelp?: boolean;
+  /** practice boards are made of taps whose shapes don't touch, so spotting whole shapes always works */
+  apart?: boolean;
+  /** practice: a wrong tap is met with "tap it again to undo it" (one-tap boards) */
+  undoHint?: boolean;
+  /** practice: a coach line that follows the phase (chase, the bottom/top-edge fix, chase again); rect names letters */
+  coach?: 'rect' | 'shape';
 }
 
 const range = (from: number, to: number) => Array.from({ length: to - from }, (_, k) => from + k);
@@ -74,18 +89,22 @@ const LONG_WAY = [0, 4, 12, 20, 24];
 export const LESSONS: Record<string, Lesson> = {
   shapes: {
     assist: null,
+    undoHint: true,
     steps: [
-      { kind: 'show', boards: [{ from: [12], marks: 'taps' }] },
+      { kind: 'show', boards: [{ from: [12], marks: 'taps', caption: 'dot' }] },
       { kind: 'show', boards: [{ from: [2], marks: 'taps', caption: 'edge' }, { from: [20], marks: 'taps', caption: 'corner' }] },
-      { kind: 'demo', from: [16], play: [16] },
+      // a T at the right edge: the step after "at an edge it's a T"
+      { kind: 'demo', from: [14], play: [14] },
       { kind: 'practice' },
     ],
   },
   order: {
     assist: null,
+    apart: true,
     steps: [
-      { kind: 'demo', from: [], play: [12, 12] },
-      { kind: 'show', boards: [{ from: [0, 13, 21], marks: 'taps', caption: 'set' }] },
+      { kind: 'demo', from: [], play: [12, 12], end: 'cancelled' },
+      // the same three taps in another order on every Replay: always all dark
+      { kind: 'demo', from: [0, 13, 21], play: [0, 13, 21], orders: [[0, 13, 21], [21, 0, 13], [13, 21, 0]], markAll: true },
       { kind: 'practice' },
     ],
   },
@@ -95,29 +114,29 @@ export const LESSONS: Record<string, Lesson> = {
     steps: [
       { kind: 'show', boards: [{ from: CHASE_ME, marks: 'chase-first-row' }] },
       { kind: 'demo', from: CHASE_ME, play: 'chase' },
-      { kind: 'show', boards: [{ from: STUBBORN, chased: true }] },
+      { kind: 'demo', from: STUBBORN, play: 'chase', end: 'stuck' },
       { kind: 'practice' },
     ],
   },
-  /** the one move: find your row, tap the top light it shows, chase again */
+  /** the one move: find your row, tap the top lights it shows, chase again */
   'bottom-row': {
     assist: 'method',
     deeper: 'echo-more',
     echoHelp: true,
     steps: [
       { kind: 'echo' },
-      { kind: 'demo', from: [], bottom: [0, 1, 2], play: 'method' },
+      { kind: 'demo', from: [], bottom: [0, 1, 2], play: 'method', letters: true },
       { kind: 'table' },
       { kind: 'practice' },
     ],
   },
-  /** not in the lesson list: opened from "Go deeper" at the end of lesson 4 */
+  /** not in the lesson list: opened from "Go deeper" in lesson 4 */
   'echo-more': {
     assist: null,
     steps: [{ kind: 'rules' }, { kind: 'stack', pairs: [[0, 3], [0, 1]] }, { kind: 'derive' }, { kind: 'drill' }],
   },
   shortest: {
-    assist: null,
+    assist: 'par',
     showPar: true,
     deeper: 'shortest-more',
     steps: [
@@ -125,7 +144,7 @@ export const LESSONS: Record<string, Lesson> = {
       { kind: 'practice' },
     ],
   },
-  /** not in the lesson list: opened from "Go deeper" at the end of lesson 5 */
+  /** not in the lesson list: opened from "Go deeper" in lesson 5 */
   'shortest-more': {
     assist: null,
     steps: [

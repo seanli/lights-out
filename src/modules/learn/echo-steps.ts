@@ -28,11 +28,15 @@ export function strip(opts: { lit?: readonly number[]; ring?: readonly number[];
 
 export const names = (copy: LearnCopy, cols: readonly number[]) => cols.map((c) => copy.letters[c]).join(copy.echoJoin);
 
-/** A–E buttons, one over each board column; `onPick(col)`; the chosen one is aria-pressed */
-export function picker(copy: LearnCopy, chosen: number, onPick: (col: number) => void) {
-  const row = h('div', { class: 'learn-picker', role: 'group', 'aria-label': copy.echo.pick });
-  const buttons = [...copy.letters.slice(0, SIZE)].map((l, c) =>
-    h('button', { class: 'btn btn--ghost learn-pick', type: 'button', 'data-action': 'learn-echo', 'data-col': c, 'aria-pressed': String(c === chosen), onclick: () => pick(c) }, l));
+/** letter buttons (A–E, or one per column of a wider board), one over each board column; `onPick(col)`; the chosen one is aria-pressed */
+export function picker(copy: LearnCopy, chosen: number, onPick: (col: number) => void, opts: { n?: number; action?: string; label?: string; say?: (col: number) => string } = {}) {
+  const n = opts.n ?? SIZE;
+  const row = h('div', { class: 'learn-picker', role: 'group', 'aria-label': opts.label ?? copy.echo.pick, style: `--pick-n:${n}` });
+  const buttons = [...copy.letters.slice(0, n)].map((l, c) =>
+    h('button', {
+      class: 'btn btn--ghost learn-pick', type: 'button', 'data-action': opts.action ?? 'learn-echo', 'data-col': c, 'aria-pressed': String(c === chosen),
+      'aria-label': opts.say?.(c) ?? null, onclick: () => pick(c),
+    }, l));
   const pick = (c: number) => { buttons.forEach((b, k) => setAttr(b, 'aria-pressed', String(k === c))); onPick(c); };
   row.append(...buttons);
   return row;

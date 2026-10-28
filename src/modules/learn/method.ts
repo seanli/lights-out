@@ -1,7 +1,7 @@
 // Pure maths for the lessons, derived from the solver service (press / isSolvable / solve).
 // Nothing here is hard-coded: the bottom-row table and the quiet patterns are found by trying.
 import { CELL_COUNT, SIZE, type Cells, type Shape, type SolverService } from '../../contracts';
-import { cellIndexes, emptyCells, gridSize, isCell } from '../../lib/shape';
+import { cellIndexes, emptyCells, gridSize, isCell, pressTargets } from '../../lib/shape';
 
 type Press = Pick<SolverService, 'press'>;
 
@@ -140,16 +140,23 @@ export function methodTaps(solver: Press, table: readonly TableEntry[], cells: C
 }
 
 /** a board made from `count` distinct taps chosen from `pool`; never dark. shape absent = classic */
-export function makeBoard(solver: Press, pick: (n: number) => number, count: number, pool: readonly number[], shape?: Shape): Cells {
+export function makeBoard(solver: Press, pick: (n: number) => number, count: number, pool: readonly number[], shape?: Shape, ok?: (taps: readonly number[]) => boolean): Cells {
   const dark = shape ? emptyCells(shape) : blank();
-  for (let attempt = 0; attempt < 50; attempt++) {
+  for (let attempt = 0; attempt < (ok ? 300 : 50); attempt++) {
     const bag = [...pool];
     const taps: number[] = [];
     for (let k = 0; k < count && bag.length; k++) taps.push(bag.splice(pick(bag.length), 1)[0]!);
+    if (ok && !ok(taps)) continue;
     const board = pressAll(solver, dark, taps, shape);
     if (!isClear(board)) return board;
   }
   return pressAll(solver, dark, [pool[0]!], shape);
+}
+
+/** two taps' shapes touch: a light of one is, or sits next to, a light of the other */
+export function touches(shape: Shape, a: number, b: number): boolean {
+  const fb = pressTargets(shape, b);
+  return pressTargets(shape, a).some((x) => pressTargets(shape, x).some((y) => fb.includes(y)));
 }
 
 // ---------- echoes: why the bottom-row table works ----------
@@ -367,4 +374,23 @@ export function fixSuggest(fixer: Fixer, cells: readonly boolean[], shape: Shape
   const part = fixer.progress(cells);
   if (part) return part.fix.find((c) => !part.done.includes(c))!;
   return chaseShapeSuggest(cells, shape) ?? fixer.fixFor(cells)?.[0] ?? null;
+}
+
+/** where a guide's practice board stands: chasing, only end lights left (their top-edge fix, maybe part done), or chasing again */
+export type Coach = { phase: 'chase' } | { phase: 'fix'; ends: number[]; fix: number[] } | { phase: 'again' };
+
+/**
+ * From the board alone: mid-fix (some of the fix tapped) or only end lights left → 'fix' with those lights and their fix;
+ * else a chase that clears what is left → 'again' (unless the board's own chase cleared it from the start); else 'chase'.
+ */
+export function coachPhase(solver: ShapedPress, fixer: Fixer, shape: Shape, start: Cells, cells: Cells): Coach | null {
+  if (isClear(cells)) return null;
+  const part = fixer.progress(cells);
+  if (part) return { phase: 'fix', ends: litIndexes(pressAll(solver, cells, part.done, shape)), fix: part.fix };
+  if (onlyEnds(cells, shape)) {
+    const fix = fixer.fixFor(cells);
+    if (fix) return { phase: 'fix', ends: litIndexes(cells), fix };
+  }
+  if (isClear(chaseShape(solver, cells, shape).cells) && !isClear(chaseShape(solver, start, shape).cells)) return { phase: 'again' };
+  return { phase: 'chase' };
 }
