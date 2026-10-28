@@ -9,7 +9,7 @@ Owns the `tutorial` slice: `{ status: 'idle'|'active'|'done', levelId, step, tar
 - `tutorial:skip` → every tutorial level counts as finished.
 - `copyKey` is `"<level>.<min(step, sentences-1)>"`; `copy.json → tutorial["<level>"]` is a list of sentences, the last repeats.
 - The play view draws the pointer ring from `target`. This module only fills `view.region('slot:coach')` with one
-  `<p class="tutorial-line" data-tutorial aria-live="polite">`, emptied when not active.
+  `<p class="tutorial-line" data-tutorial data-tone="coach" aria-live="polite">` (full contrast), emptied when not active.
 - No solver → `target` is null; the sentence still shows. No storage → finished levels last for the session only.
 - `flags.json → tutorial.enabled: false` → slice is `done`, no handlers, nothing rendered.
 - Console: `tutorial.reset` forgets finished levels (and coaches the current board again if it is a tutorial level).

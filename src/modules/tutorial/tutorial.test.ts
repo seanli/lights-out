@@ -53,6 +53,14 @@ describe('tutorial', () => {
     expect(line.textContent).toBe(copy['1']![0]);
   });
 
+  test('the coach sentence speaks in the full-contrast coach tone', () => {
+    const t = boot();
+    t.load(2, LEVEL2);
+    expect(t.line()!.dataset.tone).toBe('coach');
+    t.press(t.state('tutorial').target!);
+    expect(t.line()!.dataset.tone).toBe('coach');
+  });
+
   test('the target is the lowest index of the solution', () => {
     const t = boot();
     t.load(2, levelFrom([18, 6]));

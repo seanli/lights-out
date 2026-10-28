@@ -1,16 +1,19 @@
 // The Learn screen view: lesson list, lesson steps, mini boards, the demo player.
 // Demo progress is presentation (timers), so it lives here, not in the store.
-import { CELL_COUNT, SIZE, type Cells, type Ctx, type LearnState, type SolverService } from '../../contracts';
+import { CELL_COUNT, SIZE, type Cells, type Ctx, type LearnState, type Rng, type SolverService } from '../../contracts';
 import { fmt, h, setAttr, setText } from '../../lib/dom';
 import type { LearnCopy, LearnRules } from './index';
 import { LESSONS, type MiniSpec, type Step } from './lessons';
-import { BOTTOM, blank, bottomColumns, chase, lit, litIndexes, lookup, methodTaps, pressAll, type TableEntry } from './method';
+import { blank, bottomColumns, chase, echoOf, lit, litIndexes, lookup, methodTaps, pressAll, type TableEntry } from './method';
+import { createDrill, deriveView, picker, rowText, rulesView, stackView, type DrillStore } from './echo-steps';
 
 interface Deps {
   ctx: Ctx;
   rules: LearnRules;
   copy: LearnCopy;
   solver: SolverService;
+  rng: Rng;
+  drillStore: DrillStore;
   table: () => TableEntry[];
   quiet: () => number[][];
 }
@@ -52,7 +55,7 @@ export function createLearnView(d: Deps) {
   let demo: Demo | null = null;
   /** the practice board and its line, kept to patch on every tap */
   let practiceEls: { board: HTMLElement; line: HTMLElement; moves: HTMLElement; another: HTMLButtonElement; assist: HTMLButtonElement | null } | null = null;
-  let demoEls: { board: HTMLElement; line: HTMLElement; button: HTMLButtonElement } | null = null;
+  let demoEls: { board: HTMLElement; line: HTMLElement; button: HTMLButtonElement; echo: number | null } | null = null;
   const parCache = new Map<string, number>();
 
   const state = (): LearnState => ctx.read('learn')!;
@@ -169,20 +172,11 @@ export function createLearnView(d: Deps) {
     return fig;
   }
 
-  function tableView(): HTMLElement {
-    const row = (cols: number[], kind: 'bottom' | 'top') => {
-      const r = h('span', { class: `learn-row learn-row--${kind}`, 'aria-hidden': 'true' });
-      for (let c = 0; c < SIZE; c++) {
-        r.append(h('span', { class: 'cell', 'data-mini-cell': '', 'data-index': (kind === 'bottom' ? BOTTOM : 0) + c, 'data-lit': String(kind === 'bottom' && cols.includes(c)), 'data-suggest': kind === 'top' && cols.includes(c) ? 'true' : null }));
-      }
-      return r;
-    };
-    const t = h('div', { class: 'learn-table', role: 'table' },
-      h('div', { class: 'learn-table__head', role: 'row' }, h('span', { class: 'caption', role: 'columnheader' }, copy.tableBottom), h('span', { 'aria-hidden': 'true' }), h('span', { class: 'caption', role: 'columnheader' }, copy.tableTop)));
-    for (const e of d.table()) {
-      t.append(h('div', { class: 'learn-table__row', role: 'row', 'data-table-row': e.bottom.join('') }, row(e.bottom, 'bottom'), h('span', { class: 'learn-table__arrow', 'aria-hidden': 'true' }, '→'), row(e.top, 'top')));
-    }
-    return t;
+  /** one top-row tap on a dark board, then the chase down to its echo */
+  function echoPlan(col: number): Demo {
+    const start = blank();
+    const rest = chase(solver, solver.press(start, col)).taps;
+    return { start, taps: [col, ...rest], phases: [null, ...rest.map(() => 'chase' as const)], pos: 0, cells: start, cancel: null };
   }
 
   function demoPlan(step: Extract<Step, { kind: 'demo' }>): Demo {
@@ -212,7 +206,8 @@ export function createLearnView(d: Deps) {
     const doneAll = demo.pos >= demo.taps.length;
     const phase = demo.phases[Math.min(demo.pos, demo.taps.length - 1)];
     const tap = fmt(copy.demoTap, { n: Math.min(demo.pos + 1, demo.taps.length), total: demo.taps.length });
-    setText(demoEls.line, doneAll ? copy.demoDone : phase ? `${copy.demoPhase[phase]} · ${tap}` : tap);
+    const done = demoEls.echo !== null ? fmt(copy.echo.caption, { name: copy.letters[demoEls.echo]!, row: rowText(copy, bottomColumns(demo.cells)) }) : copy.demoDone;
+    setText(demoEls.line, doneAll ? done : phase ? `${copy.demoPhase[phase]} · ${tap}` : tap);
     setAttr(demoEls.line, 'data-tone', doneAll ? 'coach' : 'hint');
     const auto = !view.reducedMotion();
     setText(demoEls.button, doneAll ? copy.demoReplay : auto ? copy.demoPlay : copy.demoStep);
@@ -278,8 +273,6 @@ export function createLearnView(d: Deps) {
     if (step.kind === 'show') {
       const figs = h('div', { class: 'learn-figs', style: `--n:${step.boards.length}` }, ...step.boards.map(figure));
       stage.append(figs);
-    } else if (step.kind === 'table') {
-      stage.append(tableView());
     } else if (step.kind === 'demo') {
       demo = demoPlan(step);
       const board = miniBoard(demo.start, 'demo');
@@ -287,7 +280,27 @@ export function createLearnView(d: Deps) {
       const button = h('button', { class: 'btn btn--ghost learn-small', type: 'button', 'data-action': 'learn-demo', onclick: onDemoButton }, copy.demoPlay);
       stage.append(board);
       under.append(line, h('div', { class: 'learn-controls' }, button));
-      demoEls = { board, line, button };
+      demoEls = { board, line, button, echo: null };
+    } else if (step.kind === 'echo') {
+      // pick a top-row light; the demo taps it and chases down to its echo
+      const col = 1;
+      demo = echoPlan(col);
+      const board = miniBoard(demo.start, 'demo');
+      const line = h('p', { class: 'tutorial-line', 'data-learn-line': 'demo', 'aria-live': 'polite' });
+      const button = h('button', { class: 'btn btn--ghost learn-small', type: 'button', 'data-action': 'learn-demo', onclick: onDemoButton }, copy.demoPlay);
+      stage.append(board);
+      under.append(picker(copy, col, (c) => { if (!demoEls) return; demoEls.echo = c; demo = echoPlan(c); restartDemo(); }), line, h('div', { class: 'learn-controls' }, button));
+      demoEls = { board, line, button, echo: col };
+    } else if (step.kind === 'stack') {
+      stage.append(stackView(copy, solver, step.pairs));
+    } else if (step.kind === 'rules') {
+      stage.append(rulesView(copy, d.table()));
+    } else if (step.kind === 'derive') {
+      stage.append(deriveView(copy));
+    } else if (step.kind === 'drill') {
+      const drill = createDrill({ copy, rules, solver, rng: d.rng, table: d.table(), store: d.drillStore });
+      stage.append(drill.root);
+      under.append(drill.line, drill.controls);
     } else {
       const p = s.practice;
       const board = miniBoard(p?.cells ?? blank(), 'practice');
@@ -306,6 +319,9 @@ export function createLearnView(d: Deps) {
       h('button', { class: 'btn btn--ghost', type: 'button', 'data-action': 'learn-prev', disabled: s.step === 0, onclick: () => ctx.emit('learn:step', { delta: -1 }) }, copy.prev),
       h('button', { class: 'btn btn--primary', type: 'button', 'data-action': 'learn-next', onclick: () => ctx.emit('learn:step', { delta: 1 }) }, last ? copy.finish : copy.next),
     );
+    if (last && lesson.deeper) {
+      under.append(h('button', { class: 'btn btn--ghost learn-link', type: 'button', 'data-action': 'learn-deeper', onclick: () => ctx.emit('learn:open', { lessonId: lesson.deeper! }) }, copy.deeper));
+    }
     const body = h('div', { class: 'learn-step', 'data-step': s.step, 'data-kind': step.kind }, dots, text, stage, under);
     const wrap = h('div', { class: 'learn-lesson', 'data-lesson-view': id, 'data-step': s.step }, header, body, navRow);
     return [wrap];
