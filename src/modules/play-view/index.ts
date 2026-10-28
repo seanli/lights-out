@@ -2,13 +2,14 @@
 // The DOM is built once; every change only touches the attributes and text that differ.
 import * as v from 'valibot';
 import { CELL_COUNT, SIZE, type BoardState, type HintsState, type LevelsState, type ModuleDef, type ProgressState, type TutorialState } from '../../contracts';
+import { flip, measure } from './flip';
 import { fmt, h, setAttr, setText } from '../../lib/dom';
 import './play-view.css';
 
 const text = v.pipe(v.string(), v.minLength(1));
 const CopySchema = v.object({
   chapter: text, level: text, moves: text, par: text, undo: text, restart: text, hint: text, hintCost: text,
-  back: text, learn: text, board: text, maxStars: text, hintUsed: text, maxAria: text, hintLine: text,
+  back: text, patterns: text, board: text, maxStars: text, hintUsed: text, maxAria: text, hintLine: text,
   cellOn: text, cellOff: text, tierWithin: text, tierOver: text, tierWithinAria: text, tierOverAria: text,
 });
 type Copy = v.InferOutput<typeof CopySchema>;
@@ -16,7 +17,7 @@ type Copy = v.InferOutput<typeof CopySchema>;
 // icon paths (24×24, stroked by .icon)
 const ICON = {
   back: ['M15 5l-7 7 7 7'],
-  learn: ['M2 4h6a4 4 0 014 4v13a3 3 0 00-3-3H2z', 'M22 4h-6a4 4 0 00-4 4v13a3 3 0 013-3h7z'],
+  book: ['M2 4h6a4 4 0 014 4v13a3 3 0 00-3-3H2z', 'M22 4h-6a4 4 0 00-4 4v13a3 3 0 013-3h7z'],
   undo: ['M9 14L4 9l5-5', 'M4 9h10a6 6 0 010 12h-3'],
   restart: ['M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8', 'M3 3v5h5'],
   hint: ['M9 18h6M10 22h4', 'M12 2a7 7 0 00-4 12.7V16h8v-1.3A7 7 0 0012 2z'],
@@ -49,7 +50,7 @@ function ms(value: string): number {
 const playView: ModuleDef = {
   manifest: {
     name: 'play-view',
-    emits: ['board:press', 'board:undo', 'board:restart', 'hints:request', 'nav:go', 'learn:open'],
+    emits: ['board:press', 'board:undo', 'board:restart', 'hints:request', 'nav:go'],
     listens: [],
     owns: [],
     uses: ['view'],
@@ -69,13 +70,16 @@ const playView: ModuleDef = {
     const chapterEl = h('span', { class: 'eyebrow' });
     const levelEl = h('strong', { 'data-level-label': '' });
     const maxStars = stars(3);
-    const maxCaption = h('span', { class: 'caption' });
-    const maxBox = h('div', { class: 'play-max', role: 'img' }, starRow('stars--md', maxStars), maxCaption);
-    const learn = h('button', { class: 'btn btn--icon', type: 'button', 'data-action': 'learn', 'aria-label': copy.learn, title: copy.learn }, icon(ICON.learn));
+    const maxUsed = h('span', { class: 'caption', hidden: true }, copy.hintUsed);
+    const maxBox = h('div', { class: 'play-max', role: 'img' }, h('span', { class: 'caption' }, copy.maxStars), starRow('stars--md', maxStars), maxUsed);
+    const refBtn = h('button', {
+      class: 'btn btn--icon', type: 'button', 'data-action': 'reference', 'aria-label': copy.patterns, title: copy.patterns,
+      'aria-expanded': 'false', 'aria-controls': 'play-reference', hidden: true,
+    }, icon(ICON.book));
     const header = h('header', { class: 'screen-header' },
       back,
       h('div', { class: 'screen-header__title' }, chapterEl, levelEl),
-      h('div', { class: 'screen-header__end play-head-end' }, maxBox, learn));
+      h('div', { class: 'screen-header__end play-head-end' }, maxBox, refBtn));
 
     const movesEl = h('span', { class: 'stat__value', 'data-moves': '' }, '0');
     const parEl = h('span', { class: 'stat__value', 'data-par': '' }, '0');
@@ -109,17 +113,23 @@ const playView: ModuleDef = {
 
     const hintLine = h('p', { class: 'tutorial-line', 'data-tone': 'hint', role: 'status', hidden: true }, copy.hintLine);
     const line = h('div', { class: 'play-line', 'data-hint': 'false' }, hintLine, view.region('slot:coach'));
-    const slot = h('div', { class: 'board-slot', 'data-tiers': 'true' }, tiersEl, board, line);
+    const slot = h('div', { class: 'board-slot', 'data-tiers': 'true' }, stats, tiersEl, board, line);
 
-    const undo = h('button', { class: 'btn btn--stack', type: 'button', 'data-action': 'undo' }, icon(ICON.undo), copy.undo);
-    const restart = h('button', { class: 'btn btn--stack', type: 'button', 'data-action': 'restart' }, icon(ICON.restart), copy.restart);
+    // labels sit in .play-act__label so the compact layout (panel open) can hide them visually but keep them for screen readers
+    const label = (...kids: (Node | string)[]) => h('span', { class: 'play-act__label' }, ...kids);
+    const undo = h('button', { class: 'btn btn--stack', type: 'button', 'data-action': 'undo' }, icon(ICON.undo), label(copy.undo));
+    const restart = h('button', { class: 'btn btn--stack', type: 'button', 'data-action': 'restart' }, icon(ICON.restart), label(copy.restart));
     const hintBtn = h('button', { class: 'btn btn--stack btn--hint', type: 'button', 'data-action': 'hint' },
-      icon(ICON.hint), h('span', {}, `${copy.hint} `, h('span', { class: 'btn__meta' }, `· ${copy.hintCost}`)));
+      icon(ICON.hint), label(`${copy.hint} `, h('span', { class: 'btn__meta' }, `· ${copy.hintCost}`)));
     const actions = h('div', { class: 'play-actions' }, undo, restart, hintBtn);
+
+    // the in-game pattern reference: learn fills slot:reference, we place it once and open/close it
+    const reference = h('div', { class: 'play-reference', id: 'play-reference' }, view.region('slot:reference'));
 
     const root = view.region('screen:play');
     root.classList.add('screen--play');
-    root.append(header, stats, slot, actions);
+    root.dataset.reference = 'closed';
+    root.append(header, slot, actions, reference);
 
     // ---------- input ----------
     const press = (index: number) => {
@@ -175,10 +185,51 @@ const playView: ModuleDef = {
     const onAction = (el: HTMLButtonElement, fn: () => void) =>
       el.addEventListener('click', () => { if (el.getAttribute('aria-disabled') !== 'true') fn(); });
     onAction(back, () => ctx.emit('nav:go', { screen: 'home' }));
-    onAction(learn, () => ctx.emit('learn:open', {}));
     onAction(undo, () => ctx.emit('board:undo', {}));
     onAction(restart, () => ctx.emit('board:restart', {}));
     onAction(hintBtn, () => ctx.emit('hints:request', {}));
+
+    // ---------- pattern reference (open/closed is instance state: it survives level changes, not reloads) ----------
+    let refOpen = false;
+    let refWanted = false;
+    let boardPointers = 0;
+    const applyReference = () => {
+      if (refWanted === refOpen) return;
+      const moving = [board, stats, actions];
+      const before = measure(moving);
+      refOpen = refWanted;
+      root.dataset.reference = refOpen ? 'open' : 'closed';
+      refBtn.setAttribute('aria-expanded', refOpen ? 'true' : 'false');
+      if (!view.reducedMotion()) flip(moving, before, ms(getComputedStyle(root).getPropertyValue('--dur-sheet')));
+    };
+    /** never move the board under a finger: a change asked for mid-press waits for the release */
+    const setReference = (open: boolean) => {
+      refWanted = open && !!ctx.read('learn');
+      if (boardPointers === 0) applyReference();
+    };
+    board.addEventListener('pointerdown', () => { boardPointers++; });
+    const release = () => {
+      if (boardPointers === 0) return;
+      boardPointers--;
+      if (boardPointers === 0) applyReference();
+    };
+    document.addEventListener('pointerup', release, true);
+    document.addEventListener('pointercancel', release, true);
+    onAction(refBtn, () => setReference(!refWanted));
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || !refWanted || root.hidden || ctx.read('nav')?.sheet) return;
+      const inside = reference.contains(document.activeElement);
+      setReference(false);
+      if (inside) refBtn.focus();
+    };
+    document.addEventListener('keydown', onKey);
+    const renderLearn = () => {
+      const has = !!ctx.read('learn');
+      refBtn.hidden = !has;
+      if (!has && refWanted) setReference(false);
+    };
+    ctx.watch('learn', renderLearn);
+    renderLearn();
 
     // ---------- solve sweep ----------
     let cancelSweep: (() => void) | null = null;
@@ -259,7 +310,7 @@ const playView: ModuleDef = {
       const starsFor = (base: number) => Math.min(3, Math.max(scoring.minStars, base - used * scoring.hintCost));
       const max = starsFor(3);
       setStars(maxStars, max);
-      setText(maxCaption, used > 0 ? copy.hintUsed : copy.maxStars); // short: the learn button shares this corner
+      maxUsed.hidden = used === 0;
       setAttr(maxBox, 'aria-label', fmt(copy.maxAria, { stars: max }));
 
       const limits = [b.par + scoring.threeStarsWithin, b.par + scoring.twoStarsWithin, b.par + scoring.twoStarsWithin + 1];
@@ -279,14 +330,17 @@ const playView: ModuleDef = {
     };
 
     const renderMarks = (b: BoardState | undefined, hints: HintsState | undefined, tutorial: TutorialState | undefined) => {
-      const showing = hints?.status === 'showing' && hints.cell !== null && b?.status === 'playing';
+      const coaching = tutorial?.status === 'active';
+      const pointing = coaching && tutorial!.target !== null && (tutorial!.levelId === null || tutorial!.levelId === b?.levelId);
+      // the tutorial's ring wins: a hint mark never shares the board with it (both draw on ::before)
+      const showing = hints?.status === 'showing' && hints.cell !== null && b?.status === 'playing' && !pointing;
+      if (pointing) hintCell = mark('data-hint', hintCell, -1);
+      pointerCell = mark('data-pointer', pointerCell, pointing ? tutorial!.target! : -1);
       hintCell = mark('data-hint', hintCell, showing ? hints!.cell! : -1);
       hintLine.hidden = !showing;
       setAttr(line, 'data-hint', showing ? 'true' : 'false');
-      const pointing = tutorial?.status === 'active' && tutorial.target !== null && (tutorial.levelId === null || tutorial.levelId === b?.levelId);
-      pointerCell = mark('data-pointer', pointerCell, pointing ? tutorial!.target! : -1);
       hintBtn.hidden = !hints;
-      disable(hintBtn, !hints || hints.status === 'showing' || b?.status !== 'playing');
+      disable(hintBtn, !hints || hints.status === 'showing' || b?.status !== 'playing' || coaching);
     };
 
     // slices are frozen and replaced on change, so identical references mean nothing to do
@@ -310,8 +364,20 @@ const playView: ModuleDef = {
 
     return {
       start: render,
-      stop: () => cancelSweep?.(),
-      debug: () => ({ hintCell, pointerCell, focusIndex, sweeping: board.classList.contains('board--sweep') }),
+      stop: () => {
+        cancelSweep?.();
+        document.removeEventListener('pointerup', release, true);
+        document.removeEventListener('pointercancel', release, true);
+        document.removeEventListener('keydown', onKey);
+      },
+      debug: () => ({ hintCell, pointerCell, focusIndex, reference: refOpen ? 'open' : 'closed', sweeping: board.classList.contains('board--sweep') }),
+      commands: {
+        /** reference [open|close]: toggles the in-game pattern reference */
+        reference(args) {
+          setReference(args[0] === 'open' ? true : args[0] === 'close' ? false : !refWanted);
+          return `reference ${refWanted ? 'open' : 'closed'}${refWanted === refOpen ? '' : ' (after the current press)'}`;
+        },
+      },
     };
   },
 };
