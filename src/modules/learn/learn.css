@@ -165,3 +165,9 @@
   .reference__table { grid-template-columns: repeat(2, auto auto auto); justify-content: space-evenly; }
   .reference__head2 { display: block; }
 }
+
+/* Browsers without container queries (iOS Safari before 16): viewport-based sizes. */
+@supports not (container-type: size) {
+  .learn-stage > .board--mini { width: min(calc(100vw - 2 * var(--space-4)), calc(100vh - 360px), var(--board-max)); }
+  .learn-fig > .board--mini { width: min(100%, calc(100vh - 380px), var(--board-max)); }
+}

@@ -238,3 +238,27 @@ describe('a save from a newer version', () => {
   });
 });
 
+describe('two tabs', () => {
+  test("a second tab's progress is merged, never overwritten, and stars never go down", () => {
+    const storage = createMemoryStorage();
+    const a = boot({ storage });
+    const b = boot({ storage });
+    a.solve(4, 3); // tab A: 3 stars on level 4
+    b.solve(4, 9); // tab B (loaded before A's solve): 1 star on level 4
+    b.solve(1, 3);
+    const saved = storage.get('progress') as { results: Record<string, { stars: number; bestMoves: number }> };
+    expect(saved.results['4']).toMatchObject({ stars: 3, bestMoves: 3 });
+    expect(saved.results['1']).toBeTruthy();
+    expect(b.t.state('progress').save.results['4']!.stars).toBe(3);
+  });
+
+  test('reset replaces the save (no merge) and keeps one copy of the old one', () => {
+    const storage = createMemoryStorage();
+    const { t, solve } = boot({ storage });
+    solve(1, 3);
+    t.emit('progress:clear', {});
+    expect((storage.get('progress') as { results: object }).results).toEqual({});
+    expect((storage.get('progress.before-reset') as { results: object }).results).toHaveProperty('1');
+  });
+});
+

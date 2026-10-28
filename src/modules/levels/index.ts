@@ -24,7 +24,7 @@ const CopySchema = v.object({
 const levels: ModuleDef = {
   manifest: {
     name: 'levels',
-    emits: ['levels:generated', 'levels:started', 'levels:refused', 'board:load'],
+    emits: ['levels:start', 'levels:generated', 'levels:started', 'levels:refused', 'board:load'],
     listens: ['levels:start'],
     owns: ['levels'],
     uses: ['solver', 'rng'],

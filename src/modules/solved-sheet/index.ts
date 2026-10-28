@@ -28,8 +28,8 @@ function baseStars(moves: number, par: number, s: Scoring): number {
 const solvedSheet: ModuleDef = {
   manifest: {
     name: 'solved-sheet',
-    emits: ['nav:open_sheet', 'nav:go', 'levels:start'],
-    listens: ['board:solved', 'progress:level_completed', 'levels:started', 'board:loaded', 'board:restarted'],
+    emits: ['nav:open_sheet', 'nav:close_sheet', 'nav:go', 'levels:start'],
+    listens: ['board:solved', 'progress:level_completed', 'levels:started', 'board:loaded', 'board:restarted', 'kernel:state_loaded'],
     owns: [],
     uses: ['view', 'clock'],
     data: { rules: Rules, copy: Copy },
@@ -165,6 +165,21 @@ const solvedSheet: ModuleDef = {
     ctx.on('board:loaded', reset);
     ctx.on('board:restarted', reset);
     ctx.watch('nav', (nav) => { if (nav && nav.screen !== 'play') cancel(); });
+
+    // After a hot reload restores a snapshot with the sheet open, rebuild it from the slices
+    // (this instance's memory of the solve is gone); with no solved board, close it.
+    ctx.on('kernel:state_loaded', ({ restored }) => {
+      if (!restored || ctx.read('nav')?.sheet !== 'solved' || solved) return;
+      const b = ctx.read('board');
+      if (!b || b.status !== 'solved' || b.levelId === null) { ctx.emit('nav:close_sheet', {}); return; }
+      solved = { levelId: b.levelId, moves: b.moves, par: b.par };
+      const best = ctx.read('progress')?.save.results[String(b.levelId)];
+      completed = best
+        ? { levelId: b.levelId, stars: best.stars, moves: b.moves, par: b.par, hintsUsed: 0, improved: false, unlocked: null, allSolved: false, firstSolve: false }
+        : null;
+      delete stars.dataset.key;
+      render();
+    });
 
     return {
       stop: cancel,

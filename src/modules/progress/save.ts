@@ -83,3 +83,25 @@ export function readSave(raw: unknown, steps: Migrations = MIGRATIONS): Loaded {
   if (migrated) return { source: 'saved', save: migrated, migrated: true };
   return { source: 'recovered', ...salvage(raw) };
 }
+
+/**
+ * Combine this tab's save with what another tab may have stored since: nothing earned anywhere is lost.
+ * Per level: most stars, fewest moves, first solve time. Pending hints from the other tab count only for
+ * levels neither copy has solved.
+ */
+export function mergeSaves(ours: ProgressSave, theirs: ProgressSave): ProgressSave {
+  const results: Record<string, LevelResult> = { ...theirs.results };
+  for (const [k, r] of Object.entries(ours.results)) {
+    const t = results[k];
+    results[k] = t
+      ? { stars: (t.stars > r.stars ? t.stars : r.stars), bestMoves: Math.min(t.bestMoves, r.bestMoves), solvedAt: Math.min(t.solvedAt, r.solvedAt) }
+      : r;
+  }
+  const pendingHints: Record<string, number> = { ...ours.pendingHints };
+  for (const [k, n] of Object.entries(theirs.pendingHints)) {
+    if (ours.results[k] || results[k]) continue;
+    pendingHints[k] = Math.max(pendingHints[k] ?? 0, n);
+  }
+  for (const k of Object.keys(pendingHints)) if (results[k] && !ours.pendingHints[k]) delete pendingHints[k];
+  return { version: 1, results, pendingHints, lastLevel: ours.lastLevel };
+}

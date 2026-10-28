@@ -1,4 +1,5 @@
 // Entry point: find modules, load data, boot the kernel, show the screen nav asks for.
+import './polyfills';
 import './styles/fonts.css';
 import './styles/tokens.css';
 import './styles/components.css';

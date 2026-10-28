@@ -319,3 +319,11 @@ button, input { font: inherit; color: inherit; }
   .sheet__actions { flex-direction: row; }
   .sheet__actions > .btn { flex: 1; }
 }
+
+/* Browsers without container queries (iOS Safari before 16): size the board from the viewport instead. */
+@supports not (container-type: size) {
+  .board { --board-size: min(calc(100vw - 2 * var(--space-4)), calc(100vh - 340px), var(--board-max)); }
+  @media (orientation: landscape) and (max-height: 540px) {
+    .screen--play .board { --board-size: min(calc(100vh - 2 * var(--space-4)), calc(100vw - var(--side-w) - 3 * var(--space-6)), var(--board-max)); }
+  }
+}

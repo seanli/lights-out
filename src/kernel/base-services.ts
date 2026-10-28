@@ -33,6 +33,8 @@ export function createRealClock(): Clock {
 /** A clock that only moves when told to. Used by tests, the probe's replay and session replay. */
 export interface FakeClock extends Clock {
   advance(ms: number): void;
+  /** move the time without running timers (replay: their effects are already in the input log) */
+  setNow(t: number): void;
   pending(): number;
 }
 
@@ -58,6 +60,7 @@ export function createFakeClock(start = 1_700_000_000_000): FakeClock {
       }
       now = target;
     },
+    setNow(t) { now = t; },
     pending: () => timers.size,
   };
 }

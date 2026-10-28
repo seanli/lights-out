@@ -2,7 +2,7 @@
 // Works in memory when no storage service exists. Never deletes data it can't read: it keeps a backup.
 import * as v from 'valibot';
 import type { ModuleDef, ProgressSave, ProgressState, Scoring } from '../../contracts';
-import { freshSave, readSave, starsFor, unlockedFrom } from './save';
+import { freshSave, mergeSaves, readSave, starsFor, unlockedFrom } from './save';
 
 const int = v.pipe(v.number(), v.integer());
 
@@ -83,8 +83,13 @@ const progress: ModuleDef = {
       view?.notice('progress-save', copy.saveFailed, 'warn');
     }
 
-    /** every change lands here: slice first, then storage */
-    function commit(save: ProgressSave): ProgressState {
+    /** every change lands here: merge with what another tab may have saved, then slice, then storage */
+    function commit(mine: ProgressSave, opts: { replace?: boolean } = {}): ProgressState {
+      let save = mine;
+      if (!opts.replace && storage && loaded.source !== 'newer' && !holdWrites) {
+        const stored = readSave(storage.get(saveKey));
+        if (stored.source === 'saved') save = mergeSaves(mine, stored.save);
+      }
       const state = writeSlice(save);
       if (!storage) fail('nothing is providing storage, so progress lasts only until the page closes');
       else if (loaded.source === 'newer') { /* never overwrite a newer build's save; the notice explains */ }
@@ -164,7 +169,9 @@ const progress: ModuleDef = {
     });
 
     ctx.on('progress:clear', () => {
-      commit(freshSave());
+      // the player confirmed; still keep one copy of what was there, under a key nothing else writes
+      if (storage && solvedCount(current()) > 0) storage.set(`${saveKey}.before-reset`, current());
+      commit(freshSave(), { replace: true });
       view?.clearNotice('progress');
       ctx.emit('progress:cleared', {});
     });

@@ -16,7 +16,11 @@ export function replay(
   for (const [name, impl] of Object.entries(extraServices)) k.provide(name as ServiceName, impl as never, 'replay');
   modules.forEach((m) => k.register(m));
   k.boot({ snapshot: session.initial });
-  // The fake clock never advances, so timers never re-fire: their effects are already in the input log.
-  for (const rec of session.inputs) k.emit(rec.type, rec.payload, rec.source);
+  // Each input happens at its recorded time, but timers never re-fire: their effects are already in the log.
+  // Known limit: storage the modules read at init is not part of the session (DECISIONS #28).
+  for (const rec of session.inputs) {
+    clock.setNow(rec.at);
+    k.emit(rec.type, rec.payload, rec.source);
+  }
   return k;
 }

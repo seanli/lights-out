@@ -200,4 +200,19 @@ describe('solved-sheet', () => {
     expect(sheet().textContent).toMatch(/4 over par/);
     expect(sheet().textContent).not.toMatch(/All \d+ levels solved/);
   });
+
+  test('a hot reload with the sheet open rebuilds it from the slices; without a solved board it closes', () => {
+    const off = Array(25).fill(false);
+    const solvedBoard = { status: 'solved' as const, levelId: 7, start: off, cells: off, par: 5, moves: 6, history: [1, 2, 3, 4, 5, 6] };
+    const withResult = { ...progress, save: { ...progress.save, results: { '7': { stars: 2 as const, bestMoves: 6, solvedAt: 1 } } } };
+    const t = boot({ board: solvedBoard, progress: withResult, nav: { screen: 'play', sheet: 'solved' } });
+    t.emit('kernel:state_loaded', { restored: true });
+    expect(q('[data-result]').textContent).toMatch(/6 moves/);
+    expect(q('[data-stars-earned]').dataset.starsEarned).toBe('2');
+
+    const u = boot({ board: { ...solvedBoard, status: 'playing' }, nav: { screen: 'play', sheet: 'solved' } });
+    u.emit('kernel:state_loaded', { restored: true });
+    expect(u.seen('nav:close_sheet')).toBeTruthy();
+  });
 });
+
