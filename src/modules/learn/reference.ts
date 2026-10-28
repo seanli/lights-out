@@ -118,10 +118,12 @@ export function createReference(ctx: Ctx, solver: SolverService, table: readonly
       h('span', { class: 'caption reference__head2', 'aria-hidden': 'true' }, copy.top)),
     ...rows);
   const root = h('div', { class: 'reference', 'data-reference': '', 'data-reference-kind': 'classic' },
-    h('div', { class: 'reference__top' },
-      status,
-      h('button', { class: 'btn btn--ghost reference__lessons', type: 'button', 'data-action': 'learn', onclick: () => ctx.emit('learn:open', {}) }, copy.lessons)),
-    rule,
+    // status and rule stay pinned at the top while the table scrolls under them
+    h('div', { class: 'reference__pin' },
+      h('div', { class: 'reference__top' },
+        status,
+        h('button', { class: 'btn btn--ghost reference__lessons', type: 'button', 'data-action': 'learn', onclick: () => ctx.emit('learn:open', {}) }, copy.lessons),
+        rule)),
     h('div', { class: 'reference__you' }, h('span', { class: 'caption' }, copy.yourRow), live),
     tableEl,
   );
@@ -152,6 +154,7 @@ export function createReference(ctx: Ctx, solver: SolverService, table: readonly
     for (let c = 0; c < SIZE; c++) setAttr(liveCells[c]!, 'data-lit', String(classic && !!board?.cells[BOTTOM + c]));
     const match = classic ? a.match : -1;
     rows.forEach((r, k) => setAttr(r, 'data-match', String(k === match)));
+    setAttr(root, 'data-matched', String(match >= 0));
     const line = match >= 0 ? ruleOf[match]! : '';
     rule.hidden = !line;
     setText(rule, line);

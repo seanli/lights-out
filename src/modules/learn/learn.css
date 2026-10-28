@@ -53,8 +53,10 @@
 .mini-dot[data-suggest="true"] { background: var(--c-hint); }
 
 /* ---------- a lesson ---------- */
-.learn-lesson { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--space-3); }
-.learn-step { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.learn-lesson { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--space-3); container-type: inline-size; }
+/* one board: as tall as it is wide (shrinking on short screens), so its line and buttons sit right under it */
+.learn-stage:is(.learn-stage--practice, .learn-stage--demo, .learn-stage--echo) { flex: 0 1 calc(min(100cqw, var(--board-max)) + var(--space-4)); }
+.learn-step { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--space-3); overflow-y: auto; overscroll-behavior: contain; }
 .learn-dots { display: flex; justify-content: center; gap: var(--space-1-5); }
 .learn-dots > i { width: var(--dot); height: var(--dot); border-radius: var(--radius-pill); background: var(--c-star-off); }
 .learn-dots > i[data-state="done"] { background: var(--c-accent); }
@@ -68,7 +70,7 @@
 /* single board: the largest square that fits the stage */
 .learn-stage > .board--mini { width: min(100cqw, 100cqh, var(--board-max)); height: auto; aspect-ratio: 1; }
 .learn-stage--practice > .board--mini { min-width: var(--learn-practice-min); min-height: var(--learn-practice-min); }
-.learn-stage--practice { min-height: var(--learn-practice-min); }
+.learn-stage--practice { min-height: var(--learn-practice-min); padding-top: 0; }
 .learn-figs { display: flex; justify-content: center; gap: var(--space-4); width: 100%; height: 100%; }
 .learn-fig { margin: 0; flex: 1; min-width: 0; max-width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: var(--space-2); }
 .learn-fig > .board--mini { width: min(100%, calc(100cqh - var(--line-h) - var(--space-2) - var(--space-4)), var(--board-max)); aspect-ratio: 1; }
@@ -104,10 +106,9 @@
 
 /* two echoes stacked */
 .learn-stack { width: 100%; display: flex; flex-direction: column; align-items: center; gap: var(--space-4); }
-.learn-stack__group { display: grid; gap: var(--space-1-5); }
-.learn-stack__line { display: grid; grid-template-columns: minmax(var(--space-6), auto) auto; align-items: center; column-gap: var(--space-3); }
-.learn-stack__line > .caption { text-align: right; }
-.learn-stack__sum { padding-top: var(--space-1-5); border-top: var(--hairline) solid var(--c-line-strong); }
+.learn-stack__group { display: grid; grid-template-columns: auto auto; align-items: center; column-gap: var(--space-3); row-gap: var(--space-1-5); }
+.learn-stack__label { text-align: right; max-width: 10ch; }
+.learn-stack__rule { grid-column: 1 / -1; height: var(--hairline); background: var(--c-line-strong); }
 .learn-stack .learn-row { --strip-cell: min(var(--tap-min), calc((100cqh - 8 * var(--space-1-5) - 2 * var(--space-4) - var(--line-h)) / 6 - 2 * var(--space-1))); }
 
 /* the five rules */
@@ -115,7 +116,8 @@
 .learn-rule { display: grid; gap: var(--space-1-5); padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); background: var(--c-surface); box-shadow: var(--shadow-outline); }
 .learn-rule__text { font-size: var(--text-sm); line-height: var(--leading-snug); }
 .learn-rule__row { display: flex; align-items: center; gap: var(--space-2); }
-.learn-rules .learn-row { --strip-cell: var(--icon); }
+/* two strips, an arrow and the card padding must fit the stage width */
+.learn-rules .learn-row { --strip-cell: min(var(--icon), calc((100cqw - 4 * var(--space-6) - var(--space-4)) / 10)); }
 
 /* how an echo forms */
 .learn-derive { width: 100%; display: flex; flex-direction: column; align-items: center; gap: var(--space-2); overflow-y: auto; max-height: 100%; }
@@ -139,6 +141,13 @@
 /* quiet text link ("Go deeper", "All lessons"): 44px hit height, no outline */
 .learn-link, .reference__lessons { box-shadow: none; color: var(--c-text-dim); font-size: var(--text-sm); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--c-line-strong); }
 .learn-link { align-self: center; min-height: var(--tap-min); padding-inline: var(--space-3); }
+
+/* ---------- short phones: drop the dots (the header says "Step N of M") and tighten the gaps ---------- */
+@media (max-height: 620px) {
+  .learn-dots { display: none; }
+  .learn-lesson, .learn-step { gap: var(--space-2); }
+  .learn-stage { padding-top: var(--space-1); }
+}
 
 /* ---------- wide screens: lesson text left, board right ---------- */
 @media (min-width: 720px) and (min-height: 600px) {
@@ -176,7 +185,14 @@
   display: flex; flex-direction: column; gap: var(--space-1-5);
   padding: var(--space-2) var(--space-3) var(--space-3); border-radius: var(--radius-md); background: var(--c-surface); box-shadow: var(--shadow-outline);
 }
-.reference__top { display: flex; align-items: center; gap: var(--space-2); }
+.reference__pin {
+  position: sticky; top: calc(-1 * var(--space-2)); z-index: 1; display: flex; flex-direction: column; gap: var(--space-1);
+  margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-3)) 0; padding: var(--space-2) var(--space-3) var(--space-1); background: var(--c-surface);
+}
+.reference__top { display: flex; flex-wrap: wrap; align-items: center; column-gap: var(--space-2); row-gap: var(--space-1); }
+.reference__top > .reference__rule { flex: 1 0 100%; }
+/* a revealed row clears the pinned lines above and the fade below */
+.reference__row > .learn-row { scroll-margin-top: calc(3 * var(--line-h)); scroll-margin-bottom: var(--space-6); }
 .reference__top > .reference__status { flex: 1; min-width: 0; }
 .reference__status { min-height: var(--line-h); font: var(--fw-bold) var(--text-sm) / var(--leading-snug) var(--font-ui); color: var(--c-text); text-wrap: balance; }
 .reference__status[data-tone="hint"] { color: var(--c-hint); }
@@ -207,6 +223,11 @@
 @media (max-height: 740px) {
   .reference { --strip-cell: var(--icon-sm); }
   .reference__table { row-gap: var(--space-half); }
+  /* little room: once a row matches, show just that row under its rule */
+  .reference[data-matched="true"] :is(.reference__you, .reference__head, .reference__row[data-match="false"]) { display: none; }
+  /* and the rule line carries the advice: the status is still announced, just not shown */
+  .reference[data-matched="true"] .reference__status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .reference[data-matched="true"] .reference__top > .reference__rule { order: -1; flex: 1 1 0; min-width: 0; }
 }
 @container (min-width: 470px) {
   .reference__table { grid-template-columns: repeat(2, auto auto auto); justify-content: space-evenly; }
