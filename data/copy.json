@@ -450,9 +450,7 @@
   "variety": {
     "back": "Back",
     "boardSize": "{cols}×{rows} · {count} levels",
-    "boardSizeNote": "{cols}×{rows} · {note} · {count} levels",
     "boardShape": "{count} levels",
-    "boardNotes": { "tower": "scrolls" },
     "summary": "{solved} of {count} solved · {stars} of {max} stars",
     "guide": "How to clear the {name}",
     "guideClassic": "Learn the patterns",

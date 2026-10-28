@@ -107,7 +107,7 @@ describe('variety: one board screen for every board', () => {
     t.emit('variety:open', { room: '5x6' });
     expect($('.screen-header__title .eyebrow').textContent).toBe('5×6 · 40 levels');
     t.emit('variety:open', { room: 'tower' });
-    expect($('.screen-header__title .eyebrow').textContent).toBe('5×16 · scrolls · 30 levels'); // its note, from copy
+    expect($('.screen-header__title .eyebrow').textContent).toBe('5×16 · 30 levels'); // one line at 320 wide: no note
     expect($('.variety__top .room-glyph').dataset.tall).toBe('true'); // drawn as a tall narrow picture
   });
 
