@@ -111,7 +111,7 @@
     "choice": "random"
   },
   "solved-sheet": {
-    "delayMs": 800
+    "delayMs": 640
   },
   "tutorial": {
     "levels": [1, 2]
