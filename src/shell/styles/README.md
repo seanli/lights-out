@@ -11,7 +11,7 @@ Fonts are bundled woff2 (Fraunces 600, Manrope 500/700, Latin only, 45 KB). ≤ 
 | `.screen-header` | `> button` · `__title` (`.eyebrow` + `strong`) · `__end` (right slot) | |
 | `.btn` | `--primary` `--secondary` `--ghost` `--icon` `--hint` `--block` `--stack` (icon over label), `__meta` | `:hover` `:active` (scale) `:focus-visible` `:disabled` `[aria-disabled="true"]` `[aria-pressed="true"]` |
 | `.board-slot` | size container holding `.play-tiers`, `.board`, `.tutorial-line` | |
-| `.board` | `.board--sweep` (warm wash; `--i` = distance), `.board--intro` (lit cells power on by `--i`); `> [data-gap]` keeps its slot, invisible | `[data-status="playing"\|"solved"]` (solved = dimmed, inert), `[data-n="4".."7"]` (gap, pad, radius, glow scale with the cell) |
+| `.board` | `.board--sweep` (warm wash; `--i` = distance), `.board--intro` (lit cells power on by `--i`); `> [data-gap]` keeps its slot, invisible | `[data-status="playing"\|"solved"]` (solved = dimmed, inert), `[data-n="4".."10"]` (gap, pad, radius, glow scale with the cell), `[data-scroll]`, `[data-aim]` |
 | `.cell` | button per light | `[data-lit]` (fades `--lit` over `--dur-flip` after `--flip-delay`) `[data-flip]` (bloom on / afterglow off; remove on `animationend`) `[data-hint="true"]` `[data-pointer="true"]` `:active` (lit: brighter) `:focus-visible` |
 | `.stat` | `.eyebrow` + `.stat__value`; `--end` (right-aligned), `--muted` | `.stat__value--bump` (one 160ms pop; restart it per change) |
 | `.chip` | `--lg` (star total), `__of`; group in `.play-tiers` | `[data-state="now"\|"lost"\|"hint"]` |
@@ -26,7 +26,12 @@ Fonts are bundled woff2 (Fraunces 600, Manrope 500/700, Latin only, 45 KB). ≤ 
 | helpers | `.eyebrow` `.caption` `.display` `.muted` `.num` `.row` `.icon` (inline SVG) | |
 
 ## Board sizing (no JS)
-`.board { --board-size: min(100cqw, 100cqh - var(--board-chrome-y), var(--board-max)) }`, where `cq` is the `.board-slot` size container.
+A play board (`.board[data-n]`) gets `--board-cols`/`--board-rows` inline and square cells as big as its fit box allows:
+`--fit-w`/`--fit-h` (from `cq` units of the `.board-slot` size container, capped by `--board-max`) minus padding and gaps.
+A tall board (`[data-scroll="true"]`, the 5×16 Tower) fits its width instead (cells capped at `--cell-max-tall`) and scrolls
+inside the fit box (`touch-action: pan-y`); its window ends mid-row so it reads as continuing. Slots under `--aim-below` (40px)
+switch the board to `[data-aim="true"]`: `touch-action: none`, and `src/lib/aim.ts` presses on release with `.aim-bubble`.
+Other boards (`.board` without `data-n`): `--board-size: min(100cqw, 100cqh - var(--board-chrome-y), var(--board-max))`.
 `--board-chrome-y` is the height of the tiers + tutorial line that share the slot (default `chip-h + line-h + 2 gaps`).
 If a slot holds only the board, set `--board-chrome-y: 0px` on it. The slot must be a grid/flex child with `min-height: 0` (as in `.screen--play`).
 In short landscape (`max-height: 540px`), the slot uses `display: contents`, `.screen--play` becomes the container, and the board fills the left column.

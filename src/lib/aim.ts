@@ -32,7 +32,7 @@ export interface AimHandle {
   destroy(): void;
 }
 
-const BUBBLE_GAP = 72; // px between the finger and the bubble's centre
+const BUBBLE_GAP = 104; // px between the finger and the bubble's centre: clear of a thumb under a 156px bubble
 
 export function attachAim(grid: HTMLElement, opts: AimOptions): AimHandle {
   const slop = opts.slop ?? 10;

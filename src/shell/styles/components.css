@@ -439,7 +439,7 @@ button, input { font: inherit; color: inherit; }
 /* aim bubble (src/lib/aim.ts): magnifies the aimed cell and its neighbours above the finger on boards with small cells */
 .aim-bubble {
   position: fixed; left: 0; top: 0; z-index: 50; pointer-events: none;
-  display: grid; grid-template-columns: repeat(3, var(--space-8)); gap: var(--space-1); padding: var(--space-2);
+  display: grid; grid-template-columns: repeat(3, var(--tap-min)); gap: var(--space-1); padding: var(--space-2);
   background: var(--c-surface-2); border-radius: var(--radius-lg); box-shadow: var(--shadow-board), 0 12px 32px -8px var(--c-shadow);
   opacity: 0; transition: opacity var(--dur-fast) var(--ease-out);
 }

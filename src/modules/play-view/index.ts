@@ -251,13 +251,13 @@ const playView: ModuleDef = {
     });
 
     // the slot (board size / cols, gutter included: DECISIONS #40) decides aim mode; measured, never on a tap
-    let tapMin = 0;
+    let aimBelow = 0;
     const measureSlot = () => {
       const r = board.getBoundingClientRect();
       if (shape && !tall && !r.width) return; // hidden: measured again when it shows
-      tapMin ||= parseFloat(getComputedStyle(board).getPropertyValue('--tap-min')) || 44;
+      aimBelow ||= parseFloat(getComputedStyle(board).getPropertyValue('--aim-below')) || 40;
       // a scrolling board keeps its slots big (it fits its width) and needs its swipes: never aim there
-      aim = !!shape && !tall && Math.min(r.width / shape.cols, r.height / shape.rows) < tapMin - 0.5;
+      aim = !!shape && !tall && Math.min(r.width / shape.cols, r.height / shape.rows) < aimBelow - 0.5;
       setAttr(board, 'data-aim', aim ? 'true' : null);
     };
     const resizes = typeof ResizeObserver === 'function' ? new ResizeObserver(() => measureSlot()) : null;

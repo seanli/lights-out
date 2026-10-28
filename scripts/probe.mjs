@@ -43,7 +43,7 @@ const TARGETS = {
   12: { name: 'Layout', target: '6 viewports: no h-scroll, 44px, board fits' },  // board slots: 44px, or the board aims
   13: { name: 'Page weight', target: '≤ 280KB, gzip ≤ 105KB' },
   14: { name: 'Offline install (PWA)', target: 'plays offline after SW ready' },
-  15: { name: 'Every room by touch', target: 'level 1 of each; slot ≥ 44px or aim' },
+  15: { name: 'Every room by touch', target: 'level 1 of each; slot ≥ 44px (40 at 320) or aim' },
 };
 const VIEWPORTS = [
   { width: 320, height: 568 }, { width: 375, height: 667 }, { width: 390, height: 844 },
@@ -577,8 +577,10 @@ async function varietyRooms() {
         (modes[size.width] ??= []).push(`${pack.id} ${Math.round(info.slot)}px${info.aim ? ' aim' : info.scroll ? ' scroll' : ''}`);
         if (info.cells !== info.real) out.push(`${where}: ${info.cells} cells shown, ${info.real} expected`);
         if (info.gapButtons) out.push(`${where}: ${info.gapButtons} gaps are tappable`);
-        if (info.slot < 43.5 && !info.aim) out.push(`${where}: touch slot ${info.slot.toFixed(0)}px < 44px and not in aim mode`);
-        if (info.slot >= 44.5 && info.aim) out.push(`${where}: aim mode on ${info.slot.toFixed(0)}px slots`);
+        // instant boards need 44px slots on 375+ phones and 40px on 320 (DECISIONS #40); smaller slots aim (#48)
+        const need = size.width >= 375 ? 44 : 40;
+        if (info.slot < need - 0.5 && !info.aim) out.push(`${where}: touch slot ${info.slot.toFixed(0)}px < ${need}px and not in aim mode`);
+        if (info.slot >= 40.5 && info.aim) out.push(`${where}: aim mode on ${info.slot.toFixed(0)}px slots`);
         if (info.scroll && info.top !== 0) out.push(`${where}: the Tower did not start at the top (scrollTop ${info.top})`);
         if (size.width === 390) {
           if (info.scroll) {

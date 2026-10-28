@@ -455,7 +455,7 @@ describe('play-view', () => {
     const ptr = (type: string, el: Element, x: number, y: number) =>
       el.dispatchEvent(new PointerEvent(type, { bubbles: true, button: 0, pointerType: 'touch', pointerId: 1, isPrimary: true, clientX: x, clientY: y }));
 
-    test('slots under 44px aim: nothing on pointerdown, the cell under the lifted finger presses once', () => {
+    test('slots under 40px aim: nothing on pointerdown, the cell under the lifted finger presses once', () => {
       const { cell, presses } = boot({ board: shaped(square(10)) });
       const el = layout(300, 300); // 30px slots
       expect(el.dataset.aim).toBe('true');
@@ -476,14 +476,16 @@ describe('play-view', () => {
       expect(presses()).toEqual([1, 5]);
     });
 
-    test('the same board with 44px slots or more keeps the instant press; the mode follows the measured size', () => {
+    test('the same board with 40px slots or more keeps the instant press; the mode follows the measured size', () => {
       const { cell, presses } = boot({ board: shaped(square(8)) });
       const el = layout(400, 400); // 50px slots
       expect(el.hasAttribute('data-aim')).toBe(false);
       pointer(cell(9));
       click(cell(9), 1);
       expect(presses()).toEqual([9]);
-      layout(320, 320); // 40px: a narrow phone
+      layout(320, 320); // 40px slots: still instant (DECISIONS #40)
+      expect(el.hasAttribute('data-aim')).toBe(false);
+      layout(288, 288); // 36px: an 8×8 on a 320 phone aims
       expect(el.dataset.aim).toBe('true');
       pointer(cell(9));
       expect(presses()).toEqual([9]);

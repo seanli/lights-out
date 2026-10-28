@@ -156,6 +156,8 @@
 
   /* ---- sizes ---- */
   --tap-min: 44px;
+  /* board slots smaller than this switch to aim-and-release (src/lib/aim.ts); 40px slots stay instant (DECISIONS #40, #48) */
+  --aim-below: 40px;
   --btn-h: 56px;
   --chip-h: 28px;
   --chip-h-lg: 36px;
