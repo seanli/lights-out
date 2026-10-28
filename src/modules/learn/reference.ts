@@ -2,11 +2,13 @@
 // Built once; every board change only patches attributes and a few lines of text (well under 1 ms).
 // Never marks the main board: the panel teaches the method, the paid Hint stays the only on-board help.
 // Classic 5×5: live advice, live bottom row, the 7-row table; the matching row's echo and rule in one line.
-// Other full rectangles: chase advice for that size, no table. Shaped rooms: one line about using the shape.
-import { BOTTOM, blank, rectTaps, rectTopSets, type TableEntry } from './method';
+// Other full rectangles: chase advice for that size, then the player's bottom row over its top taps.
+// Shaped rooms: chase advice by row, then a small picture of the board with the top-edge fix ringed.
+// Rooms link to their board guide; classic links to all lessons.
+import { BOTTOM, blank, chaseShapeSuggest, rectTaps, rectTopSets, type Fixer, type TableEntry } from './method';
 import { CELL_COUNT, SIZE, type BoardState, type Ctx, type Shape, type SolverService } from '../../contracts';
 import { fmt, h, setAttr, setText } from '../../lib/dom';
-import { shapeKey } from '../../lib/shape';
+import { gridSize, isCell, shapeKey } from '../../lib/shape';
 
 export interface ReferenceCopy {
   yourRow: string;
@@ -14,8 +16,13 @@ export interface ReferenceCopy {
   top: string;
   echo: string;
   lessons: string;
-  shaped: string;
-  status: { start: string; chase: string; match: string; progress: string; clear: string; nomatch: string; rectBottom: string; rectMatch: string };
+  /** the link to a room's board guide */
+  guide: string;
+  status: {
+    start: string; chase: string; match: string; progress: string; clear: string; nomatch: string; rectBottom: string; rectMatch: string;
+    /** shaped rooms once only end lights are left: {n} ringed top-edge lights; part-way through them; no fix */
+    shapedFix: string; shapedProgress: string; shapedNomatch: string;
+  };
   /** the strategy line for full rectangles: chase alone clears it / three above each light / each light its own taps */
   rect: { chaseClears: string; threeAbove: string; ownTaps: string };
 }
@@ -26,6 +33,8 @@ export interface Advice {
   status: ReferenceStatus; text: string; match: number;
   /** full rectangles at bottom-row time: the player's bottom row and the top-row taps that clear it */
   rect?: { bottom: number[]; taps: number[] };
+  /** shaped rooms once only end lights are left: the start cells still to tap */
+  shaped?: { ring: number[] };
 }
 
 const ABOVE_BOTTOM = (1 << BOTTOM) - 1;
@@ -41,8 +50,8 @@ export function kindOf(shape: Shape | undefined): BoardKind {
 
 type Board = Pick<BoardState, 'status' | 'cells'> & { shape?: Shape };
 
-/** What to do next, from the board alone. Pure, so tests can check it without a DOM. */
-export function createAdvisor(solver: Pick<SolverService, 'press'>, table: readonly TableEntry[], copy: ReferenceCopy['status'], shapedLine = '') {
+/** What to do next, from the board alone. Pure, so tests can check it without a DOM. `fixerFor` serves shaped rooms. */
+export function createAdvisor(solver: Pick<SolverService, 'press'>, table: readonly TableEntry[], copy: ReferenceCopy['status'], fixerFor?: (shape: Shape) => Fixer | null) {
   // what each top-row tap toggles, read from the solver once
   const topPress = Array.from({ length: SIZE }, (_, c) => toMask(solver.press(blank(), c)));
   const entries = table.map((e) => ({ bottom: rowMask(e.bottom), top: rowMask(e.top) }));
@@ -109,11 +118,26 @@ export function createAdvisor(solver: Pick<SolverService, 'press'>, table: reado
     return threeAbove ? lines.threeAbove : lines.ownTaps;
   };
 
+  /** any shape: part-way through a fix → finish it; lights above an end cell → chase that row; else the fix, ringed */
+  const shaped = (cells: readonly boolean[], shape: Shape): Advice => {
+    const fx = fixerFor?.(shape) ?? null;
+    const part = fx?.progress(cells);
+    if (part) {
+      const ring = part.fix.filter((c) => !part.done.includes(c));
+      return { status: 'match', text: fmt(copy.shapedProgress, { n: ring.length }), match: -1, shaped: { ring } };
+    }
+    const next = chaseShapeSuggest(cells, shape);
+    if (next !== null) return { status: 'chase', text: fmt(copy.chase, { row: Math.floor(next / shape.cols) }), match: -1 };
+    const fix = fx?.fixFor(cells);
+    if (!fix) return { status: 'nomatch', text: copy.shapedNomatch, match: -1 };
+    return { status: 'match', text: fmt(copy.shapedFix, { n: fix.length }), match: -1, shaped: { ring: fix } };
+  };
+
   const advise = (board: Board | undefined): Advice => {
     if (!board || board.status === 'empty') return { status: 'chase', text: copy.start, match: -1 };
     if (board.status === 'solved' || !board.cells.includes(true)) return { status: 'clear', text: copy.clear, match: -1 };
     const kind = kindOf(board.shape);
-    if (kind === 'shaped') return { status: 'nomatch', text: shapedLine, match: -1 };
+    if (kind === 'shaped') return shaped(board.cells, board.shape!);
     if (kind === 'rect') return rect(board.cells, board.shape!);
     return classic(toMask(board.cells));
   };
@@ -130,9 +154,16 @@ export interface ReferenceLabels {
   letters: string;
 }
 
-export function createReference(ctx: Ctx, solver: SolverService, table: readonly TableEntry[], copy: ReferenceCopy, labels: ReferenceLabels) {
+export interface ReferenceRooms {
+  /** the start-cell fix for a shape (null when it can't be worked out) */
+  fixer(shape: Shape): Fixer | null;
+  /** the guide id for a room, or null when it has none */
+  guideFor(pack: string): string | null;
+}
+
+export function createReference(ctx: Ctx, solver: SolverService, table: readonly TableEntry[], copy: ReferenceCopy, labels: ReferenceLabels, rooms: ReferenceRooms) {
   const slot = ctx.need('view').region('slot:reference');
-  const advise = createAdvisor(solver, table, copy.status, copy.shaped);
+  const advise = createAdvisor(solver, table, copy.status, rooms.fixer);
 
   /** a strip of n cells; on a top strip the cells to tap carry the pointer ring and their column letter */
   const strip = (kind: 'bottom' | 'top' | 'live', cols: readonly number[], n = SIZE) => {
@@ -169,6 +200,30 @@ export function createReference(ctx: Ctx, solver: SolverService, table: readonly
   const rectTop = h('div', { class: 'reference__you' }, h('span', { class: 'caption' }, copy.top));
   const rectBox = h('div', { class: 'reference__rect', hidden: true }, rectBottom, rectTop);
   let rectCols = 0;
+  // shaped rooms: a small picture of the board, the end lights lit and the fix ringed (rebuilt when the shape changes)
+  const shapeBox = h('div', { class: 'reference__shape', 'data-reference-shape': '', hidden: true });
+  let shapeKeyNow = '';
+  let shapeCells: HTMLElement[] = [];
+  const buildShape = (shape: Shape) => {
+    const grid = h('span', { class: 'learn-row learn-row--shape', 'aria-hidden': 'true', style: `--strip-n:${shape.cols}` });
+    shapeCells = [];
+    for (let i = 0; i < gridSize(shape); i++) {
+      if (!isCell(shape, i)) { grid.append(h('span', { class: 'learn-row__gap', 'data-gap': '' })); continue; }
+      const cell = h('span', { class: 'cell', 'data-mini-cell': '', 'data-index': i, 'data-lit': 'false' });
+      shapeCells.push(cell);
+      grid.append(cell);
+    }
+    shapeBox.replaceChildren(grid);
+  };
+  // the guide link on room boards (classic keeps "All lessons")
+  const lessonsBtn = h('button', { class: 'btn btn--ghost reference__lessons', type: 'button', 'data-action': 'learn', onclick: () => ctx.emit('learn:open', {}) }, copy.lessons);
+  let guideId: string | null = null;
+  const guideBtn = h('button', { class: 'btn btn--ghost reference__lessons', type: 'button', 'data-action': 'guide', hidden: true, onclick: () => { if (guideId) ctx.emit('learn:open', { lessonId: guideId }); } }, copy.guide);
+  /** level id → its pack ('classic' when absent), read from the levels slice */
+  const packOf = (levelId: number | null | undefined): string => {
+    if (levelId == null) return 'classic';
+    return ctx.read('levels')?.list.find((l) => l.id === levelId)?.pack ?? 'classic';
+  };
   const tableEl = h('div', { class: 'reference__table', role: 'table' },
     h('div', { class: 'reference__head', role: 'row' },
       h('span', { class: 'caption', role: 'columnheader' }, copy.bottom), h('span', { 'aria-hidden': 'true' }), h('span', { class: 'caption', role: 'columnheader' }, copy.top),
@@ -181,11 +236,13 @@ export function createReference(ctx: Ctx, solver: SolverService, table: readonly
     h('div', { class: 'reference__pin' },
       h('div', { class: 'reference__top' },
         status,
-        h('button', { class: 'btn btn--ghost reference__lessons', type: 'button', 'data-action': 'learn', onclick: () => ctx.emit('learn:open', {}) }, copy.lessons),
+        lessonsBtn,
+        guideBtn,
         rule)),
     h('div', { class: 'reference__you' }, h('span', { class: 'caption' }, copy.yourRow), live),
     tableEl,
     rectBox,
+    shapeBox,
   );
   slot.replaceChildren(root);
   const liveCells = [...live.children] as HTMLElement[];
@@ -214,7 +271,23 @@ export function createReference(ctx: Ctx, solver: SolverService, table: readonly
     for (let c = 0; c < SIZE; c++) setAttr(liveCells[c]!, 'data-lit', String(classic && !!board?.cells[BOTTOM + c]));
     const match = classic ? a.match : -1;
     rows.forEach((r, k) => setAttr(r, 'data-match', String(k === match)));
-    setAttr(root, 'data-matched', String(match >= 0 || !!a.rect));
+    setAttr(root, 'data-matched', String(match >= 0 || !!a.rect || !!a.shaped));
+    // rooms: their board guide instead of all lessons
+    const pack = kind === 'classic' ? 'classic' : packOf(board?.levelId);
+    guideId = pack === 'classic' ? null : rooms.guideFor(pack);
+    lessonsBtn.hidden = !!guideId;
+    guideBtn.hidden = !guideId;
+    // shaped rooms: the picture with the fix ringed
+    shapeBox.hidden = !a.shaped;
+    if (a.shaped && board?.shape) {
+      const key = shapeKey(board.shape);
+      if (key !== shapeKeyNow) { shapeKeyNow = key; buildShape(board.shape); }
+      for (const cell of shapeCells) {
+        const i = Number(cell.dataset.index);
+        setAttr(cell, 'data-lit', String(!!board.cells[i]));
+        setAttr(cell, 'data-suggest', a.shaped.ring.includes(i) ? 'true' : null);
+      }
+    }
     // full rectangles: the strip pair at bottom-row time
     rectBox.hidden = !a.rect;
     if (a.rect && board?.shape) {

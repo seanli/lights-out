@@ -9,11 +9,12 @@ import { answer, emptySave, finished, nextCard, planRound, type DrillSave, type 
 
 export interface DrillStore { load(): DrillSave; save(s: DrillSave): void }
 
-/** a 5-cell strip; `lit` columns glow, `ring` columns get the tap pointer and their letter, `cancel` columns the cancel mark */
-export function strip(opts: { lit?: readonly number[]; ring?: readonly number[]; cancel?: readonly number[]; row?: 'top' | 'bottom'; kind?: string; letters?: string }) {
-  const r = h('span', { class: `learn-row learn-row--${opts.kind ?? 'bottom'}`, 'aria-hidden': 'true' });
-  const base = opts.row === 'top' ? 0 : BOTTOM;
-  for (let c = 0; c < SIZE; c++) {
+/** a strip of `n` cells (default 5); `lit` columns glow, `ring` columns get the tap pointer and their letter, `cancel` columns the cancel mark */
+export function strip(opts: { lit?: readonly number[]; ring?: readonly number[]; cancel?: readonly number[]; row?: 'top' | 'bottom'; kind?: string; letters?: string; n?: number; bottom?: number }) {
+  const n = opts.n ?? SIZE;
+  const r = h('span', { class: `learn-row learn-row--${opts.kind ?? 'bottom'}`, 'aria-hidden': 'true', style: n === SIZE ? null : `--strip-n:${n}` });
+  const base = opts.row === 'top' ? 0 : (opts.bottom ?? BOTTOM);
+  for (let c = 0; c < n; c++) {
     r.append(h('span', {
       class: 'cell', 'data-mini-cell': '', 'data-index': base + c,
       'data-lit': String(!!opts.lit?.includes(c)),

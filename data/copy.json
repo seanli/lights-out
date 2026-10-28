@@ -199,7 +199,9 @@
     "demoPhase": {
       "chase": "Chase down",
       "top": "Tap the top row",
-      "chase2": "Chase again"
+      "edge": "Tap the top edge",
+      "chase2": "Chase again",
+      "spot": "Tap a shape's centre"
     },
     "captions": {
       "middle": "Middle: a plus of five",
@@ -208,7 +210,13 @@
       "set": "{n} {n|tap|taps}, any order",
       "quiet": "{n} {n|tap|taps}, no change",
       "method": "Chasing: {n} {n|tap|taps}",
-      "shortest": "Shortest: {n} {n|tap|taps}"
+      "shortest": "Shortest: {n} {n|tap|taps}",
+      "plus": "A plus",
+      "t": "A T",
+      "l": "An L",
+      "line": "A line",
+      "pair": "A pair",
+      "single": "One light"
     },
     "cellOn": "Light {row}, {col}: on",
     "cellOff": "Light {row}, {col}: off",
@@ -217,6 +225,7 @@
       "bottom": "Bottom row",
       "top": "Tap",
       "lessons": "All lessons",
+      "guide": "Board guide",
       "status": {
         "start": "Start a level, then chase the lights down.",
         "chase": "Row {row}: tap under each lit light.",
@@ -225,9 +234,11 @@
         "clear": "All dark. Solved.",
         "nomatch": "This bottom row can't be cleared. Restart and chase again.",
         "rectBottom": "Only the bottom row is left. Tap Hint for the top tap, then chase again.",
-        "rectMatch": "Tap the top lights shown, then chase again."
+        "rectMatch": "Tap the top lights shown, then chase again.",
+        "shapedFix": "Tap the ringed top-edge {n|light|lights}, then chase again.",
+        "shapedProgress": "Finish the ringed {n|tap|taps}, then chase again.",
+        "shapedNomatch": "These lights can't be cleared from the top edge. Restart and chase again."
       },
-      "shaped": "Chasing doesn't fit this shape. Clear the narrow parts first; a lit plus, T or L is one tap at its centre.",
       "echo": "Echo of {name}",
       "rect": {
         "chaseClears": "On {cols}×{rows}, chasing clears the whole board.",
@@ -338,7 +349,70 @@
     "echoMatch": "That's {name}'s echo: tap {name}, then chase again.",
     "echoTip": "Not sure? Guess a top light and chase. Wrong? Tap it again.",
     "tableTop": "Tap",
-    "tableBottom": "Your row"
+    "tableBottom": "Your row",
+    "sections": {
+      "basics": "Basics",
+      "boards": "Board guides"
+    },
+    "lights": {
+      "pick": "Pick a bottom light",
+      "row": "Bottom light {name}: tap {taps}"
+    },
+    "guides": {
+      "4x4": {
+        "summary": "Chasing clears every board here.",
+        "steps": [
+          "Chase down, row by row: tap under each lit light.",
+          "On this board the bottom row always comes out dark. No extra step.",
+          "Your turn: chase from the top. Assist rings the next tap."
+        ]
+      },
+      "6x6": {
+        "summary": "Chase, then clear the bottom row.",
+        "steps": [
+          "Chase down, row by row. Whatever is left ends up in the bottom row.",
+          "One bottom light: tap the top lights two to each side of it, then chase again. For A and F, also tap the one above.",
+          "Several bottom lights: do each one's top taps in turn, then chase again. A light tapped twice cancels.",
+          "Your turn. Assist rings the next tap."
+        ]
+      },
+      "7x7": {
+        "summary": "Chase, then three top taps per bottom light.",
+        "steps": [
+          "Chase down, row by row. Whatever is left ends up in the bottom row.",
+          "One bottom light: tap the three top lights above it (two at an edge), then chase again.",
+          "Several bottom lights: do each one's top taps in turn, then chase again. A light tapped twice cancels.",
+          "Your turn. Assist rings the next tap."
+        ]
+      },
+      "cross": {
+        "summary": "Spot the shapes, or chase and fix from the top edge.",
+        "steps": [
+          "A tap lights a plus. This board's edges cut it short: a T or an L.",
+          "Spot those shapes in the lights and tap their centres. Start at the corners: only a few taps can change them.",
+          "When stuck, chase down. Patterns (the book button) then rings top-edge lights: tap them and chase again.",
+          "Your turn: spot the shapes, or chase. Assist rings the next tap."
+        ]
+      },
+      "ring": {
+        "summary": "Spot the shapes, or chase and fix from the top edge.",
+        "steps": [
+          "A tap lights a plus. The edges and the hole cut it short: a T or an L.",
+          "Spot those shapes in the lights and tap their centres. Start at the corners: only a few taps can change them.",
+          "When stuck, chase down. Patterns (the book button) then rings top-edge lights: tap them and chase again.",
+          "Your turn: spot the shapes, or chase. Assist rings the next tap."
+        ]
+      },
+      "diamond": {
+        "summary": "Spot the shapes, or chase and fix from the top edge.",
+        "steps": [
+          "A tap lights a plus. The edges cut it short: an L, or a pair at the tips.",
+          "Spot those shapes in the lights and tap their centres. Start at the tips: only a few taps can change them.",
+          "When stuck, chase down. Patterns (the book button) then rings top-edge lights: tap them and chase again.",
+          "Your turn: spot the shapes, or chase. Assist rings the next tap."
+        ]
+      }
+    }
   },
   "variety": {
     "title": "Variety",

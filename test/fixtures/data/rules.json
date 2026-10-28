@@ -147,7 +147,13 @@
       "order": [2, 3],
       "chase": [4, 8],
       "bottom-row": [6, 10],
-      "shortest": [8, 12]
+      "shortest": [8, 12],
+      "guide-4x4": [3, 5],
+      "guide-6x6": [3, 5],
+      "guide-7x7": [3, 5],
+      "guide-cross": [3, 4],
+      "guide-ring": [3, 4],
+      "guide-diamond": [3, 4]
     },
     "demoStartMs": 700,
     "demoStepMs": 650,
