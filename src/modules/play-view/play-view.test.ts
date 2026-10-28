@@ -179,9 +179,10 @@ describe('play-view', () => {
 
     const hint = q('.play-tiers .chip[data-state="hint"]');
     expect(hint.hidden).toBe(false);
-    expect(hint.textContent).toBe('−1★ hint');
+    expect(hint.textContent).toBe('−1★hint');
+    expect(hint.getAttribute('aria-label')).toBe('Hint used: 1 star fewer');
     t.kernel.seed('progress', progress(2));
-    expect(hint.textContent).toBe('−2★ hints');
+    expect(hint.textContent).toBe('−2★hints');
     t.kernel.seed('progress', progress());
     expect(hint.hidden).toBe(true);
     t.kernel.seed('progress', { ...progress(), scoring: undefined });

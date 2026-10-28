@@ -15,10 +15,23 @@
    the free height collects as headroom under the header, and the board's top row comes down toward the thumb */
 .screen--play { grid-template-rows: auto minmax(0, 1fr) auto; }
 .screen--play .board-slot {
-  justify-content: flex-end; padding-bottom: clamp(var(--space-3), 3vh, var(--space-6));
+  justify-content: flex-end; justify-content: safe flex-end; /* safe: never over the header if something overflows */
   --board-chrome-y: calc(var(--play-stats-h) + var(--chip-h) + var(--line-h) + 3 * var(--space-3));
 }
+/* a little air above the actions, taken only from height the board can't use (short phones keep every pixel) */
+.screen--play .board-slot > .play-line {
+  margin-bottom: clamp(0px, 100cqh - var(--board-chrome-y) - min(100cqw, 100cqh - var(--board-chrome-y), var(--board-max)), clamp(var(--space-3), 3vh, var(--space-6)));
+}
 .board-slot[data-tiers="false"] { --board-chrome-y: calc(var(--play-stats-h) + var(--line-h) + 2 * var(--space-3)); }
+
+/* the tier row (+ the hint chip) stays one line on phones: tighter chips below 390, the hint's word only for screen readers below 360 */
+@media (max-width: 389px) {
+  .screen--play .play-tiers { gap: var(--space-1); }
+  .screen--play .play-tiers > .chip { padding-inline: var(--space-2); }
+}
+@media (max-width: 359px) {
+  .play-hint-word { position: absolute; width: var(--hairline); height: var(--hairline); overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
 
 /* Moves and Par: one centred pair with a hairline between; Par is the reference, so it is smaller and dimmer */
 .screen--play .board-slot > .play-stats { align-self: center; justify-content: center; align-items: stretch; gap: var(--space-8); padding-inline: 0; }
@@ -51,7 +64,7 @@
     grid-template-rows: auto minmax(0, 1fr) auto auto auto auto;
     grid-template-areas: "board head" "board ." "board stats" "board tiers" "board line" "board actions";
   }
-  .screen--play .board-slot { padding-bottom: 0; }
+  .screen--play .board-slot > .play-line { margin-bottom: 0; }
   .screen--play .board-slot > .play-stats { grid-area: stats; }
   .screen--play .play-line { grid-area: line; align-self: center; }
 }

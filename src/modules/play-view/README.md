@@ -1,17 +1,14 @@
 # play-view
 
-The play screen, rendered into `view.region('screen:play')`. Owns no slice; reads `board`, `hints`, `tutorial`, `levels` (chapters), `progress` (`pendingHints`, `scoring`).
+The play screen, rendered into `view.region('screen:play')`. Owns no slice; reads `board` (incl. `shape`), `hints`, `tutorial`, `levels` (chapters, packs), `progress` (`pendingHints`, `scoring`).
 
-- Built once; each slice change updates only the attributes/text that differ (a tap touches ≤ 5 cells).
-- Cells press on `pointerdown` (primary button / any touch) → `board:press {index}`; the trailing click is swallowed.
-  Keyboard Enter/Space (click with `detail === 0`) presses too; arrows/Home/End move focus (roving tabindex).
-- Header: `[data-action="back"]` → `nav:go {screen:'home'}`; "Chapter N" / `[data-level-label]`; "Up to" ★★★ still possible
-  (3 − hints × hintCost, ≥ minStars) + "Hint used". Tier chips from `progress.scoring` (hidden without it).
-- `[data-action="reference"]` (hidden without a `learn` slice) toggles the pattern reference: `slot:reference` sits in `.play-reference`,
-  the screen gets `data-reference="open|closed"`. Instance state: survives level changes. Escape closes it. A toggle during a board press
-  waits for the finger to lift. The board, stats and actions FLIP to their new places (skipped under reduced motion).
-- Actions: undo (aria-disabled without history or when not playing), restart (moves 0), hint (hidden without a `hints` slice; disabled while showing or while the tutorial coaches).
-- Hint: `data-hint="true"` on `hints.cell` + the hint line. Tutorial: `data-pointer="true"` on `tutorial.target` (never together with a hint mark); `slot:coach` sits under the board.
-- Solve: `data-status="solved"` + `.board--sweep`, each cell's `--i` = distance from the winning tap scaled to `--dur-sweep`; skipped under reduced motion.
-- Data: `copy.json → play-view`. Module-scoped CSS in `play-view.css` (see `requests.md`).
-- Render skips unchanged slices; the header redraws only when level, moves or par change. Console `debug`: hint/pointer cells, focus, sweep.
+- Any board: `shape` absent = 5×5. The grid is rebuilt only when the shape changes; `.board` gets `data-n` (max side), `data-cols`, `data-rows`. Real cells are `button[data-cell][data-index]`; gaps are `[data-gap]` (aria-hidden, never focusable, no part in sweep/flip/focus).
+- Presses on `pointerdown` → `board:press {index}`; the trailing click is swallowed; Enter/Space press. A press in the board's gutter/padding presses the real cell whose grid slot holds the point (`grid.ts`); a gap's own slot does nothing.
+- Arrows/Home/End rove over real cells only, skipping gaps.
+- Header `[back] Chapter · Level [patterns]`; on a Variety level the eyebrow is the room name (`levels.packs`) and the title its index in the room. The Patterns button shows on every board (with a `learn` slice).
+- Tier chips from `progress.scoring` (aria-label: max stars still possible); after a hint a `chip[data-state="hint"]` "−1★ hint" joins them.
+- Moves/Par: centred pair; the moves numeral gets `stat__value--bump` per change.
+- Feel: changed cells get `data-flip` (removed on animationend) and `--flip-delay` (pressed cell 0ms, neighbours `var(--flip-stagger)`; undo/restart 0ms). A new level adds `.board--intro` (lit cells by `--i` = row+col), ended by the first press or a timer. Coaching sets `data-coaching="true"` on the screen.
+- Solve: `.board--sweep`, each real cell's `--i` = distance from the winning tap scaled to `--dur-sweep`. All motion skipped under reduced motion.
+- Pattern reference: `[data-action="reference"]` toggles `slot:reference`; waits for a lifted finger; Escape closes; board/stats/actions FLIP.
+- A tap writes attributes on the changed cells only, with no layout reads. Data: `copy.json → play-view`. Layout in `play-view.css`.

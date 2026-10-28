@@ -70,7 +70,8 @@
     "tierOver": "{moves}+",
     "tierWithinAria": "{moves} moves or fewer: {stars} of 3 stars",
     "tierOverAria": "{moves} moves or more: {stars} of 3 stars",
-    "hintChip": "−{stars}★ {count|hint|hints}",
+    "hintChipCost": "−{stars}★",
+    "hintChipWord": "{count|hint|hints}",
     "hintChipAria": "{count|Hint|Hints} used: {stars} {stars|star|stars} fewer"
   },
   "solved-sheet": {
