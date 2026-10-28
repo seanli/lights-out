@@ -76,11 +76,21 @@ export const ProgressSaveV1Schema = v.object({
 });
 export type ProgressSave = v.InferOutput<typeof ProgressSaveV1Schema>;
 
+export const ScoringSchema = v.object({
+  threeStarsWithin: v.number(),
+  twoStarsWithin: v.number(),
+  hintCost: v.number(),
+  minStars: v.number(),
+});
+export type Scoring = v.InferOutput<typeof ScoringSchema>;
+
 export const ProgressStateSchema = v.object({
   status: v.picklist(['loading', 'ready']),
   save: ProgressSaveV1Schema,
   /** highest level id that may be started */
   unlockedUpTo: v.number(),
+  /** the star rule in force (from rules.json → progress), so views can show tiers without owning the rule */
+  scoring: v.optional(ScoringSchema),
 });
 export type ProgressState = v.InferOutput<typeof ProgressStateSchema>;
 
