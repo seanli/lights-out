@@ -26,3 +26,17 @@ If the design system adopts these, the rules can move to components.css.
 - Disabled actions use `var(--rest-opacity, .55)`; desktop play widens `.app` to `var(--app-max-play, 560px)`. Tokens welcome.
 - Below 390px the tier chips tighten (`--space-2` padding); below 360px the hint chip's word is visually hidden ("−1★" stays, the aria-label says it all).
 - Short portrait (`max-height: 640px`): stats on one baseline line (Moves `--text-xl`, Par `--text-lg`), `--space-2` gaps, compact action height (`--btn-h-compact`). 320×568 (#debug): board 238 → 288px, 7×7 slot 34 → 41px.
+
+## Big boards (round 3)
+- **Styles README** (`src/shell/styles/README.md`, not mine to edit): "Board sizing" still describes the square `--board-size`.
+  The play board (`.board[data-n]`) now sizes square cells from a fit box: `--fit-w: min(100cqw, --board-max)`,
+  `--fit-h: min(100cqh - --board-chrome-y, --board-max)`; `width`/`height` follow `--board-cols × --board-rows`. Layouts that move the
+  board set `--fit-w/--fit-h` (short landscape, the open Patterns panel, the no-container-query fallback). `.board[data-scroll="true"]`
+  fits its width (cells ≤ `--cell-max-tall`) and scrolls; its window ends mid-row where `round()` exists. Learn's `.board--mini` is untouched.
+- The air above the actions is now a shrinkable `.board-slot::after` spacer (the old margin calc assumed a square board).
+- **Aim bubble** (`src/lib/aim.ts` + `.aim-bubble`): tiles are `--space-8` (32px), so on 10×10 at 390 (32px cells) it shows the
+  neighbourhood but doesn't magnify. Suggest `--tap-min` tiles with `BUBBLE_GAP` ≈ 90 so the bubble still clears the finger.
+- **Threshold**: aim mode follows the rule (slot < `--tap-min`), so 7-wide boards (7×7, Cross, Ring, Diamond) aim at 320×568 (41px slots).
+  If instant presses are preferred there, compare against 40px instead (one number in `measureSlot`).
+- **Page weight**: the build is 285.8KB raw / 102.7KB gzip (target #41: ≤ 280KB / ≤ 105KB). The aim helper and skull are now bundled
+  (they were tree-shaken before) plus the board/scroll CSS: about +6KB. Needs a retune or a trim elsewhere.
