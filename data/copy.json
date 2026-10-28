@@ -16,7 +16,12 @@
     "savedNote": "Progress is saved on this device",
     "chapterRange": "Levels {from}–{to}",
     "chapterLocked": "Unlocks at level {level}",
-    "starLegend": { "three": "par", "two": "par +3", "one": "solved", "hint": "hint −1★" },
+    "starLegend": {
+      "three": "par",
+      "two": "par +3",
+      "one": "solved",
+      "hint": "hint −1★"
+    },
     "soundOn": "Sound on",
     "soundOff": "Sound off",
     "reset": "Reset progress",
@@ -56,8 +61,12 @@
     "allDoneBody": "Replay any level to collect the stars you missed."
   },
   "tutorial": {
-    "1": ["Tap the glowing light. It switches itself and its neighbours."],
-    "2": ["Each tap flips a plus shape. Turn every light off."]
+    "1": [
+      "Tap the glowing light. It switches itself and its neighbours."
+    ],
+    "2": [
+      "Each tap flips a plus shape. Turn every light off."
+    ]
   },
   "storage": {
     "memoryNotice": "This browser isn't saving progress, so it will be lost when you close the page."
@@ -73,5 +82,10 @@
   },
   "console": {
     "title": "debug"
+  },
+  "learn": {
+    "title": "Learn",
+    "subtitle": "Patterns that solve any board",
+    "back": "Back"
   }
 }

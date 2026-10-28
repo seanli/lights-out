@@ -101,7 +101,7 @@ export const HintsStateSchema = v.object({
 });
 export type HintsState = v.InferOutput<typeof HintsStateSchema>;
 
-export const ScreenSchema = v.picklist(['home', 'play']);
+export const ScreenSchema = v.picklist(['home', 'play', 'learn']);
 export type Screen = v.InferOutput<typeof ScreenSchema>;
 export const SheetSchema = v.picklist(['solved', 'confirm_reset', 'complete']);
 export type Sheet = v.InferOutput<typeof SheetSchema>;
@@ -109,6 +109,8 @@ export type Sheet = v.InferOutput<typeof SheetSchema>;
 export const NavStateSchema = v.object({
   screen: ScreenSchema,
   sheet: v.nullable(SheetSchema),
+  /** the screen nav:back returns to */
+  previous: v.optional(v.nullable(ScreenSchema)),
 });
 export type NavState = v.InferOutput<typeof NavStateSchema>;
 
@@ -144,6 +146,27 @@ export const OfflineStateSchema = v.object({
 });
 export type OfflineState = v.InferOutput<typeof OfflineStateSchema>;
 
+export const LearnStateSchema = v.object({
+  status: v.picklist(['ready', 'error']),
+  /** the lesson being shown, or null for the lesson list */
+  lessonId: v.nullable(v.string()),
+  step: v.number(),
+  /** lesson ids the player has finished */
+  completed: v.array(v.string()),
+  /** the practice board on screen, if any */
+  practice: v.nullable(v.object({
+    cells: CellsSchema,
+    start: CellsSchema,
+    moves: v.number(),
+    /** the cell the assistant suggests next, or null when assist is off */
+    suggest: v.nullable(CellIndexSchema),
+    status: v.picklist(['playing', 'solved']),
+  })),
+  assist: v.boolean(),
+  error: v.optional(v.string()),
+});
+export type LearnState = v.InferOutput<typeof LearnStateSchema>;
+
 /** Every slice in the store, by name. A slice name equals its owning module's name. */
 export interface State {
   board: BoardState;
@@ -155,5 +178,6 @@ export interface State {
   tutorial: TutorialState;
   sound: SoundState;
   offline: OfflineState;
+  learn: LearnState;
 }
 export type SliceName = keyof State;

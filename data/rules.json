@@ -2,16 +2,75 @@
   "$comment": "Game rules and tuning. One section per owning module. Checked at startup.",
   "levels": {
     "seed": 1995,
-    "pars": [1, 2, 2, 3, 3, 4, 4, 4, 5, 5,
-             5, 6, 6, 6, 6, 7, 7, 7, 7, 8,
-             8, 8, 8, 8, 9, 9, 9, 9, 9, 10,
-             10, 10, 10, 10, 11, 11, 11, 11, 12, 12,
-             12, 12, 13, 13, 13, 14, 14, 14, 15, 15],
+    "pars": [
+      1,
+      2,
+      2,
+      3,
+      3,
+      4,
+      4,
+      4,
+      5,
+      5,
+      5,
+      6,
+      6,
+      6,
+      6,
+      7,
+      7,
+      7,
+      7,
+      8,
+      8,
+      8,
+      8,
+      8,
+      9,
+      9,
+      9,
+      9,
+      9,
+      10,
+      10,
+      10,
+      10,
+      10,
+      11,
+      11,
+      11,
+      11,
+      12,
+      12,
+      12,
+      12,
+      13,
+      13,
+      13,
+      14,
+      14,
+      14,
+      15,
+      15
+    ],
     "maxTries": 20000,
     "chapters": [
-      { "id": "first-light", "from": 1, "to": 20 },
-      { "id": "crossfade", "from": 21, "to": 40 },
-      { "id": "blackout", "from": 41, "to": 50 }
+      {
+        "id": "first-light",
+        "from": 1,
+        "to": 20
+      },
+      {
+        "id": "crossfade",
+        "from": 21,
+        "to": 40
+      },
+      {
+        "id": "blackout",
+        "from": 41,
+        "to": 50
+      }
     ]
   },
   "progress": {
@@ -28,7 +87,10 @@
     "delayMs": 800
   },
   "tutorial": {
-    "levels": [1, 2]
+    "levels": [
+      1,
+      2
+    ]
   },
   "sound": {
     "volume": 0.4
@@ -38,5 +100,36 @@
   },
   "console": {
     "eventLimit": 200
+  },
+  "learn": {
+    "lessons": [
+      "shapes",
+      "order",
+      "chase",
+      "bottom-row",
+      "shortest"
+    ],
+    "practicePresses": {
+      "shapes": [
+        1,
+        1
+      ],
+      "order": [
+        2,
+        3
+      ],
+      "chase": [
+        4,
+        8
+      ],
+      "bottom-row": [
+        6,
+        10
+      ],
+      "shortest": [
+        8,
+        12
+      ]
+    }
   }
 }

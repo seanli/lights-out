@@ -25,6 +25,13 @@
 //   [data-sheet="solved"] [data-stars-earned="1..3"]  [data-result]  (e.g. "6 moves · par 5")
 //   [data-action="next"|"replay"|"levels"]
 //
+// Learn screen (learn):  [data-screen="learn"]
+//   [data-lesson-tile][data-lesson="<id>"][data-completed="true|false"]   lesson list
+//   [data-lesson-view="<id>"]  [data-step="N"]   current lesson and step
+//   [data-mini-board] [data-mini-cell][data-index][data-lit] (+ data-suggest="true")   practice board (NOT data-cell: that is the main board only)
+//   [data-action="learn-back"|"learn-next"|"learn-prev"|"learn-practice"|"learn-assist"]
+// Entry points: [data-action="learn"] on the home screen and in the play header → learn:open
+//
 // Tutorial copy line (tutorial):  [data-tutorial]
 // Shell notices:                  [data-notice="<id>"][data-tone="info|warn|error"]
 // Debug console (console):        [data-console]  (only with #debug)

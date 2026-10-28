@@ -50,6 +50,8 @@ export interface Events {
 
   // ---- nav ----
   'nav:go': { screen: Screen };
+  /** return to the screen before the current one (home if none) */
+  'nav:back': Record<string, never>;
   'nav:open_sheet': { sheet: Sheet };
   'nav:close_sheet': Record<string, never>;
   'nav:changed': { screen: Screen; sheet: Sheet | null };
@@ -65,6 +67,18 @@ export interface Events {
   // ---- sound ----
   'sound:set': { enabled: boolean };
   'sound:changed': { enabled: boolean };
+
+  // ---- learn ----
+  /** open the Learn screen, optionally at a lesson */
+  'learn:open': { lessonId?: string };
+  'learn:step': { delta: 1 | -1 };
+  'learn:press': { index: number };
+  'learn:new_practice': Record<string, never>;
+  'learn:set_assist': { on: boolean };
+  'learn:lesson_opened': { lessonId: string | null };
+  'learn:lesson_completed': { lessonId: string };
+  'learn:practice_solved': { lessonId: string | null; moves: number; par: number };
+  'learn:refused': { command: string; reason: 'unknown_lesson' | 'no_practice' | 'bad_index' };
 
   // ---- offline ----
   'offline:status_changed': { target: string; worker: string; online: boolean };
