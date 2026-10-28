@@ -4,6 +4,7 @@
 import * as v from 'valibot';
 import { CELL_COUNT, CLASSIC_SHAPE, MAX_CELLS, type Cells, type LearnState, type ModuleDef, type Pack } from '../../contracts';
 import { cellIndexes, isCell, isPressable, isStuck, shapeKey } from '../../lib/shape';
+import { tangle } from '../../lib/puzzle';
 import { LESSONS, type Lesson } from './lessons';
 import { bottomRowTable, chaseShape, chaseSuggest, createFixer, fixSuggest, isClear, makeBoard, methodSuggest, quietPatterns, touches, type Fixer, type TableEntry } from './method';
 import { GUIDE_PREFIX, GUIDE_STEPS, buildGuide, guideId, guideKind, spotOrder, type GuideKind } from './guides';
@@ -44,9 +45,10 @@ const CopySchema = v.looseObject({
   cellStuck: text,
   /** how a demo ends when it doesn't end dark ({n} = lights left) */
   demoEnd: v.object({ left: text, stuck: text, stuckShape: text, cancelled: text }),
-  demoPhase: v.object({ chase: text, top: text, edge: text, chase2: text, spot: text, back: text }),
-  /** a guide's practice line by phase: chasing, only the bottom (end) lights left, after the top taps; edgeFix: the Stuck room's */
-  coach: v.object({ chase: text, bottom: text, bottoms: text, again: text, shapeFix: text, edgeFix: text }),
+  demoPhase: v.object({ chase: text, top: text, edge: text, chase2: text, spot: text, back: text, pair: text }),
+  /** a guide's practice line by phase: chasing, only the bottom (end) lights left, after the top taps; edgeFix: the
+   *  top-edge fix on shaped and stuck boards */
+  coach: v.object({ chase: text, bottom: text, bottoms: text, again: text, edgeFix: text }),
   captions: v.record(v.string(), text), cellOn: text, cellOff: text,
   /** "A and B", "A, B and C" */
   and: text, comma: text,
@@ -57,13 +59,16 @@ const CopySchema = v.looseObject({
   rules: v.object({ three: text, allButMiddle: text, pairLoner: text, corners: text, gap: text, mirror: text }),
   drill: v.object({ check: text, next: text, again: text, card: text, right: text, wrong: text, score: text, scoreLine: text }),
   reference: v.object({
-    yourRow: text, bottom: text, top: text, echo: text, lessons: text, guide: text,
+    yourRow: text, yourColumn: text, bottom: text, top: text, echo: text, lessons: text, guide: text,
     status: v.object({
       start: text, chase: text, match: text, progress: text, clear: text, nomatch: text, rectBottom: text, rectMatch: text,
-      shapedFix: text, shapedProgress: text, shapedNomatch: text,
+      shapedFix: text, shapedProgress: text, shapedNomatch: text, chaseSide: text, sideMatch: text, sideProgress: text, sideBottom: text,
     }),
-    /** the rule line per full rectangle: the rule its maths follows (method.ts → RECT_RULES), else ownTaps */
-    rect: v.object({ chaseClears: text, straightAbove: text, threeAbove: text, twoAside: text, aboveTwoAside: text, ownTaps: text, oneRow: text, fewRows: text }),
+    /** the rule line per full rectangle: the rule its maths follows (method.ts → RECT_RULES), else ownTaps; side: wider than tall */
+    rect: v.object({
+      chaseClears: text, straightAbove: text, threeAbove: text, twoAside: text, aboveTwoAside: text, ownTaps: text, oneRow: text, fewRows: text,
+      side: text, sideFew: text,
+    }),
     /** the one-line tip on a board with no bottom row to read: a honeycomb, a cube, wired or stuck switches */
     tips: v.object({ hex: text, cube: text, wired: text, stuck: text }),
   }),
@@ -72,8 +77,8 @@ const CopySchema = v.looseObject({
   sections: v.object({ basics: text, boards: text }),
   /** board guides by room id; the title is the room's name. A room with no entry gets no guide. */
   guides: v.record(v.string(), v.object({ summary: text, steps: v.array(text) })),
-  /** the lights step of a full-rectangle guide: the letters' group label, one letter read aloud, the end line */
-  lights: v.object({ pick: text, row: text, end: text }),
+  /** the lights step of a full-rectangle guide: the bottom strip's group label, one bottom light read aloud, the two strips' captions */
+  lights: v.object({ pick: text, row: text, top: text, bottom: text }),
 });
 export type LearnCopy = v.InferOutput<typeof CopySchema>;
 
@@ -244,7 +249,9 @@ const learn: ModuleDef = {
       // lesson 2: shapes that don't touch, so every lit light belongs to one whole shape
       const apart = lesson.apart ? (taps: readonly number[]) => taps.every((a, k) => taps.slice(k + 1).every((b) => !touches(lesson.shape ?? CLASSIC_SHAPE, a, b))) : undefined;
       const make = () => makeBoard(solver, (n) => rng.int(n), min + rng.int(max - min + 1), pool, lesson.shape, apart);
-      let cells = make();
+      // twist and shaped guides: a board made like the levels' (every tap overlaps another, none reads whole)
+      let cells = lesson.tangled && lesson.shape ? tangle(lesson.shape, min + rng.int(max - min + 1), rng, solver, { readable: 0, maxTries: 300 }).cells : make();
+      if (isClear(cells)) cells = make();
       // a full rectangle's guide teaches the bottom-row step: a few taps low on the board (a short first chase, which
       // clears exactly what they lit) plus one or two lone bottom lights, which are what that chase leaves.
       // Every board on these rooms is solvable (each lone bottom light has its top lights), so it stays winnable.

@@ -5,7 +5,7 @@ import { createMemoryStorage, bootModule, fixtureData } from '../../../test/fake
 import { refPress, refSolve } from '../../../test/ref-solver';
 import { cellIndexes, emptyCells, fitsShape, hexagonShape, isPressable, isStuck, parseShape, pressTargets, touching } from '../../lib/shape';
 import { cellFace, cubeShape } from '../../lib/cube';
-import { WIRINGS } from '../../lib/puzzle';
+import { WIRINGS, readableIn } from '../../lib/puzzle';
 import learn from './index';
 import { BOTTOM, blank, bottomColumns, bottomRowTable, chase, chaseRect, chaseShape, chaseSuggest, clearsBottom, createFixer, echoOf, echoOfSet, echoRows, endCells, fixFor, fixSuggest, isClear, lit, methodTaps, onlyBottom, onlyEnds, pressAll, quietPatterns, rectRule, rectTaps, rectTopSets, startCells } from './method';
 import { RULES, type Step } from './lessons';
@@ -69,8 +69,8 @@ function refShapedSolve(shape: Shape, cells: readonly boolean[]): number[] | nul
   }
   return best!.map((j) => vars[j]!).sort((a, b) => a - b);
 }
-/** sentences in a step; the practice line's one-word lead-in "Stuck?" reads with the sentence after it */
-const sentences = (step: string) => step.replace(/\bStuck\? /g, '').split(/[.!?](\s|$)/).filter((x) => x && x.trim()).length;
+/** sentences in a step; the practice line's lead-in "Need help?" reads with the sentence after it */
+const sentences = (step: string) => step.replace(/\bNeed help\? /g, '').split(/[.!?](\s|$)/).filter((x) => x && x.trim()).length;
 /** classic through the 5×5 reference, any other shape through the shaped one (modules never import each other) */
 const roomSolver: SolverService = {
   press: (cells, i, shape) => {
@@ -541,6 +541,7 @@ describe('learn: the reference on Variety boards', () => {
   const status = {
     start: 'start', chase: 'Row {row}: tap under each lit light.', match: 'match', progress: 'progress', clear: 'clear', nomatch: 'nomatch',
     rectBottom: 'Only the bottom row is left.', rectMatch: 'rect match', shapedFix: 'fix {n}', shapedProgress: 'finish {n}', shapedNomatch: 'no fix',
+    chaseSide: 'Column {col}: tap right of each lit light.', sideMatch: 'side match', sideProgress: 'side progress', sideBottom: 'side none',
   };
   const advise = createAdvisor(shapedSolver, table, status, (shape) => createFixer(roomSolver, shape));
   const rect = (n: number) => ({ cols: n, rows: n, mask: null });
@@ -592,7 +593,7 @@ describe('learn: the reference on Variety boards', () => {
   });
 
   test('the strategy line per size, picked from the maths', () => {
-    const lines = { chaseClears: '{cols}×{rows} chase', straightAbove: 'straight', threeAbove: 'three', twoAside: 'two aside', aboveTwoAside: 'above + two aside', ownTaps: 'own', oneRow: 'only {pattern}: {taps}', fewRows: 'few' };
+    const lines = { chaseClears: '{cols}×{rows} chase', straightAbove: 'straight', threeAbove: 'three', twoAside: 'two aside', aboveTwoAside: 'above + two aside', ownTaps: 'own', oneRow: 'only {pattern}: {taps}', fewRows: 'few', side: 'side', sideFew: 'side few' };
     expect(advise.rectLine(rect(4) as never, lines)).toBe('4×4 chase');
     expect(advise.rectLine({ cols: 5, rows: 6, mask: null }, lines)).toBe('straight');
     expect(advise.rectLine({ cols: 8, rows: 16, mask: null }, lines)).toBe('own');
@@ -945,8 +946,8 @@ describe('learn: board guides', () => {
         expect(play.every((i) => cellIndexes(shape).includes(i))).toBe(true);
         expect(step.phases).toHaveLength(play.length);
         const end = pressAll(roomSolver, start, play, shape);
-        // a chase-only demo (a lights guide's first, a shaped room's "stuck") stops with only end lights; every other ends dark
-        if ((KIND[id] === 'lights' && k === 0) || (KIND[id] === 'shapes' && k === 2)) expect(onlyEnds(end, shape) && !isClear(end)).toBe(true);
+        // a chase-only demo (a lights guide's first, a shaped room's chase) stops with only end lights; every other ends dark
+        if ((KIND[id] === 'lights' && k === 0) || (KIND[id] === 'shapes' && k === 1)) expect(onlyEnds(end, shape) && !isClear(end)).toBe(true);
         else expect(isClear(end), `${id} step ${k + 1}`).toBe(true);
         // a chase tap always goes under a lit light; top-edge taps are start cells
         let b = start;
@@ -971,11 +972,11 @@ describe('learn: board guides', () => {
       }
     });
     if (KIND[id] === 'shapes') {
-      const [, spotStep, stuckStep, fixStep] = g.lesson.steps as Extract<(typeof g.lesson.steps)[number], { kind: 'demo' }>[];
-      // spotting: the demo taps are exactly what spotting finds, two or three of them
-      expect(spot(roomSolver, shape, pressAll(roomSolver, emptyCells(shape), spotStep!.from, shape))).toEqual(spotStep!.play);
-      expect((spotStep!.play as number[]).length).toBeGreaterThanOrEqual(2);
-      // stuck: spotting can't clear it; the chase stops with end lights ("Stuck: n lights left")
+      const [, stuckStep, fixStep] = g.lesson.steps as Extract<(typeof g.lesson.steps)[number], { kind: 'demo' }>[];
+      // no spotting step: levels are tangled, so the guide leads with chase and fix (decision 69)
+      expect(g.lesson.steps.map((x) => x.kind)).toEqual(['show', 'demo', 'demo', 'practice']);
+      expect(g.lesson.tangled).toBe(true);
+      // the chase: spotting couldn't clear the board either; it stops with end lights ("n lights left, with nothing below")
       expect(spot(roomSolver, shape, pressAll(roomSolver, emptyCells(shape), stuckStep!.from, shape))).toBeNull();
       expect(stuckStep!.phases!.every((x) => x === 'chase')).toBe(true);
       expect(stuckStep!.end).toBe('stuckShape');
@@ -1034,12 +1035,28 @@ describe('learn: board guides', () => {
       expect(f.querySelectorAll('[data-gap][data-mini-cell], [data-gap] button')).toHaveLength(0);
       expect(f.querySelectorAll('[data-mark="true"]')).toHaveLength(1);
     }
-    for (let k = 0; k < 4; k++) t.emit('learn:step', { delta: 1 });
+    for (let k = 0; k < 3; k++) t.emit('learn:step', { delta: 1 });
     const board = q('[data-mini-board="practice"]')!;
     expect(board.querySelectorAll('button[data-mini-cell]')).toHaveLength(40);
     expect(board.querySelectorAll('button[data-gap]')).toHaveLength(0);
     t.emit('learn:press', { index: 24 }); // the hole
     expect(t.seen('learn:refused', { command: 'learn:press', reason: 'bad_index' })).toBeTruthy();
+  });
+
+  test.each(['ring', 'diamond', 'hex', 'cube', 'wired'])('%s practice is like its levels: every tap of the shortest answer overlaps another, none shows whole', (id) => {
+    const t = bootRooms();
+    t.emit('learn:open', { lessonId: `guide-${id}` });
+    const g = buildGuide(roomSolver, PACKS.find((p) => p.id === id)!);
+    for (let k = 1; k < g.lesson.steps.length; k++) t.emit('learn:step', { delta: 1 });
+    const shape = g.lesson.shape!;
+    for (let n = 0; n < 6; n++) {
+      const start = t.state('learn').practice!.start;
+      const answer = roomSolver.solve(start, shape)!;
+      expect(answer.length, id).toBeGreaterThanOrEqual(2);
+      expect(readableIn(shape, start, answer), `${id} board ${n}`).toBe(0);
+      for (const a of answer) expect(answer.some((b) => b !== a && pressTargets(shape, a).some((x) => pressTargets(shape, b).includes(x))), `${id} tap ${a}`).toBe(true);
+      t.emit('learn:new_practice', {});
+    }
   });
 
   test.each(PACKS.map((p) => p.id))('%s practice: assist walks it to dark; solving completes the guide, is saved, and touches no stars', (id) => {
@@ -1071,34 +1088,29 @@ describe('learn: board guides', () => {
     expect(q(`[data-lesson-tile][data-lesson="guide-${id}"]`)!.dataset.completed).toBe('true');
   });
 
-  test('the lights step: board first, a letter over each column; a letter outlines its top lights, then the demo plays it to dark', () => {
+  test('the lights step: the top row over the bottom row; a bottom light picks, its top lights to tap are ringed and lettered', () => {
     const t = bootRooms();
     t.emit('learn:open', { lessonId: 'guide-7x7' });
     t.emit('learn:step', { delta: 1 });
     const letters = qa('[data-action="learn-strip"]');
-    expect(letters.map((e) => e.textContent).join('')).toBe('ABCDEFG');
+    expect(letters.map((e) => e.dataset.letter).join('')).toBe('ABCDEFG');
+    expect(letters.every((e) => e.tagName === 'BUTTON')).toBe(true);
     expect(letters[3]!.getAttribute('aria-pressed')).toBe('true');
-    // each letter is read aloud with its top lights to tap (the maths: the three above, two at an edge)
+    expect(letters[3]!.dataset.lit).toBe('true');
+    // each light is read aloud with its top lights to tap (the maths: the three above, two at an edge)
     expect(letters.map((e) => e.getAttribute('aria-label'))).toEqual([
       'Bottom light A: tap A and B', 'Bottom light B: tap A, B and C', 'Bottom light C: tap B, C and D', 'Bottom light D: tap C, D and E',
       'Bottom light E: tap D, E and F', 'Bottom light F: tap E, F and G', 'Bottom light G: tap F and G']);
-    const board = q('[data-mini-board="demo"]')!;
-    // the board comes after the letters, in the same group: no list in between
-    expect(letters[0]!.closest('.learn-pickboard')!.contains(board)).toBe(true);
-    const litIdx = () => qa('[data-mini-board="demo"] [data-mini-cell]').flatMap((e) => (e.dataset.lit === 'true' ? [Number(e.dataset.index)] : []));
-    const ringed = () => qa('[data-mini-board="demo"] [data-ring="true"]').map((e) => Number(e.dataset.index));
-    expect(litIdx()).toEqual([45]);
-    expect(ringed()).toEqual([2, 3, 4]);
+    // no board on this step (a tall board's two ends never fit at once): the top strip sits over the bottom strip
+    expect(q('[data-mini-board]')).toBeNull();
+    const ringed = () => qa('[data-lights-top] [data-suggest="true"]').map((e) => `${e.dataset.index}${e.dataset.letter}`);
+    expect(ringed()).toEqual(['2C', '3D', '4E']);
+    expect(q('[data-learn-line="demo"]')!.textContent).toBe('Bottom light D: tap C, D and E');
     letters[6]!.click();
     expect(letters[6]!.getAttribute('aria-pressed')).toBe('true');
-    expect(litIdx()).toEqual([48]);
-    expect(ringed()).toEqual([5, 6]);
-    const button = q('[data-action="learn-demo"]')!;
-    button.click();
-    expect(ringed()).toEqual([6]); // tapped lights lose their outline
-    for (let k = 0; k < 40 && button.textContent !== 'Replay'; k++) button.click();
-    expect(litIdx()).toEqual([]);
-    expect(q('[data-learn-line="demo"]')!.textContent).toBe('All dark. Tap a letter to try another.');
+    expect(letters[3]!.dataset.lit).toBe('false');
+    expect(ringed()).toEqual(['5F', '6G']);
+    expect(q('[data-learn-line="demo"]')!.textContent).toBe('Bottom light G: tap F and G');
   });
 
   test('every room in the data has a guide; the retired rooms\' guides are gone', () => {
@@ -1125,20 +1137,22 @@ describe('learn: board guides', () => {
     }
   });
 
-  test('the lights step on 8×8: letters A–H over the columns; each one plays its own top lights to dark', () => {
-    const t = bootRooms();
-    t.emit('learn:open', { lessonId: 'guide-8x8' });
-    t.emit('learn:step', { delta: 1 });
-    const letters = qa('[data-action="learn-strip"]');
-    expect(letters.map((e) => e.textContent).join('')).toBe('ABCDEFGH');
-    expect(letters.map((e) => e.getAttribute('aria-label')!.split('tap ')[1])).toEqual(
-      ['C and E', 'B and F', 'A and G', 'H', 'A', 'B and H', 'C and G', 'D and F']);
-    letters[7]!.click();
-    const litIdx = () => qa('[data-mini-board="demo"] [data-mini-cell]').flatMap((e) => (e.dataset.lit === 'true' ? [Number(e.dataset.index)] : []));
-    expect(litIdx()).toEqual([63]);
-    const button = q('[data-action="learn-demo"]')!;
-    for (let k = 0; k < 80 && button.textContent !== 'Replay'; k++) button.click();
-    expect(litIdx()).toEqual([]);
+  test('the lights step on 8×8 and the Tower: bottom lights A–H, each with its own top lights (H is A mirrored)', () => {
+    for (const id of ['8x8', 'tower']) {
+      const t = bootRooms();
+      t.emit('learn:open', { lessonId: `guide-${id}` });
+      t.emit('learn:step', { delta: 1 });
+      const letters = qa('[data-action="learn-strip"]');
+      expect(letters.map((e) => e.dataset.letter).join(''), id).toBe('ABCDEFGH');
+      const taps = letters.map((e) => e.getAttribute('aria-label')!.split('tap ')[1]);
+      if (id === '8x8') expect(taps).toEqual(['C and E', 'B and F', 'A and G', 'H', 'A', 'B and H', 'C and G', 'D and F']);
+      letters[7]!.click();
+      const shape = ROOM[id]!;
+      const top = qa('[data-lights-top] [data-suggest="true"]').map((e) => Number(e.dataset.index));
+      // tapping them, then chasing, clears a board whose only light is bottom H
+      const start = emptyCells(shape).map((_, i) => i === shape.cols * shape.rows - 1);
+      expect(isClear(chaseShape(roomSolver, pressAll(roomSolver, start, top, shape), shape).cells), id).toBe(true);
+    }
   });
 
   describe('practice input on big boards', () => {
@@ -1400,15 +1414,14 @@ describe('learn: first-time-player review', () => {
     t.emit('learn:step', { delta: 1 });
     t.emit('learn:step', { delta: 1 });
     playToEnd();
-    expect(line('demo')).toBe('Stuck: 3 lights left in the bottom row.');
+    expect(line('demo')).toBe('3 lights left in the bottom row: the chase can\'t reach them.');
     t.emit('learn:open', { lessonId: 'order' });
     playToEnd();
     expect(line('demo')).toBe('Back to the start: the taps cancelled.');
     t.emit('learn:open', { lessonId: 'guide-ring' });
     t.emit('learn:step', { delta: 1 });
-    t.emit('learn:step', { delta: 1 });
     playToEnd();
-    expect(line('demo')).toMatch(/^Stuck: \d+ lights? left\.$/);
+    expect(line('demo')).toMatch(/^\d+ lights? left, with nothing below to chase them\.$/);
     t.emit('learn:step', { delta: 1 });
     playToEnd();
     expect(line('demo')).toBe('All dark.');
@@ -1439,7 +1452,7 @@ describe('learn: first-time-player review', () => {
     t.emit('learn:step', { delta: 1 });
     expect(qa('.learn-picker--static .learn-pick').map((e) => e.textContent).join('')).toBe('ABCDEFG');
     t.emit('learn:open', { lessonId: 'guide-ring' });
-    expect(q('.screen-header .eyebrow')!.textContent).toBe('Step 1 of 5');
+    expect(q('.screen-header .eyebrow')!.textContent).toBe('Step 1 of 4');
     // a stuck room's grid is a full rectangle, but its guide is not a bottom-row one: no size, no letters
     t.emit('learn:open', { lessonId: 'guide-stuck' });
     expect(q('.screen-header .eyebrow')!.textContent).toBe('Step 1 of 4');
@@ -1453,7 +1466,7 @@ describe('learn: first-time-player review', () => {
   test('shaped rooms: while a top-edge tap is next, every top-edge light is outlined and the one used is dotted', () => {
     const t = bootRooms();
     t.emit('learn:open', { lessonId: 'guide-ring' });
-    for (let k = 0; k < 3; k++) t.emit('learn:step', { delta: 1 });
+    for (let k = 0; k < 2; k++) t.emit('learn:step', { delta: 1 });
     const outlined = qa('[data-mini-board="demo"] [data-ring="true"]').map((e) => Number(e.dataset.index));
     expect(outlined).toEqual(startCells(ROOM['ring']!));
     expect(line('demo')).toMatch(/^Top-edge light: tap 1 of/);
@@ -1545,12 +1558,39 @@ describe('learn: first-time-player review', () => {
   test('lesson 5 has Assist: it rings a shortest answer, so following it solves at par', () => {
     const t = boot();
     t.emit('learn:open', { lessonId: 'shortest' });
-    for (let k = 0; k < 3; k++) t.emit('learn:step', { delta: 1 }); // past the two-fixes picture and the A·C·E demo
+    for (let k = 0; k < 3; k++) t.emit('learn:step', { delta: 1 }); // past the A·C·E demo and the four fixes
     expect(q('[data-action="learn-assist"]')).not.toBeNull();
     t.emit('learn:set_assist', { on: true });
     const par = solver.solve(t.state('learn').practice!.start)!.length;
     for (let k = 0; k < 30 && t.state('learn').practice!.status === 'playing'; k++) t.emit('learn:press', { index: t.state('learn').practice!.suggest! });
     expect(t.state('learn').practice!.moves).toBe(par);
+  });
+
+  test('lesson 5: chasing counts every tap it makes (none dotted); A·C·E then a chase is all dark; then B·D\'s four fixes and their taps', () => {
+    const t = boot();
+    t.emit('learn:open', { lessonId: 'shortest' });
+    const caps = () => qa('.learn-caption').map((e) => e.textContent);
+    const boards = qa('[data-mini-board="show"]');
+    // the chasing board: no dots, and its count is every tap the method makes (a light tapped twice counts twice)
+    expect(boards[0]!.querySelectorAll('[data-mark="true"]')).toHaveLength(0);
+    let b = pressAll(solver, blank(), [0, 4, 12, 20, 24]);
+    let taps = 0;
+    const tab = bottomRowTable(solver);
+    for (; taps < 60 && !isClear(b); taps++) {
+      const c = chaseSuggest(b) ?? tab.find((e) => e.bottom.join() === bottomColumns(b).join())!.top[0]!;
+      b = solver.press(b, c);
+    }
+    expect(caps()[0]).toBe(`Chasing: ${taps} taps`);
+    expect(taps).toBeGreaterThan(9);
+    expect(caps()[1]).toBe('Shortest: 5 taps');
+    // A·C·E, then the chase: dark again
+    t.emit('learn:step', { delta: 1 });
+    expect(t.instance!.debug!()).toMatchObject({ demo: { demoAt: 0 } });
+    expect(isClear(pressAll(solver, blank(), [0, 2, 4, 5, 7, 9, 15, 17, 19, 20, 22, 24]))).toBe(true);
+    // four fixes for B·D, each with its letters and every tap it takes
+    t.emit('learn:step', { delta: 1 });
+    expect(qa('[data-mini-board="show"]')).toHaveLength(4);
+    expect(caps()).toEqual(['A and D: 15 taps', 'C, D and E: 11 taps', 'A, B and C: 11 taps', 'B and E: 15 taps']);
   });
 
   test('a tap on a demo board steps it (and pauses an auto-play)', () => {
@@ -1563,13 +1603,19 @@ describe('learn: first-time-player review', () => {
     expect(q('[data-action="learn-demo"]')!.textContent).toBe('Next tap');
   });
 
+  test('copy: no "Stuck" lead-ins (Stuck is a board) and no screws (the stuck switch is a plate)', () => {
+    const learnCopy = JSON.stringify((fixtureData.copy as { learn: unknown }).learn);
+    expect(learnCopy).not.toMatch(/Stuck[?:]/);
+    expect(learnCopy).not.toMatch(/screw/i);
+  });
+
   test('copy: the shared words (no "top taps", no "two to each side"), one practice-line pattern', () => {
     const c = (fixtureData.copy as { learn: { lessons: Record<string, { steps: string[] }>; guides: Record<string, { steps: string[]; summary: string }> } }).learn;
     const all = [...Object.values(c.lessons).flatMap((l) => l.steps), ...Object.values(c.guides).flatMap((g) => [...g.steps, g.summary])];
     for (const x of all) {
       expect(x).not.toMatch(/top taps|two to each side|the echo's top light/);
     }
-    for (const id of RECTS) expect(c.guides[id]!.steps.at(-1)).toMatch(/^Your turn: .*Stuck\? Assist rings the next tap\.$/);
+    for (const id of RECTS) expect(c.guides[id]!.steps.at(-1)).toMatch(/^Your turn: .*Need help\? Assist rings the next tap\.$/);
   });
 });
 
@@ -1617,7 +1663,22 @@ describe('learn: the twist guides (Hex, Cube, Wired, Stuck)', () => {
     }
   });
 
-  test('Hex: a flower of seven, then fewer at the edge; two flowers sharing two lights; spotting plays the shortest answer, whole flowers first', () => {
+  /** a "side by side" demo: two touching taps that are the board's whole shortest answer; both centres start dark,
+   *  two arcs of three lights (the shared lights cancel), and after the first tap the second shape shows whole */
+  const expectSideBySide = (shape: Shape, step: Extract<Step, { kind: 'demo' }>) => {
+    const start = startOf(shape, step);
+    const [a, b] = step.play as number[];
+    expect(step.play).toHaveLength(2);
+    expect(step.phases).toEqual(['pair', 'pair']);
+    expect(pressTargets(shape, a!)).toContain(b);
+    expect([...step.from].sort((x, y) => x - y)).toEqual(refShapedSolve(shape, start));
+    expect(start[a!] || start[b!]).toBe(false);
+    expect(litOf(start)).toHaveLength(6);
+    const after = roomSolver.press(start, a!, shape);
+    expect(litOf(after).sort((x, y) => x - y)).toEqual([...pressTargets(shape, b!)].sort((x, y) => x - y));
+  };
+
+  test('Hex: a flower of seven, then fewer at the edge; two flowers sharing two lights; two side by side, as in levels', () => {
     const shape = guideOf('hex').lesson.shape!;
     expect(shape).toEqual(ROOM.hex);
     const [one, two] = shows('hex');
@@ -1631,24 +1692,21 @@ describe('learn: the twist guides (Hex, Cube, Wired, Stuck)', () => {
     // the shared lights are dark, both centres lit
     const cells = startOf(shape, two!.boards[0]!);
     expect(both.every((x) => !cells[x]) && cells[a!] && cells[b!]).toBe(true);
-    const [spotting] = demos('hex');
-    const start = startOf(shape, spotting!);
-    expect([...spotting!.from].sort((x, y) => x - y)).toEqual(refShapedSolve(shape, start));
-    expect(spotting!.play).toEqual(spotOrder(roomSolver, shape, start));
-    expect(pressTargets(shape, (spotting!.play as number[])[0]!).every((x) => start[x])).toBe(true);
+    expectSideBySide(shape, demos('hex')[0]!);
+    expect(guideOf('hex').lesson.tangled).toBe(true);
   });
 
-  test('Cube: on the net, a face\'s middle flips a plain plus; a corner\'s plus reaches three faces; the demo spots a bent plus too', () => {
+  test('Cube: on the net, a face\'s middle flips a plain plus; a front corner\'s plus reaches three faces; two side by side', () => {
     const shape = guideOf('cube').lesson.shape!;
     expect(shape).toEqual(cubeShape(3));
     const faces = (i: number) => new Set(pressTargets(shape, i).map((t) => cellFace(3, t)!.face.id));
     const [one, two] = shows('cube');
     expect(faces(one!.boards[0]!.from[0]!).size).toBe(1);
     expect(faces(two!.boards[0]!.from[0]!).size).toBe(3);
-    const [spotting] = demos('cube');
-    const start = startOf(shape, spotting!);
-    expect(spotting!.play).toEqual(spotOrder(roomSolver, shape, start));
-    expect((spotting!.play as number[]).some((t) => faces(t).size > 1)).toBe(true);
+    expect(cellFace(3, two!.boards[0]!.from[0]!)!.face.id).toBe('front');
+    const [pair] = demos('cube');
+    expectSideBySide(shape, pair!);
+    for (const t of pair!.play as number[]) expect(cellFace(3, t)!.face.id).toBe('front');
   });
 
   test('Wired: a fixed gentle wiring with one answer per board; three switches, a light\'s switches outlined, then work back from the lit lights', () => {
@@ -1674,7 +1732,7 @@ describe('learn: the twist guides (Hex, Cube, Wired, Stuck)', () => {
     expect(back!.phases!.every((p) => p === 'back')).toBe(true);
   });
 
-  test('Stuck: two screws apart; a tap beside one flips it; a chase runs through a lit stuck light; a light over a screw needs the top-edge fix', () => {
+  test('Stuck: two plates apart; a tap beside one flips it; a chase runs through a lit stuck light; a light over a plate needs the top-edge fix', () => {
     const g = guideOf('stuck');
     const shape = g.lesson.shape!;
     const stuck = shape.stuck!;
@@ -1682,8 +1740,8 @@ describe('learn: the twist guides (Hex, Cube, Wired, Stuck)', () => {
     expect(stuck.length).toBeGreaterThanOrEqual(2);
     for (const s of stuck) expect(touching(shape, s)).toHaveLength(4);
     expect(stuck.every((s, k) => stuck.slice(k + 1).every((o) => !touching(shape, s).includes(o)))).toBe(true);
-    expect(g.lesson).toMatchObject({ assist: 'fix', coach: 'edge' });
-    // 1. a tap beside a screw: the screw's light flips
+    expect(g.lesson).toMatchObject({ assist: 'fix', coach: 'shape' });
+    // 1. a tap beside a plate: the plate's light flips
     const fig = shows('stuck')[0]!.boards[0]!;
     const near = stuck.find((s) => touching(shape, s).includes(fig.from[0]!))!;
     expect(near).toBeDefined();
@@ -1796,11 +1854,11 @@ describe('learn: the twist guides (Hex, Cube, Wired, Stuck)', () => {
     }
   });
 
-  describe('the Patterns panel on a twist board: the room\'s tip and its guide, nothing to read off a bottom row', () => {
+  describe('the Patterns panel on a twist board: the room\'s tip and its guide (stuck switches: chase and the ringed fix)', () => {
     const tips = (fixtureData.copy as { learn: { reference: { tips: Record<string, string> } } }).learn.reference.tips;
     const boardOn = (id: string, cells: Cells, levelId = pack(id).first) => ({ status: 'playing' as const, levelId, start: cells, cells, par: 3, moves: 0, history: [], shape: levelShape(pack(id)) });
 
-    test.each(TWIST_IDS)('%s', (id) => {
+    test.each(TWIST_IDS.filter((id) => id !== 'stuck'))('%s', (id) => {
       const shape = levelShape(pack(id));
       const t = boot({ services: { solver: roomSolver }, state: { levels: levelsState(), board: boardOn(id, randomBoard(shape, 3, 5)) } });
       const root = t.view!.region('slot:reference').querySelector<HTMLElement>('[data-reference]')!;
@@ -1830,6 +1888,35 @@ describe('learn: the twist guides (Hex, Cube, Wired, Stuck)', () => {
       expect(t.seen('learn:open')).toEqual({ lessonId: 'guide-hex' });
     });
 
+    test('stuck: chase advice by row, then a picture of the board with its plates and the top-edge fix ringed; the guide link', () => {
+      const shape = levelShape(pack('stuck'));
+      const fx = createFixer(roomSolver, shape);
+      // a board whose chase leaves lights over a plate: one start tap and two more, fixed by one top-edge tap
+      const dark = emptyCells(shape);
+      const from = [fx.starts[2]!, 2 * shape.cols + 2, 3 * shape.cols + 4].filter((i) => isPressable(shape, i));
+      const start = pressAll(roomSolver, dark, from, shape);
+      const t = boot({ services: { solver: roomSolver }, state: { levels: levelsState(), board: boardOn('stuck', start) } });
+      const root = t.view!.region('slot:reference').querySelector<HTMLElement>('[data-reference]')!;
+      const status = root.querySelector<HTMLElement>('[data-reference-status]')!;
+      expect(root.dataset.referenceKind).toBe('stuck');
+      expect(status.dataset.referenceStatus).toBe('chase');
+      expect(status.textContent).toMatch(/^Row \d+: tap under each lit light\.$/);
+      const left = chaseShape(roomSolver, start, shape).cells;
+      t.kernel.seed('board', boardOn('stuck', left));
+      t.emit('learn:set_assist', { on: false });
+      const fix = fx.fixFor(left);
+      if (fix) {
+        expect(status.dataset.referenceStatus).toBe('match');
+        const ringed = [...root.querySelectorAll<HTMLElement>('[data-reference-shape] [data-suggest="true"]')].map((e) => Number(e.dataset.index));
+        expect(ringed).toEqual(fix);
+        expect(root.querySelectorAll('[data-reference-shape] [data-stuck="true"] .cell__stuck')).toHaveLength(shape.stuck!.length);
+      } else {
+        expect(isClear(left)).toBe(true);
+      }
+      expect(root.querySelector<HTMLElement>('[data-action="guide"]')!.hidden).toBe(false);
+      expect(document.querySelectorAll('[data-cell]')).toHaveLength(0); // never the main board
+    });
+
     test('board kinds: a honeycomb or a cube by its grid, else wiring, else stuck switches', () => {
       expect(kindOf(ROOM.hex)).toBe('hex');
       expect(kindOf(ROOM.cube)).toBe('cube');
@@ -1841,6 +1928,33 @@ describe('learn: the twist guides (Hex, Cube, Wired, Stuck)', () => {
       expect(kindOf({ cols: 20, rows: 30, mask: null, stuck: [45, 300] })).toBe('stuck');
       expect(kindOf({ cols: 20, rows: 30, mask: null, wires: new Array(600).fill(WIRINGS.cross) })).toBe('wired');
       expect(kindOf({ cols: 20, rows: 30, mask: null })).toBe('rect');
+    });
+
+    test('a board wider than tall is read sideways: chase column by column, then the right column and its left-column taps', () => {
+      const shape: Shape = { cols: 9, rows: 5, mask: null };
+      const advise = createAdvisor(roomSolver, bottomRowTable(solver), {
+        start: 's', chase: 'Row {row}', match: 'm', progress: 'p', clear: 'c', nomatch: 'n', rectBottom: 'rb', rectMatch: 'rm',
+        shapedFix: 'f', shapedProgress: 'fp', shapedNomatch: 'fn', chaseSide: 'Column {col}', sideMatch: 'side match', sideProgress: 'side progress', sideBottom: 'side none',
+      });
+      // a light in column 3 (row 2): chase it rightwards
+      const one = emptyCells(shape).map((_, i) => i === 2 * 9 + 2);
+      expect(advise({ status: 'playing', cells: one, shape })).toMatchObject({ status: 'chase', text: 'Column 3' });
+      // chased all the way: only the right column is left; its left-column taps, then a chase rightwards, clear it
+      const right = emptyCells(shape).map((_, i) => i % 9 === 8 && (i === 8 || i === 3 * 9 + 8));
+      const a = advise({ status: 'playing', cells: right, shape });
+      expect(a).toMatchObject({ status: 'match', text: 'side match', rect: { bottom: [0, 3] } });
+      let b = right;
+      for (const r of a.rect!.taps) b = roomSolver.press(b, r * 9, shape);
+      for (let c = 0; c < 8; c++) for (let r = 0; r < 5; r++) if (b[r * 9 + c]) b = roomSolver.press(b, r * 9 + c + 1, shape);
+      expect(isClear(b)).toBe(true);
+      // in the panel: "Your column", numbered taps, the rule says sideways
+      const cells = right;
+      const t = boot({ services: { solver: roomSolver }, state: { levels: levelsState(), board: { status: 'playing' as const, levelId: CUSTOM_LEVEL_ID, start: cells, cells, par: 9, moves: 0, history: [], shape } } });
+      const root = t.view!.region('slot:reference').querySelector<HTMLElement>('[data-reference]')!;
+      expect(root.querySelector('.reference__rect .caption')!.textContent).toBe('Your column');
+      expect([...root.querySelectorAll<HTMLElement>('[data-reference-bottom] [data-mini-cell]')].map((e) => e.dataset.lit)).toEqual(['true', 'false', 'false', 'true', 'false']);
+      expect([...root.querySelectorAll<HTMLElement>('.reference__rect .learn-row--top [data-suggest="true"]')].map((e) => e.dataset.letter)).toEqual(a.rect!.taps.map((r) => String(r + 1)));
+      expect(root.querySelector('[data-reference-rule]')!.textContent).toMatch(/^Chase sideways\./);
     });
 
     test('a 20×30 custom board opens in the panel at once: rect reading by its rows; with stuck switches, the tip', () => {

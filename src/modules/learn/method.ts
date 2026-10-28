@@ -144,6 +144,17 @@ export function methodTaps(solver: Press, table: readonly TableEntry[], cells: C
   return [...counts].filter(([, n]) => n % 2 === 1).map(([i]) => i).sort((a, b2) => a - b2);
 }
 
+/** every tap the method makes on this board, counted as made (chase, top row, chase again: a light tapped twice counts twice) */
+export function methodTapCount(solver: Press, table: readonly TableEntry[], cells: Cells): number | null {
+  let b = cells, n = 0;
+  for (; n < 200 && !isClear(b); n++) {
+    const t = methodSuggest(solver, table, b);
+    if (t === null) return null;
+    b = solver.press(b, t);
+  }
+  return isClear(b) ? n : null;
+}
+
 /** a board made from `count` distinct taps chosen from `pool`; never dark. shape absent = classic */
 export function makeBoard(solver: Press, pick: (n: number) => number, count: number, pool: readonly number[], shape?: Shape, ok?: (taps: readonly number[]) => boolean): Cells {
   const dark = shape ? emptyCells(shape) : blank();

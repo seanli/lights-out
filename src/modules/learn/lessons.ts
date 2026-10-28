@@ -4,7 +4,7 @@
 import type { Shape } from '../../contracts';
 
 /** what to ring on a mini board */
-export type Marks = number[] | 'taps' | 'chase-first-row' | 'method' | 'shortest' | 'quiet';
+export type Marks = number[] | 'taps' | 'chase-first-row' | 'method' | 'shortest';
 
 export interface MiniSpec {
   /** taps that build the board from dark */
@@ -16,17 +16,16 @@ export interface MiniSpec {
   marks?: Marks;
   /** lights outlined (the switches that reach a light, lights two taps cancel) */
   ring?: number[];
-  /** which quiet pattern (0-based) when marks is 'quiet'; the board is dark */
-  quiet?: number;
   /** a top-row fix to dot (columns): the caption may use {top} (its letters) and {total} (its taps plus the chase after) */
   fix?: number[];
-  /** copy key in learn.captions, filled with {n} = number of marks, {lights} = lights lit, {rings} = lights outlined */
+  /** copy key in learn.captions, filled with {n} = number of marks ('method': every tap the method makes, none
+   *  dotted), {lights} = lights lit, {rings} = lights outlined */
   caption?: string;
 }
 
 /** what a demo tap is part of: the first chase, the top-row (or top-edge) taps, the second chase, a spotted shape,
- *  or a switch found by working back from a lit light (wired) */
-export type Phase = 'chase' | 'top' | 'edge' | 'chase2' | 'spot' | 'back';
+ *  a switch found by working back from a lit light (wired), or one of two overlapping taps side by side (hex, cube) */
+export type Phase = 'chase' | 'top' | 'edge' | 'chase2' | 'spot' | 'back' | 'pair';
 
 /** how a demo ends, when it doesn't end dark: copy.json → learn.demoEnd.<key> ({n} = lights left) */
 export type DemoEnd = 'left' | 'stuck' | 'stuckShape' | 'cancelled';
@@ -80,11 +79,13 @@ export interface Lesson {
   echoHelp?: boolean;
   /** practice boards are made of taps whose shapes don't touch, so spotting whole shapes always works */
   apart?: boolean;
+  /** practice boards are made like the levels' (lib/puzzle.ts tangle): every tap overlaps another, none reads whole */
+  tangled?: boolean;
   /** practice: a wrong tap is met with "tap it again to undo it" (one-tap boards) */
   undoHint?: boolean;
-  /** practice: a coach line that follows the phase (chase, the bottom/top-edge fix, chase again); rect names letters;
-   *  edge: the Stuck room's words for the top-edge fix (its board has stuck switches, so no "Stuck:" lead-in) */
-  coach?: 'rect' | 'shape' | 'edge';
+  /** practice: a coach line that follows the phase (chase, the bottom/top-edge fix, chase again); rect names letters,
+   *  shape (shaped and stuck boards) points at the top-edge light Assist rings */
+  coach?: 'rect' | 'shape';
 }
 
 const range = (from: number, to: number) => Array.from({ length: to - from }, (_, k) => from + k);
@@ -141,29 +142,24 @@ export const LESSONS: Record<string, Lesson> = {
       { kind: 'practice' },
     ],
   },
-  /** not in the lesson list: opened from "Go deeper" in lesson 4 */
+  /** not in the lesson list: opened from "Go deeper" in lesson 4. The stacked echoes are rows whose fix is exactly
+   *  those two taps (both corners: A + B, and its mirror D + E), so the step agrees with the rules before it */
   'echo-more': {
     assist: null,
-    steps: [{ kind: 'rules' }, { kind: 'stack', pairs: [[0, 3], [0, 1]] }, { kind: 'derive' }, { kind: 'drill' }],
+    steps: [{ kind: 'rules' }, { kind: 'stack', pairs: [[0, 1], [3, 4]] }, { kind: 'derive' }, { kind: 'drill' }],
   },
   shortest: {
     assist: 'par',
     showPar: true,
-    deeper: 'shortest-more',
     steps: [
+      // the chasing board: no dots (the method taps some lights twice), its caption counts every tap it makes
       { kind: 'show', boards: [{ from: LONG_WAY, marks: 'method', caption: 'method' }, { from: LONG_WAY, marks: 'shortest', caption: 'shortest' }] },
-      // every bottom row has four fixes; the fewest top taps isn't always the fewest taps: B·D by A·D (15) and A·B·C (11)
-      { kind: 'show', boards: [{ from: [], lit: [21, 23], fix: [0, 3], caption: 'fixTotal' }, { from: [], lit: [21, 23], fix: [0, 1, 2], caption: 'fixTotal' }] },
-      // where the other fixes come from: A·C·E on a dark board, chased, ends dark (a quiet top row)
+      // where other fixes come from: A·C·E on a dark board, chased, ends dark (a quiet top row); B·C·D does too
       { kind: 'demo', from: [], play: QUIET_ACE, phases: QUIET_ACE.map((_, k) => (k < 3 ? 'top' : 'chase')) },
+      // so B·D has four fixes: A·D, plus A·C·E (C·D·E), plus B·C·D (A·B·C), plus both (B·E); counting the chase after,
+      // 15, 11, 11 and 15 taps
+      { kind: 'show', boards: [[0, 3], [2, 3, 4], [0, 1, 2], [1, 4]].map((fix) => ({ from: [], lit: [21, 23], fix, caption: 'fixTotal' })) },
       { kind: 'practice' },
-    ],
-  },
-  /** not in the lesson list: opened from "Go deeper" in lesson 5 */
-  'shortest-more': {
-    assist: null,
-    steps: [
-      { kind: 'show', boards: [{ from: [], quiet: 0, marks: 'quiet', caption: 'quiet' }, { from: [], quiet: 1, marks: 'quiet', caption: 'quiet' }] },
     ],
   },
 };
@@ -179,7 +175,7 @@ export const RULES: Rule[] = [
   { key: 'allButMiddle', rows: [{ bottom: [0, 1, 3, 4], top: [2] }] },
   { key: 'pairLoner', rows: [{ bottom: [1, 2, 4], top: [0] }, { bottom: [0, 2, 3], top: [4] }] },
   { key: 'corners', rows: [{ bottom: [0, 4], top: [0, 1] }] },
-  // A·D clears B·D too, in 15 taps; A·B·C takes 11 (lesson 5 shows both)
+  // A·D clears B·D too, in 15 taps; A·B·C takes 11 (lesson 5 shows all four fixes)
   { key: 'gap', rows: [{ bottom: [1, 3], top: [0, 1, 2] }] },
 ];
 export const ruleFor = (bottom: readonly number[]): Rule | undefined => RULES.find((r) => r.rows.some((x) => x.bottom.join() === bottom.join()));

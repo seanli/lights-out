@@ -203,6 +203,8 @@
   --cell-gap-tall: 6px;
   --board-pad-tall: 8px;
   --cell-max-tall: 64px;
+  /* a tall board's demo in a guide shows the whole board, but its lights never get smaller than this (it scrolls then) */
+  --demo-cell-min: 18px;
   --scroll-fade: 48px;                  /* how far a scrolling board's edge fades where there is more */
   /* marks drawn on a cell (a wired switch's spokes, a stuck switch's screw): quiet on a dark cell, burnt amber on a lit one */
   /* wired switches: circuit traces (opaque colours; the mark fades as one layer) */
@@ -323,6 +325,10 @@
   /* win sweep: a warm wave through a dark board, not a relit one */
   --glow-sweep: 0 0 calc(var(--glow-blur) * .8) var(--c-glow), 0 0 0 1px var(--c-tile-on-edge);
   --wash-sweep: rgb(var(--rgb-tile-on) / var(--sweep-wash));
+  /* the same three flashes painted inside a hexagon tile (a clip-path cuts off outer shadows) */
+  --hex-bloom: radial-gradient(circle at 50% 45%, var(--c-glow-strong), var(--c-glow-none) 78%);
+  --hex-afterglow: radial-gradient(circle at 50% 50%, var(--c-glow-none) 35%, var(--c-afterglow) 100%);
+  --hex-sweep: radial-gradient(circle at 50% 50%, var(--c-glow-none) 50%, var(--c-glow) 100%), var(--wash-sweep);
 }
 
 html,

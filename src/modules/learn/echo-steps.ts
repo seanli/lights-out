@@ -91,8 +91,9 @@ export function deriveView(copy: LearnCopy, start = 1) {
     );
   };
   paint(start);
+  // the A–E picker sits in the strips' column, each letter over its own column of every row below
   return h('div', { class: 'learn-derive' },
-    picker(copy, start, paint),
+    h('div', { class: 'learn-derive__pick' }, h('span', { class: 'caption', 'aria-hidden': 'true' }), picker(copy, start, paint)),
     rowsEl);
 }
 

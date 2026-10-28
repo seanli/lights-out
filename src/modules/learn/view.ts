@@ -9,7 +9,7 @@ import { stuckIcon, wireIcon } from '../../lib/icons';
 import { attachAim, type AimHandle, type AimMode } from '../../lib/aim';
 import type { Catalog, LearnCopy, LearnRules } from './index';
 import type { DemoEnd, MiniSpec, Phase, Step } from './lessons';
-import { BOTTOM, blank, bottomColumns, chase, chaseShape, coachPhase, lit, litIndexes, lookup, methodTaps, onlyBottom, pressAll, startCells, type TableEntry } from './method';
+import { BOTTOM, blank, bottomColumns, chase, chaseShape, coachPhase, lit, litIndexes, lookup, methodTapCount, onlyBottom, pressAll, startCells, type TableEntry } from './method';
 import { createDrill, deriveView, names, picker, rulesView, stackView, tableList, type DrillStore } from './echo-steps';
 
 interface Deps {
@@ -46,12 +46,12 @@ function hexHalves(s: Shape) {
 
 /**
  * A demo playing on a mini board (shape absent = the classic board). `end`: the line when it stops with lights on;
- * `orders`: each Replay plays the next order of the same taps; `markAll`: dot every tap to come; `ring`: lights outlined
- * until tapped (the lights step's top lights); `paused`: a tap on the board stopped it, each further tap steps once.
+ * `orders`: each Replay plays the next order of the same taps; `markAll`: dot every tap to come; `rings`: per tap, the
+ * lights outlined while it is next (wired); `paused`: a tap on the board stopped it, each further tap steps once.
  */
 interface Demo {
   start: Cells; taps: number[]; phases: (Phase | null)[]; pos: number; cells: Cells; cancel: (() => void) | null; shape?: Shape;
-  end?: DemoEnd; orders?: number[][]; round: number; markAll?: boolean; ring?: number[]; rings?: number[][]; paused: boolean;
+  end?: DemoEnd; orders?: number[][]; round: number; markAll?: boolean; rings?: number[][]; paused: boolean;
 }
 
 const SVG = 'http://www.w3.org/2000/svg';
@@ -63,6 +63,21 @@ function icon(d: string): SVGSVGElement {
   const path = document.createElementNS(SVG, 'path');
   path.setAttribute('d', d);
   svg.append(path);
+  return svg;
+}
+/**
+ * A honeycomb light's outline (outlined, Assist's ring, the aimed light), drawn as a hexagon a little larger than the
+ * tile: the tile's face is clipped to a hexagon, so an outline or ring on the tile itself would be cut off.
+ */
+function hexRing(): SVGSVGElement {
+  const svg = document.createElementNS(SVG, 'svg');
+  svg.setAttribute('viewBox', '0 0 86.6 100');
+  svg.setAttribute('preserveAspectRatio', 'none');
+  svg.setAttribute('class', 'mini-hex-ring');
+  svg.setAttribute('aria-hidden', 'true');
+  const shape = document.createElementNS(SVG, 'polygon');
+  shape.setAttribute('points', '43.3,0 86.6,25 86.6,75 43.3,100 0,75 0,25');
+  svg.append(shape);
   return svg;
 }
 const CHEVRON_LEFT = 'M15 18l-6-6 6-6';
@@ -91,7 +106,7 @@ export function createLearnView(d: Deps) {
   /** the practice board's pointer helper (aim bubble / scroll-safe taps) and its size watcher, undone on every rebuild */
   let practiceInput: { aim: AimHandle; observer: ResizeObserver | null } | null = null;
   /** `edges`: the top-edge lights, outlined while a top-edge tap is next (shaped rooms) */
-  let demoEls: { board: HTMLElement; line: HTMLElement; button: HTMLButtonElement; echo: number | null; edges: number[]; end?: string } | null = null;
+  let demoEls: { board: HTMLElement; line: HTMLElement; button: HTMLButtonElement; echo: number | null; edges: number[] } | null = null;
   /** practice on small lights: the aim tip shows after a miss or a drag, until the next clean tap */
   let aimHelp = false;
   const parCache = new Map<string, number>();
@@ -140,6 +155,8 @@ export function createLearnView(d: Deps) {
       if (hex) {
         cell.style.gridColumn = `${hex.col(i)} / span 2`;
         cell.style.gridRow = String(Math.floor(i / s.cols) + 1);
+        // the hexagon is the face (clipped), as on the play board; the ring sits outside the clip
+        cell.append(h('span', { class: 'cell__face', 'aria-hidden': 'true' }), hexRing());
       }
       if (side) {
         const r = Math.floor(i / s.cols), c = i % s.cols;
@@ -353,12 +370,12 @@ export function createLearnView(d: Deps) {
   // ---------- a lesson ----------
 
   function marksFor(spec: MiniSpec, cells: Cells): number[] {
-    if (spec.quiet !== undefined) return d.quiet()[spec.quiet] ?? [];
     if (spec.fix) return spec.fix;
     switch (spec.marks) {
       case 'taps': return spec.from;
       case 'chase-first-row': return litIndexes(cells).filter((i) => i < SIZE).map((i) => i + SIZE);
-      case 'method': return methodTaps(solver, d.table(), cells) ?? [];
+      // the method taps some lights twice, so its taps aren't dotted; the caption counts every one (figure)
+      case 'method': return [];
       case 'shortest': return solver.solve(cells) ?? [];
       default: return Array.isArray(spec.marks) ? spec.marks : [];
     }
@@ -372,7 +389,10 @@ export function createLearnView(d: Deps) {
     const board = miniBoard(cells, 'show', marks, shape);
     if (spec.ring) patchBoard(board, cells, marks, spec.ring);
     const fig = h('figure', { class: 'learn-fig' }, board);
-    const vars: Record<string, string | number> = { n: marks.length, lights: litIndexes(cells).length, rings: spec.ring?.length ?? 0 };
+    const vars: Record<string, string | number> = {
+      n: spec.marks === 'method' ? methodTapCount(solver, d.table(), cells) ?? 0 : marks.length,
+      lights: litIndexes(cells).length, rings: spec.ring?.length ?? 0,
+    };
     if (spec.fix) {
       // a top-row fix: its letters, and every tap it takes to dark (its own taps plus the chase after them)
       vars.top = listOf(spec.fix.map((c) => copy.letters[c] ?? ''));
@@ -412,16 +432,6 @@ export function createLearnView(d: Deps) {
     return { start, taps, phases, pos: 0, cells: start, cancel: null, shape, end: step.end, orders: step.orders, round: 0, markAll: step.markAll, rings: step.rings, paused: false };
   }
 
-  /** a full rectangle's lone bottom light: its top lights to tap outlined, tap them, then chase again */
-  function lightPlan(row: { bottom: number; top: number[] }, shape: Shape): Demo {
-    const start = emptyCells(shape).map((_, i) => i === row.bottom);
-    const again = chaseShape(solver, pressAll(solver, start, row.top, shape), shape).taps;
-    return {
-      start, taps: [...row.top, ...again], phases: [...row.top.map(() => 'top' as const), ...again.map(() => 'chase2' as const)],
-      pos: 0, cells: start, cancel: null, shape, round: 0, ring: row.top, paused: false,
-    };
-  }
-
   /** "A", "A and B", "A, B and C" */
   const listOf = (names: readonly string[]) => names.length < 2 ? (names[0] ?? '')
     : `${names.slice(0, -1).join(copy.comma)}${copy.and}${names.at(-1)}`;
@@ -437,14 +447,14 @@ export function createLearnView(d: Deps) {
     // the next tap is dotted (every tap to come on a markAll demo); outlined: the top lights still to tap, or while
     // a top-edge tap is next, every top-edge light (lights with nothing above them), or the next tap's own outline
     const dots = doneAll ? [] : demo.markAll ? demo.taps.slice(demo.pos) : [next!];
-    const ring = phase === 'edge' ? demoEls.edges : demo.rings ? demo.rings[demo.pos] ?? [] : (demo.ring ?? []).filter((i) => !done.includes(i));
+    const ring = phase === 'edge' ? demoEls.edges : demo.rings?.[demo.pos] ?? [];
     patchBoard(demoEls.board, demo.cells, dots, ring);
     let text: string;
     if (doneAll) {
       const left = litIndexes(demo.cells).length;
       text = demoEls.echo !== null ? fmt(copy.echo.caption, { name: copy.letters[demoEls.echo]! })
         : demo.end === 'cancelled' ? copy.demoEnd.cancelled
-        : left === 0 ? demoEls.end ?? copy.demoDone
+        : left === 0 ? copy.demoDone
         : fmt(copy.demoEnd[demo.end ?? 'left'], { n: left });
     } else {
       const tap = { n: demo.pos + 1, total: demo.taps.length };
@@ -486,7 +496,7 @@ export function createLearnView(d: Deps) {
    * A top-row (or top-edge) tap and a spotted shape are held a little longer, so the eye finds them before they happen.
    * Other taps speed up on a long demo (10×10, the Tower), so a whole demo runs about demoMaxMs.
    */
-  const HOLD: (Phase | null | undefined)[] = ['top', 'edge', 'spot', 'back'];
+  const HOLD: (Phase | null | undefined)[] = ['top', 'edge', 'spot', 'back', 'pair'];
   const delayBefore = (pos: number) => (HOLD.includes(demo?.phases[pos]) ? rules.demoHoldMs
     : Math.min(rules.demoStepMs, Math.round(rules.demoMaxMs / Math.max(1, demo?.taps.length ?? 1))));
 
@@ -609,19 +619,34 @@ export function createLearnView(d: Deps) {
       under.append(line, h('div', { class: 'learn-controls' }, button));
       demoEls = { board, line, button, echo: col, edges: [] };
     } else if (step.kind === 'lights' && shape) {
-      // board first: a letter over each column picks a bottom light; its top lights to tap are outlined, then the demo
-      // taps them and chases again
-      demo = lightPlan(step.rows[step.pick]!, shape);
-      const board = demoBoard(demo.start, shape);
+      // the board squeezed to its two ends, as in the in-game Patterns panel: the top row over the bottom row. Tap a
+      // bottom light to pick it; its top lights to tap are ringed and lettered (a tall board's two ends never fit
+      // on screen at once, and the strips keep every light a tap target). The demos before and after show the board.
+      const n = cols;
+      const say = (c: number) => fmt(copy.lights.row, { name: letterOf(c, n), taps: listOf(step.rows[c]!.top.map((i) => letterOf(i, n))) });
       const line = demoLine();
-      const button = demoButton();
-      const letters = picker(copy, step.pick, (c) => { demo = lightPlan(step.rows[c]!, shape); restartDemo(); }, {
-        n: cols, action: 'learn-strip', label: copy.lights.pick,
-        say: (c) => fmt(copy.lights.row, { name: copy.letters[c]!, taps: listOf(step.rows[c]!.top.map((i) => letterOf(i, cols))) }),
-      });
-      fit.append(group(letters, board, 'pick'));
-      under.append(line, h('div', { class: 'learn-controls' }, button));
-      demoEls = { board, line, button, echo: null, edges: [], end: copy.lights.end };
+      const topRow = h('div', { class: 'learn-row learn-row--top', 'data-lights-top': '', 'aria-hidden': 'true', style: `--strip-n:${n}` },
+        ...[...Array(n).keys()].map((c) => h('span', { class: 'cell', 'data-mini-cell': '', 'data-index': c })));
+      const bottoms = [...Array(n).keys()].map((c) => h('button', {
+        class: 'cell', type: 'button', 'data-mini-cell': '', 'data-action': 'learn-strip', 'data-col': c, 'data-letter': letterOf(c, n),
+        'aria-label': say(c), onclick: () => paint(c),
+      }));
+      const bottomRow = h('div', { class: 'learn-row learn-row--bottom learn-row--pick', 'data-lights-bottom': '', role: 'group', 'aria-label': copy.lights.pick, style: `--strip-n:${n}` }, ...bottoms);
+      const paint = (c: number) => {
+        bottoms.forEach((b, k) => { setAttr(b, 'data-lit', String(k === c)); setAttr(b, 'aria-pressed', String(k === c)); });
+        [...topRow.children].forEach((cell, k) => {
+          const tap = step.rows[c]!.top.includes(k);
+          setAttr(cell, 'data-suggest', tap ? 'true' : null);
+          setAttr(cell, 'data-letter', tap ? letterOf(k, n) : null);
+        });
+        setText(line, say(c));
+      };
+      fit.append(h('div', { class: 'learn-lights', style: `--strip-n:${n}` },
+        h('span', { class: 'caption' }, copy.lights.top), topRow,
+        h('span', { class: 'learn-lights__between', 'aria-hidden': 'true' }, '⋮'),
+        bottomRow, h('span', { class: 'caption' }, copy.lights.bottom)));
+      under.append(line);
+      paint(step.pick);
     } else if (step.kind === 'table') {
       fit.append(tableList(copy, d.table()));
     } else if (step.kind === 'stack') {
@@ -692,13 +717,13 @@ export function createLearnView(d: Deps) {
   }
 
   /** a guide's practice line by phase: chase; bottom light(s) and their top lights; chase again (shaped rooms: the top edge) */
-  function coachLine(id: string, shape: Shape, kind: 'rect' | 'shape' | 'edge', start: Cells, cells: Cells): string {
+  function coachLine(id: string, shape: Shape, kind: 'rect' | 'shape', start: Cells, cells: Cells): string {
     const fixer = catalog.fixer(id);
     const c = fixer ? coachPhase(solver, fixer, shape, start, cells) : null;
     if (!c) return '';
     if (c.phase === 'chase') return copy.coach.chase;
     if (c.phase === 'again') return copy.coach.again;
-    if (kind !== 'rect') return fmt(kind === 'edge' ? copy.coach.edgeFix : copy.coach.shapeFix, { n: c.fix.length });
+    if (kind !== 'rect') return fmt(copy.coach.edgeFix, { n: c.fix.length });
     const say = (xs: number[]) => listOf(xs.map((i) => letterOf(i, shape.cols)));
     return fmt(c.ends.length > 1 ? copy.coach.bottoms : copy.coach.bottom, { names: say(c.ends), taps: say(c.fix) });
   }

@@ -248,9 +248,9 @@
       "guide-ring": [3, 4],
       "guide-diamond": [3, 4],
       "guide-stuck": [3, 4],
-      "guide-hex": [3, 4],
-      "guide-cube": [3, 4],
-      "guide-wired": [3, 4],
+      "guide-hex": [2, 3],
+      "guide-cube": [2, 3],
+      "guide-wired": [2, 3],
       "guide-8x8": [2, 4],
       "guide-tower": [2, 4]
     },

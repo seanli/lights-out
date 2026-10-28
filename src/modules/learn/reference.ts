@@ -5,16 +5,21 @@
 // then the live strips: only what is relevant now, on every board (the full 7-row table lives in lesson 4).
 // Classic 5×5: your bottom row over the matched row's top taps, the matched row's echo as the rule. Other full rectangles: the size's rule (from the maths) and the same pair of strips,
 // the top one empty until bottom-row time. Shaped rooms: chase advice by row, then a small picture of the board with the
-// top-edge fix ringed. Honeycombs, cubes, wired and stuck switches: no bottom row to read, so the room's one-line tip.
+// top-edge fix ringed; stuck switches the same way (a chase stops over them). A board wider than tall is chased sideways:
+// the same maths on the board turned on its side, so the strips show the right column and the left-column taps.
+// Honeycombs, cubes and wired switches: no bottom row to read, so the room's one-line tip.
 // Rooms link to their board guide; classic links to all lessons.
 import { BOTTOM, blank, chaseShapeSuggest, rectRule, rectTopSets, type Fixer, type RectRule, type TableEntry } from './method';
 import { CELL_COUNT, SIZE, type BoardState, type Ctx, type Shape, type SolverService } from '../../contracts';
 import { fmt, h, setAttr, setText } from '../../lib/dom';
-import { gridOf, gridSize, isCell, shapeKey } from '../../lib/shape';
+import { gridOf, gridSize, isCell, isStuck, shapeKey } from '../../lib/shape';
+import { stuckIcon } from '../../lib/icons';
 import type { TwistKind } from './guides';
 
 export interface ReferenceCopy {
   yourRow: string;
+  /** a board chased sideways: the right column is "your column" */
+  yourColumn: string;
   bottom: string;
   top: string;
   echo: string;
@@ -25,9 +30,11 @@ export interface ReferenceCopy {
     start: string; chase: string; match: string; progress: string; clear: string; nomatch: string; rectBottom: string; rectMatch: string;
     /** shaped rooms once only end lights are left: {n} ringed top-edge lights; part-way through them; no fix */
     shapedFix: string; shapedProgress: string; shapedNomatch: string;
+    /** a board wider than tall, chased sideways: column {col}; the left-column taps; part-way through them; none found */
+    chaseSide: string; sideMatch: string; sideProgress: string; sideBottom: string;
   };
   /** the strategy line for full rectangles: chase alone clears it / a rule the maths follows / each light its own taps */
-  rect: { chaseClears: string; ownTaps: string; oneRow: string; fewRows: string } & Record<RectRule, string>;
+  rect: { chaseClears: string; ownTaps: string; oneRow: string; fewRows: string; side: string; sideFew: string } & Record<RectRule, string>;
   /** the one-line tip on a board with no bottom row to read */
   tips: Record<TwistKind, string>;
 }
@@ -45,6 +52,15 @@ export interface Advice {
 const ABOVE_BOTTOM = (1 << BOTTOM) - 1;
 const toMask = (cells: readonly boolean[]) => { let m = 0; for (let i = 0; i < CELL_COUNT; i++) if (cells[i]) m |= 1 << i; return m; };
 const rowMask = (cols: readonly number[]) => cols.reduce((m, c) => m | (1 << c), 0);
+
+/** wider than tall: chased sideways, column by column (custom boards; the wide-board note on the Custom screen) */
+export const isWide = (shape: Shape): boolean => shape.cols > shape.rows;
+/** the board turned on its side: column c becomes row c, so a chase down it is a chase rightwards on the board */
+export function turned(cells: readonly boolean[], shape: Shape): { cells: boolean[]; shape: Shape } {
+  const out = new Array<boolean>(shape.cols * shape.rows).fill(false);
+  for (let r = 0; r < shape.rows; r++) for (let c = 0; c < shape.cols; c++) out[c * shape.rows + r] = !!cells[r * shape.cols + c];
+  return { cells: out, shape: { cols: shape.rows, rows: shape.cols, mask: null } };
+}
 
 /** a board a chase can't read: a honeycomb or a cube (their grid), else wired or stuck switches; null for a plain square grid */
 export function twistOf(shape: Shape | undefined): TwistKind | null {
@@ -99,8 +115,14 @@ export function createAdvisor(solver: Pick<SolverService, 'press'>, table: reado
     return sets;
   };
 
-  /** any full rectangle: chase row by row; at bottom-row time, each lit bottom light's top taps (overlaps cancel) */
-  const rect = (cells: readonly boolean[], shape: Shape): Advice => {
+  /** any full rectangle: chase row by row; at bottom-row time, each lit bottom light's top taps (overlaps cancel).
+   *  Wider than tall: the same on the board turned on its side (columns for rows, the right column for the bottom row) */
+  const rect = (cells0: readonly boolean[], shape0: Shape): Advice => {
+    const side = isWide(shape0);
+    const { cells, shape } = side ? turned(cells0, shape0) : { cells: cells0, shape: shape0 };
+    const say = side
+      ? { chase: copy.chaseSide, progress: copy.sideProgress, match: copy.sideMatch, none: copy.sideBottom }
+      : { chase: copy.chase, progress: copy.progress, match: copy.rectMatch, none: copy.rectBottom };
     const { cols, rows } = shape;
     const bottomOf = () => { const out: number[] = []; for (let c = 0; c < cols; c++) if (cells[(rows - 1) * cols + c]) out.push(c); return out; };
     // part-way through the top taps? rows 0–1 hold exactly the taps' pattern, nothing else above the bottom row
@@ -114,23 +136,26 @@ export function createAdvisor(solver: Pick<SolverService, 'press'>, table: reado
       if (tapped && row0 === spread && bottom.length) {
         const taps = setsFor(shape).tapsFor(bottom);
         const want = taps ? taps.reduce((m, c) => m | (1 << c), 0) : 0;
-        if (taps && (tapped & ~want) === 0 && tapped !== want) return { status: 'match', text: copy.progress, match: -1, rect: { bottom, taps } };
+        if (taps && (tapped & ~want) === 0 && tapped !== want) return { status: 'match', text: say.progress, match: -1, rect: { bottom, taps } };
       }
     }
     const first = cells.indexOf(true);
     const row = Math.floor(first / cols);
-    if (row < rows - 1) return { status: 'chase', text: fmt(copy.chase, { row: row + 1 }), match: -1 };
+    if (row < rows - 1) return { status: 'chase', text: fmt(say.chase, { row: row + 1, col: row + 1 }), match: -1 };
     const bottom = bottomOf();
     const taps = setsFor(shape).tapsFor(bottom);
-    if (!taps) return { status: 'nomatch', text: copy.rectBottom, match: -1 };
-    return { status: 'match', text: copy.rectMatch, match: -1, rect: { bottom, taps } };
+    if (!taps) return { status: 'nomatch', text: say.none, match: -1 };
+    return { status: 'match', text: say.match, match: -1, rect: { bottom, taps } };
   };
 
   /** the strategy line for a full rectangle, read from its per-light sets; `letters` names columns ("A C E") */
   const rectLine = (shape: Shape, lines: ReferenceCopy['rect'], letters?: (cols: readonly number[]) => string): string => {
-    const sets = setsFor(shape);
+    const side = isWide(shape);
+    const sets = setsFor(side ? { cols: shape.rows, rows: shape.cols, mask: null } : shape);
     if (sets.chaseClears) return fmt(lines.chaseClears, { cols: shape.cols, rows: shape.rows });
-    if (sets.perLight.every((set) => set !== null)) {
+    const everyLight = sets.perLight.every((set) => set !== null);
+    if (side) return everyLight ? lines.side : lines.sideFew;
+    if (everyLight) {
       const rule = rectRule(sets.perLight);
       return rule ? lines[rule] : lines.ownTaps;
     }
@@ -160,6 +185,8 @@ export function createAdvisor(solver: Pick<SolverService, 'press'>, table: reado
     if (board.status === 'solved' || !board.cells.includes(true)) return { status: 'clear', text: copy.clear, match: -1 };
     const kind = kindOf(board.shape);
     const twist = twistOf(board.shape);
+    // stuck switches: chase and the top-edge fix, ringed as on shaped rooms (the tip only where no fix can be worked out)
+    if (twist === 'stuck' && fixerFor?.(board.shape!)) return shaped(board.cells, board.shape!);
     if (twist) return { status: 'tip', text: tips?.[twist] ?? copy.start, match: -1 };
     if (kind === 'shaped') return shaped(board.cells, board.shape!);
     if (kind === 'rect') return rect(board.cells, board.shape!);
@@ -203,11 +230,11 @@ export function createReference(ctx: Ctx, solver: SolverService, table: readonly
     }
     return r;
   };
-  /** retarget a top strip's cells: pointer + letter on the columns to tap */
-  const paintTaps = (el: HTMLElement, cols: readonly number[]) => {
+  /** retarget a top strip's cells: pointer + label on the ones to tap (column letters; row numbers on a sideways board) */
+  const paintTaps = (el: HTMLElement, cols: readonly number[], label = (c: number) => labels.letters[c] ?? '') => {
     [...el.children].forEach((cell, c) => {
       setAttr(cell, 'data-suggest', cols.includes(c) ? 'true' : null);
-      setAttr(cell, 'data-letter', cols.includes(c) ? labels.letters[c]! : null);
+      setAttr(cell, 'data-letter', cols.includes(c) ? label(c) : null);
     });
   };
 
@@ -226,9 +253,11 @@ export function createReference(ctx: Ctx, solver: SolverService, table: readonly
   // the matching row's one line: "Echo of B"
   const ruleOf = table.map((e) => fmt(copy.echo, { name: labels.echo(e.top) }));
   // full rectangles: the same pair, as wide as the board (rebuilt per shape); the top strip waits empty until bottom-row time
+  // a board chased sideways: the same strips for the right column ("Your column") and the left-column taps, numbered from the top
   let rectRow = strip('live', [], 1);
   let rectTop = strip('top', [], 1);
-  const rectBox = h('div', { class: 'reference__pair reference__rect', hidden: true }, caption(copy.yourRow), rectRow, caption(copy.top), rectTop);
+  const rectCaption = caption(copy.yourRow);
+  const rectBox = h('div', { class: 'reference__pair reference__rect', hidden: true }, rectCaption, rectRow, caption(copy.top), rectTop);
   let rectKey = '';
   let rectLive: HTMLElement[] = [];
   let tapsShown = false;
@@ -241,7 +270,9 @@ export function createReference(ctx: Ctx, solver: SolverService, table: readonly
     shapeCells = [];
     for (let i = 0; i < gridSize(shape); i++) {
       if (!isCell(shape, i)) { grid.append(h('span', { class: 'learn-row__gap', 'data-gap': '' })); continue; }
-      const cell = h('span', { class: 'cell', 'data-mini-cell': '', 'data-index': i, 'data-lit': 'false' });
+      const stuck = isStuck(shape, i);
+      const cell = h('span', { class: 'cell', 'data-mini-cell': '', 'data-index': i, 'data-lit': 'false', 'data-stuck': stuck ? 'true' : null },
+        stuck ? h('span', { class: 'cell__mark', 'aria-hidden': 'true' }, stuckIcon()) : null);
       shapeCells.push(cell);
       grid.append(cell);
     }
@@ -315,25 +346,31 @@ export function createReference(ctx: Ctx, solver: SolverService, table: readonly
     setAttr(rectRow, 'data-reference-bottom', rectShape ? '' : null);
     if (rectShape) {
       const { cols, rows: height } = rectShape;
+      // sideways (wider than tall): the right column, top to bottom, stands in for the bottom row
+      const side = isWide(rectShape);
+      const n = side ? height : cols;
+      const liveIndex = (k: number) => (side ? k * cols + cols - 1 : (height - 1) * cols + k);
       if (shapeKey(rectShape) !== rectKey) {
         rectKey = shapeKey(rectShape);
-        const nextRow = strip('live', [], cols);
+        const nextRow = strip('live', [], n);
         nextRow.setAttribute('data-reference-bottom', '');
         rectLive = [...nextRow.children] as HTMLElement[];
-        rectLive.forEach((cell, c) => setAttr(cell, 'data-index', String((height - 1) * cols + c)));
-        const nextTop = strip('top', [], cols);
+        rectLive.forEach((cell, k) => setAttr(cell, 'data-index', String(liveIndex(k))));
+        const nextTop = strip('top', [], n);
         rectRow.replaceWith(nextRow);
         rectTop.replaceWith(nextTop);
         rectRow = nextRow;
         rectTop = nextTop;
         tapsShown = false;
-        setAttr(rectBox, 'style', `--strip-n:${cols}`);
-        setAttr(rectBox, 'data-wide', cols > 8 ? '' : null);
+        setAttr(rectBox, 'style', `--strip-n:${n}`);
+        setAttr(rectBox, 'data-wide', n > 8 ? '' : null);
+        setAttr(rectBox, 'data-side', side ? '' : null);
+        setText(rectCaption, side ? copy.yourColumn : copy.yourRow);
       }
-      rectLive.forEach((cell, c) => setAttr(cell, 'data-lit', String(!!board!.cells[(height - 1) * cols + c])));
+      rectLive.forEach((cell, k) => setAttr(cell, 'data-lit', String(!!board!.cells[liveIndex(k)])));
       const appear = !tapsShown && !!a.rect;
       tapsShown = !!a.rect;
-      paintTaps(rectTop, a.rect?.taps ?? []);
+      paintTaps(rectTop, a.rect?.taps ?? [], side ? (k) => String(k + 1) : undefined);
       setAttr(rectTop, 'data-empty', a.rect ? null : 'true');
       // a short panel scrolls: the taps to make are the line that must show
       if (appear) rectTop.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });

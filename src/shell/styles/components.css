@@ -329,7 +329,15 @@ button, input { font: inherit; color: inherit; }
 .cell[data-lit="true"] > .cell__face { --lit: 1; }
 .board[data-grid="hex"] > .cell[data-lit="true"] { box-shadow: none; filter: drop-shadow(0 0 var(--glow-blur) var(--c-glow)); }
 .board[data-grid="hex"] > .cell[data-lit="true"]:active { filter: drop-shadow(0 0 var(--glow-blur) var(--c-glow)) brightness(var(--press-brightness)); }
-.board[data-grid="hex"] > .cell::after { border-radius: 50%; }
+/* a tile's flashes (the bloom as it lights, the afterglow as it goes out, the win wash) are hexagons too: the tile's
+   own shape, filled and fading, never a round glow (a clip cuts off any shadow, so the glow is painted inside) */
+.board[data-grid="hex"] > .cell[data-flip]:not([data-hint="true"], [data-pointer="true"])::after,
+.board--sweep[data-grid="hex"] > .cell:not([data-hint="true"], [data-pointer="true"])::after {
+  border-radius: 0; clip-path: var(--hex-clip); box-shadow: none;
+}
+.board[data-grid="hex"] > .cell[data-lit="true"][data-flip]:not([data-hint="true"], [data-pointer="true"])::after { background: var(--hex-bloom); }
+.board[data-grid="hex"] > .cell[data-lit="false"][data-flip]:not([data-hint="true"], [data-pointer="true"])::after { background: var(--hex-afterglow); }
+.board--sweep[data-grid="hex"] > .cell[data-lit]:not([data-hint="true"], [data-pointer="true"])::after { background: var(--hex-sweep); box-shadow: none; }
 /* the hint: a hexagonal halo behind the tile (the dot sits on top as everywhere) */
 .board[data-grid="hex"] > .cell[data-hint="true"]::before {
   inset: calc(-1.8 * var(--ring-w)); border: 0; border-radius: 0; box-shadow: none;

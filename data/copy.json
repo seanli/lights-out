@@ -221,15 +221,15 @@
       "edge": "Top-edge light",
       "chase2": "Chase again",
       "spot": "Spot a shape",
-      "back": "Work back"
+      "back": "Work back",
+      "pair": "Side by side"
     },
     "captions": {
       "middle": "Middle: a plus of five",
       "edge": "Edge: a T",
       "corner": "Corner: an L",
       "set": "{n} {n|tap|taps}, any order",
-      "quiet": "{n} {n|tap|taps}, no change",
-      "fixTotal": "Tap {top}, then chase: {total} taps",
+      "fixTotal": "{top}: {total} taps",
       "method": "Chasing: {n} {n|tap|taps}",
       "shortest": "Shortest: {n} {n|tap|taps}",
       "plus": "A plus",
@@ -246,13 +246,14 @@
       "cubePlus": "A plus of five",
       "cubeCorner": "These five touch on the cube",
       "reach": "{rings} switches flip this light",
-      "screw": "The screw's light flips too"
+      "plate": "The plate's light flips too"
     },
     "cellOn": "Light {row}, {col}: on",
     "cellOff": "Light {row}, {col}: off",
     "cellStuck": ", stuck: tapping it does nothing",
     "reference": {
       "yourRow": "Your row",
+      "yourColumn": "Your column",
       "bottom": "Bottom row",
       "top": "Tap",
       "lessons": "Lessons",
@@ -268,7 +269,11 @@
         "rectMatch": "Tap the top lights shown, then chase again.",
         "shapedFix": "Tap the ringed top-edge {n|light|lights}, then chase again.",
         "shapedProgress": "Finish the ringed {n|tap|taps}, then chase again.",
-        "shapedNomatch": "These lights can't be cleared from the top edge. Restart and chase again."
+        "shapedNomatch": "These lights can't be cleared from the top edge. Restart and chase again.",
+        "chaseSide": "Column {col}: tap right of each lit light.",
+        "sideMatch": "Tap the left-column lights shown, then chase again.",
+        "sideProgress": "Finish the left-column taps shown, then chase again.",
+        "sideBottom": "Only the right column is left. Tap Hint for the next tap, then chase again."
       },
       "echo": "Echo of {name}",
       "rect": {
@@ -279,13 +284,15 @@
         "aboveTwoAside": "Each lit bottom light: tap the top light above it and two places left and right; at the edges, skip that one.",
         "ownTaps": "Each lit bottom light has its own top lights to tap. Overlaps cancel.",
         "oneRow": "Here a chase leaves the bottom row dark or {pattern}. For {pattern}, tap {taps} on top, then chase again.",
-        "fewRows": "Only a few bottom rows can be left here. Each has its own top lights to tap, shown below."
+        "fewRows": "Only a few bottom rows can be left here. Each has its own top lights to tap, shown below.",
+        "side": "Chase sideways. Each right-column light has its own left-column taps; overlaps cancel.",
+        "sideFew": "Chase sideways. Only a few right columns can be left; each has its own left-column taps."
       },
       "tips": {
-        "hex": "Spot flowers of seven and tap their centres.",
-        "cube": "Turn the cube to see every face, and spot the pluses.",
+        "hex": "Two arcs of three facing each other? Tap the two dark lights in the middle.",
+        "cube": "Turn the cube to see every face. Two arcs of three facing each other? Tap the two dark lights between.",
         "wired": "For a lit light, find the switches whose spokes reach it.",
-        "stuck": "Chase down; lights over screws stay. Then try top-edge taps."
+        "stuck": "Chase down; lights over plates stay. Then try top-edge taps."
       }
     },
     "lessons": {
@@ -314,8 +321,8 @@
         "steps": [
           "Tap right under a lit light and it goes dark. Do that for every lit light in the top row.",
           "Do the same for each row below. The lights move down: this is chasing.",
-          "After the top row, the chase decides every tap. So lights left at the bottom are fixed in the top row: next lesson.",
-          "Your turn: chase from the top. Stuck? Assist rings the next tap."
+          "Once you chase, every tap is forced. The only free choice is the top row, so that's where leftovers get fixed: next lesson.",
+          "Your turn: chase from the top. Need help? Assist rings the next tap."
         ]
       },
       "bottom-row": {
@@ -333,8 +340,8 @@
         "summary": "Par is the fewest taps.",
         "steps": [
           "Par is the fewest taps that solve a board. Chasing always works, but often takes more.",
-          "Every bottom row has four fixes. Fewer top lights isn't always fewer taps: the chase after them counts too.",
-          "Tap A, C and E, then chase: all dark again. So adding them to any fix gives another fix; B, C and D work too.",
+          "Tap A, C and E, then chase: all dark again. B, C and D do the same, so adding either to a fix gives another.",
+          "So every bottom row has four fixes. For B and D, fewer letters isn't fewer taps: the chase after counts too.",
           "Your turn. Any solve counts; hitting par earns three stars in levels."
         ]
       },
@@ -345,14 +352,7 @@
           "Five rules cover every bottom row.",
           "Some rows are two echoes. Tap both top lights: where they overlap, they cancel.",
           "Pick a light and follow its taps down, row by row. The last row is its echo.",
-          "Whose echo is this? Tap the top lights that clear it."
-        ]
-      },
-      "shortest-more": {
-        "title": "Several answers",
-        "summary": "Taps that change nothing.",
-        "steps": [
-          "Tap all the marked lights and nothing changes. Add them to an answer and you get another answer."
+          "Which top lights clear this row? Tap them."
         ]
       }
     },
@@ -390,7 +390,7 @@
       "echo": "Echo"
     },
     "deeper": "Go deeper",
-    "echoMatch": "That's {name}'s echo: tap {name}, then chase again.",
+    "echoMatch": "Tap {name} on top, then chase again: that clears this row.",
     "tableTop": "Tap",
     "tableBottom": "Your row",
     "sections": {
@@ -400,7 +400,8 @@
     "lights": {
       "pick": "Pick a bottom light",
       "row": "Bottom light {name}: tap {taps}",
-      "end": "All dark. Tap a letter to try another."
+      "top": "Top row",
+      "bottom": "Bottom row: tap a light to try it"
     },
     "guides": {
       "7x7": {
@@ -409,7 +410,7 @@
           "Chase down: tap under each lit light, row by row. What's left ends up in the bottom row.",
           "Each bottom light: tap the three top lights above it (two at an edge), then chase again.",
           "Several bottom lights: tap the top lights for each one, then chase again. A light tapped twice cancels.",
-          "Your turn: chase, tap the top lights, chase again. Stuck? Assist rings the next tap."
+          "Your turn: chase, tap the top lights, chase again. Need help? Assist rings the next tap."
         ]
       },
       "8x8": {
@@ -418,7 +419,7 @@
           "Chase down: tap under each lit light, row by row. What's left ends up in the bottom row.",
           "Each bottom light has its own top lights to tap. H is A flipped left to right, G is B, and so on.",
           "Several bottom lights: tap the top lights for each one, then chase again. A light tapped twice cancels.",
-          "Your turn: chase, tap the top lights, chase again. Stuck? Assist rings the next tap."
+          "Your turn: chase, tap the top lights, chase again. Need help? Assist rings the next tap."
         ]
       },
       "tower": {
@@ -427,45 +428,43 @@
           "Chase down: tap under each lit light, all the way down. What's left ends up in the bottom row.",
           "Each bottom light has its own top lights to tap. H is A flipped left to right, G is B, and so on.",
           "Several bottom lights: tap the top lights for each one, then chase again. A light tapped twice cancels.",
-          "Your turn: scroll as you chase. Stuck? Assist rings the next tap."
+          "Your turn: scroll as you chase. Need help? Assist rings the next tap."
         ]
       },
       "ring": {
-        "summary": "Spot whole shapes, or chase and fix.",
+        "summary": "Chase, then fix from the top edge.",
         "steps": [
           "A tap flips a plus. The edges and the hole cut it short: a T or an L.",
-          "Spot whole shapes and tap their centres, corners first.",
-          "Stuck? Chase down: tap under each lit light, row by row.",
-          "Then tap the top-edge light shown and chase again. Top-edge lights have nothing above them.",
-          "Your turn: spot shapes, or chase. In levels, the book button shows the top-edge light."
+          "Chase down: tap under each lit light, row by row. Lights with nothing below them stay: at the bottom, and over the hole.",
+          "Then tap the top-edge light shown and chase again. Top-edge lights have nothing above them, like those under the hole.",
+          "Your turn: chase, fix, chase again; in levels the book button rings the fix. A whole shape at the start is usually a trap."
         ]
       },
       "diamond": {
-        "summary": "Spot whole shapes, or chase and fix.",
+        "summary": "Chase, then fix from the top edge.",
         "steps": [
           "A tap flips a plus. The edges cut it short: an L, or a pair at the tips.",
-          "Spot whole shapes and tap their centres, tips first.",
-          "Stuck? Chase down: tap under each lit light, row by row.",
+          "Chase down: tap under each lit light, row by row. Lights with nothing below them stay, along the lower edges.",
           "Then tap the top-edge light shown and chase again. Top-edge lights have nothing above them.",
-          "Your turn: spot shapes, or chase. In levels, the book button shows the top-edge light."
+          "Your turn: chase, fix, chase again; in levels the book button rings the fix. A whole shape at the start is usually a trap."
         ]
       },
       "stuck": {
-        "summary": "Chase, then go round the screws.",
+        "summary": "Chase, then go round the plates.",
         "steps": [
-          "A screw marks a stuck switch: tapping it does nothing. Its light still flips when you tap a neighbour.",
+          "A striped plate marks a stuck switch: tapping it does nothing. Its light still flips when you tap a neighbour.",
           "So chase down as usual: a lit stuck light goes off when you tap under it.",
-          "A light over a screw can't be chased, so go round it: chase on, tap the top-edge light shown, then chase again.",
-          "Your turn: chase, and go round the screws from the top edge. Assist rings the next tap if you need it."
+          "A light over a plate can't be chased, so go round it: chase on, tap the top-edge light shown, then chase again.",
+          "Your turn: chase, and go round the plates from the top edge. In levels, the book button rings the fix."
         ]
       },
       "hex": {
-        "summary": "Spot flowers of seven.",
+        "summary": "Read overlapping flowers.",
         "steps": [
           "A tap flips the light and the six around it: a flower of seven. At the edge, fewer.",
           "Where two flowers overlap, the shared lights flip twice and cancel.",
-          "Chasing doesn't work here. Spot flowers and tap their centres; where two overlap, tap one and the other shows whole.",
-          "Your turn: spot the flowers. Stuck? Assist rings the next tap."
+          "In levels, flowers overlap. Two arcs of three facing each other are two flowers side by side: tap the two dark lights in the middle.",
+          "Your turn, on boards like the levels'. Need help? Assist rings the next tap."
         ]
       },
       "cube": {
@@ -473,8 +472,8 @@
         "steps": [
           "Here is the cube, unfolded. A tap flips a plus: the light and the four it touches.",
           "Lights touch round the cube's edges too. At a corner, the plus bends onto two other faces.",
-          "There's no bottom row to chase into. Spot pluses, bent ones too, and tap their centres.",
-          "Your turn: spot the pluses; in levels, turn the cube to see every face. Stuck? Assist rings the next tap."
+          "Pluses overlap in levels. Two arcs of three facing each other are two pluses side by side: tap the two dark lights between them.",
+          "Your turn, on boards like the levels'; in levels, turn the cube to see every face. Need help? Assist rings the next tap."
         ]
       },
       "wired": {
@@ -482,8 +481,8 @@
         "steps": [
           "Each switch shows its wiring: spokes point to the lights it also flips.",
           "Work backwards: for a lit light, find the switches whose spokes reach it. Its own switch flips it too.",
-          "Of those, tap the one whose spokes all reach lit lights. Then look again.",
-          "Your turn: work back from the lit lights. Stuck? Assist rings the next tap."
+          "Of those, tap the switch whose lights are mostly lit. Then look again.",
+          "Your turn: work back from the lit lights. Need help? Assist rings the next tap."
         ]
       }
     },
@@ -492,8 +491,8 @@
     "demoCancel": "{name} again: it cancels.",
     "demoEnd": {
       "left": "{n} {n|light|lights} left in the bottom row.",
-      "stuck": "Stuck: {n} {n|light|lights} left in the bottom row.",
-      "stuckShape": "Stuck: {n} {n|light|lights} left.",
+      "stuck": "{n} {n|light|lights} left in the bottom row: the chase can't reach them.",
+      "stuckShape": "{n} {n|light|lights} left, with nothing below to chase them.",
       "cancelled": "Back to the start: the taps cancelled."
     },
     "coach": {
@@ -501,7 +500,6 @@
       "bottom": "Bottom light {names}: tap {taps}, then chase again.",
       "bottoms": "Bottom lights {names}: tap {taps}, then chase again.",
       "again": "Chase again.",
-      "shapeFix": "Stuck: tap the top-edge {n|light|lights} Assist rings, then chase again.",
       "edgeFix": "Left over: tap the top-edge {n|light|lights} Assist rings, then chase again."
     },
     "undoHint": "Not that one. Tap it again to undo it.",
