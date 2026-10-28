@@ -187,6 +187,7 @@
     "newBoard": "New board",
     "another": "Another",
     "assistLine": "Tap the ringed light.",
+    "aimTip": "Small lights: hold one, slide to aim, lift to tap.",
     "moves": "{moves} {moves|tap|taps}",
     "movesPar": "{moves} {moves|tap|taps} · par {par}",
     "solved": "Well done: all dark in {moves} {moves|tap|taps}.",
@@ -243,7 +244,10 @@
       "echo": "Echo of {name}",
       "rect": {
         "chaseClears": "On {cols}×{rows}, chasing clears the whole board.",
+        "straightAbove": "For each lit bottom light, tap the top light straight above it. Then chase again.",
         "threeAbove": "For each lit bottom light, tap the three top lights above it. Overlaps cancel. Then chase again.",
+        "twoAside": "For each lit bottom light, tap the top lights two to each side; at the edges, also the one above. Overlaps cancel. Then chase again.",
+        "aboveTwoAside": "For each lit bottom light, tap the top light above it and two to each side; at the edges, skip the one above. Overlaps cancel. Then chase again.",
         "ownTaps": "Each lit bottom light has its own top taps; overlaps cancel. Then chase again."
       }
     },
@@ -313,7 +317,7 @@
         ]
       }
     },
-    "letters": "ABCDEFG",
+    "letters": "ABCDEFGHIJ",
     "echoJoin": " + ",
     "echo": {
       "pick": "Pick a top light",
@@ -360,12 +364,13 @@
       "row": "Bottom light {name}: tap {taps}"
     },
     "guides": {
-      "4x4": {
-        "summary": "Chasing clears every board here.",
+      "5x6": {
+        "summary": "Chase, then tap straight above each bottom light.",
         "steps": [
-          "Chase down, row by row: tap under each lit light.",
-          "On this board the bottom row always comes out dark. No extra step.",
-          "Your turn: chase from the top. Assist rings the next tap."
+          "Chase down, row by row. Whatever is left ends up in the bottom row.",
+          "One bottom light: tap the top light straight above it, then chase again.",
+          "Several bottom lights: tap above each one, then chase again.",
+          "Your turn. Assist rings the next tap."
         ]
       },
       "6x6": {
@@ -384,6 +389,33 @@
           "One bottom light: tap the three top lights above it (two at an edge), then chase again.",
           "Several bottom lights: do each one's top taps in turn, then chase again. A light tapped twice cancels.",
           "Your turn. Assist rings the next tap."
+        ]
+      },
+      "8x8": {
+        "summary": "Chase, then each bottom light has its own top taps.",
+        "steps": [
+          "Chase down, row by row. Whatever is left ends up in the bottom row.",
+          "Each bottom light has its own top taps: tap them, then chase again. H mirrors A, G mirrors B, and so on.",
+          "Several bottom lights: do each one's top taps in turn, then chase again. A light tapped twice cancels.",
+          "Your turn. Assist rings the next tap."
+        ]
+      },
+      "10x10": {
+        "summary": "Chase, then tap above and two to each side.",
+        "steps": [
+          "Chase down, row by row. Whatever is left ends up in the bottom row.",
+          "One bottom light: tap the top light above it and two to each side, then chase again. For A and J, skip the one above.",
+          "Several bottom lights: do each one's top taps in turn, then chase again. A light tapped twice cancels.",
+          "Your turn. Assist rings the next tap."
+        ]
+      },
+      "tower": {
+        "summary": "Chase all the way down, then tap straight above.",
+        "steps": [
+          "Chase down, row by row, all the way. Whatever is left ends up in the bottom row.",
+          "One bottom light: tap the top light straight above it, then chase again.",
+          "Several bottom lights: tap above each one, then chase again. Patterns (the book button) shows your bottom row while you tap the top.",
+          "Your turn. The board scrolls; Assist rings the next tap."
         ]
       },
       "cross": {

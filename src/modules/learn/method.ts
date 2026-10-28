@@ -203,8 +203,8 @@ export const chaseRect = (solver: ShapedPress, cells: Cells, shape: Rect): Cells
 /**
  * For each bottom-row light of a full rectangle: the fewest top-row taps that, after a chase, clear a board
  * where only that light is lit (null when no top taps do). Worked out from the solver by trying every
- * top-row set and recording the bottom row it leaves (its echo). On 4×4 every echo is dark: a chase alone
- * clears any solvable board.
+ * top-row set and recording the bottom row it leaves (its echo). Where every echo is dark (4×4, 9×9) a chase
+ * alone clears any solvable board.
  */
 export function rectTopSets(solver: ShapedPress, shape: Rect): { perLight: (number[] | null)[]; chaseClears: boolean } {
   const { cols, rows } = shape;
@@ -223,6 +223,29 @@ export function rectTopSets(solver: ShapedPress, shape: Rect): { perLight: (numb
     if (!had || top.length < had.length) best.set(echo, top);
   }
   return { perLight: Array.from({ length: cols }, (_, c) => best.get(1 << c) ?? null), chaseClears };
+}
+
+/**
+ * The per-light rules a player can say in a few words, by column c of n (A = 0). Each is a guess that
+ * `rectRule` checks against the solver's sets; learn.test.ts proves which rule each room follows.
+ */
+export const RECT_RULES = {
+  /** 5×6, the Tower: the top light straight above it */
+  straightAbove: (c: number) => [c],
+  /** 7×7: the three above it (two at an edge) */
+  threeAbove: (c: number) => [c - 1, c, c + 1],
+  /** 6×6: the top lights two to each side; at the very edges also the one above */
+  twoAside: (c: number, n: number) => [c - 2, ...(c === 0 || c === n - 1 ? [c] : []), c + 2],
+  /** 10×10: the one above and two to each side; at the very edges not the one above */
+  aboveTwoAside: (c: number, n: number) => [c - 2, ...(c === 0 || c === n - 1 ? [] : [c]), c + 2],
+} as const;
+export type RectRule = keyof typeof RECT_RULES;
+
+/** the rule a full rectangle's per-light sets follow, or null when each light just has its own taps (8×8) */
+export function rectRule(perLight: readonly (number[] | null)[]): RectRule | null {
+  const n = perLight.length;
+  const fits = (rule: RectRule) => perLight.every((set, c) => set !== null && set.join() === RECT_RULES[rule](c, n).filter((x) => x >= 0 && x < n).join());
+  return (Object.keys(RECT_RULES) as RectRule[]).find(fits) ?? null;
 }
 
 /** the top-row taps for a lit bottom row: each light's set, overlaps cancel; null when a light has no set */

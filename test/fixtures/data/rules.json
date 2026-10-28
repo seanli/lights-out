@@ -230,9 +230,12 @@
       "chase": [4, 8],
       "bottom-row": [6, 10],
       "shortest": [8, 12],
-      "guide-4x4": [3, 5],
+      "guide-5x6": [3, 5],
       "guide-6x6": [3, 5],
       "guide-7x7": [3, 5],
+      "guide-8x8": [3, 5],
+      "guide-10x10": [3, 5],
+      "guide-tower": [3, 5],
       "guide-cross": [3, 4],
       "guide-ring": [3, 4],
       "guide-diamond": [3, 4]
@@ -240,6 +243,7 @@
     "demoStartMs": 700,
     "demoStepMs": 650,
     "demoHoldMs": 1100,
+    "demoMaxMs": 12000,
     "saveKey": "learn",
     "drill": { "cards": 10, "boxes": 3, "missGap": 3, "saveKey": "learn-drill" }
   }

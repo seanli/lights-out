@@ -1,9 +1,10 @@
 // The Learn screen view: lesson list, lesson steps, mini boards, the demo player.
 // Demo progress is presentation (timers), so it lives here, not in the store.
-import { CLASSIC_SHAPE, SIZE, type Cells, type Ctx, type LearnState, type Rng, type Shape, type SolverService } from '../../contracts';
+import { CLASSIC_SHAPE, SIZE, type Cells, type Ctx, type LearnState, type Pack, type Rng, type Shape, type SolverService } from '../../contracts';
 import { fmt, h, setAttr, setText } from '../../lib/dom';
 import { emptyCells, gridSize, isCell, shapeKey } from '../../lib/shape';
 import { roomGlyph } from '../../lib/glyph';
+import { attachAim, type AimHandle, type AimMode } from '../../lib/aim';
 import type { Catalog, LearnCopy, LearnRules } from './index';
 import type { MiniSpec, Phase, Step } from './lessons';
 import { BOTTOM, blank, bottomColumns, chase, chaseShape, lit, litIndexes, lookup, methodTaps, onlyBottom, pressAll, type TableEntry } from './method';
@@ -20,6 +21,11 @@ interface Deps {
   table: () => TableEntry[];
   quiet: () => number[][];
 }
+
+/** a board much taller than wide (the Tower): practice scrolls with the page instead of shrinking */
+const isTall = (s: Shape) => s.rows >= 2 * s.cols;
+/** strips this wide don't fit twice in a row on a phone: a lights row becomes "lit letter → top strip" */
+const WIDE_STRIP = 8;
 
 /** shape absent = the classic board */
 interface Demo { start: Cells; taps: number[]; phases: (Phase | null)[]; pos: number; cells: Cells; cancel: (() => void) | null; shape?: Shape }
@@ -57,7 +63,9 @@ export function createLearnView(d: Deps) {
   let builtKey = '';
   let demo: Demo | null = null;
   /** the practice board and its line, kept to patch on every tap */
-  let practiceEls: { board: HTMLElement; line: HTMLElement; moves: HTMLElement; another: HTMLButtonElement; assist: HTMLButtonElement | null } | null = null;
+  let practiceEls: { board: HTMLElement; line: HTMLElement; moves: HTMLElement; another: HTMLButtonElement; assist: HTMLButtonElement | null; suggest: number | null } | null = null;
+  /** the practice board's pointer helper (aim bubble / scroll-safe taps) and its size watcher, undone on every rebuild */
+  let practiceInput: { aim: AimHandle; observer: ResizeObserver | null } | null = null;
   let demoEls: { board: HTMLElement; line: HTMLElement; button: HTMLButtonElement; echo: number | null } | null = null;
   const parCache = new Map<string, number>();
 
@@ -75,7 +83,7 @@ export function createLearnView(d: Deps) {
     const n = Math.max(s.cols, s.rows);
     const board = h('div', {
       class: `board board--mini board--${kind}`, 'data-mini-board': kind, 'data-cols': s.cols,
-      ...(shape ? { 'data-mini-n': n, style: `--board-n:${n}` } : {}),
+      ...(shape ? { 'data-mini-n': n, 'data-tall': isTall(s) ? 'true' : null, style: `--board-n:${n};${ratio(s)}` } : {}),
       ...(kind === 'practice' ? { role: 'grid' } : { 'aria-hidden': 'true' }),
     });
     const markAttr = kind === 'practice' ? 'data-suggest' : 'data-mark';
@@ -95,6 +103,8 @@ export function createLearnView(d: Deps) {
     return board;
   }
   const firstCell = (s: Shape) => { for (let i = 0; i < gridSize(s); i++) if (isCell(s, i)) return i; return 0; };
+  /** columns and rows for the grid and its aspect ratio (CSS: --board-cols / --board-rows) */
+  const ratio = (s: Shape) => `--board-cols:${s.cols};--board-rows:${s.rows}`;
 
   function patchBoard(board: HTMLElement, cells: readonly boolean[], suggest: readonly number[]) {
     const markAttr = board.dataset.miniBoard === 'practice' ? 'data-suggest' : 'data-mark';
@@ -110,15 +120,64 @@ export function createLearnView(d: Deps) {
     });
   }
 
-  /** press on pointerdown like the main board; a keyboard click (detail 0) presses too; arrows move focus (never into a gap) */
+  /**
+   * Press on pointerdown like the main board; a keyboard click (detail 0) presses too; arrows move focus (never into a gap).
+   * Lights under the tap minimum (8×8 on narrow phones, 10×10): press-and-hold aims with a magnifying bubble, lift presses.
+   * A tall board (the Tower) scrolls with the page: a press lands on release, and a swipe never presses (src/lib/aim.ts).
+   */
   function wirePractice(board: HTMLElement, s: Shape) {
     let pointerPressed = -1;
     const indexOf = (e: Event) => {
       const cell = (e.target as Element | null)?.closest?.('[data-mini-cell]') as HTMLElement | null;
       return cell ? Number(cell.dataset.index) : -1;
     };
+    const tapMin = () => parseFloat(getComputedStyle(board).getPropertyValue('--tap-min')) || 44;
+    /** one light's slot: the distance from a light to the next one in its row */
+    const slot = () => {
+      for (let i = 0; i + 1 < gridSize(s); i++) {
+        if (!isCell(s, i) || !isCell(s, i + 1) || (i + 1) % s.cols === 0) continue;
+        const a = board.querySelector(`[data-index="${i}"]`)?.getBoundingClientRect();
+        const b = board.querySelector(`[data-index="${i + 1}"]`)?.getBoundingClientRect();
+        return a && b ? b.left - a.left : Infinity;
+      }
+      return Infinity;
+    };
+    const mode = (): AimMode | null => {
+      if (isTall(s)) return 'tap';
+      const w = slot();
+      return w > 0 && w < tapMin() ? 'aim' : null;
+    };
+    /** the light whose slot holds a point (the gutters count), or -1 off the board */
+    const cellAt = (x: number, y: number) => {
+      const r = board.getBoundingClientRect();
+      if (x < r.left || x >= r.right || y < r.top || y >= r.bottom) return -1;
+      const css = getComputedStyle(board);
+      const padX = parseFloat(css.paddingLeft) || 0, padY = parseFloat(css.paddingTop) || 0;
+      const col = Math.min(s.cols - 1, Math.max(0, Math.floor(((x - r.left - padX) / (r.width - 2 * padX)) * s.cols)));
+      const row = Math.min(s.rows - 1, Math.max(0, Math.floor(((y - r.top - padY) / (r.height - 2 * padY)) * s.rows)));
+      const i = row * s.cols + col;
+      return isCell(s, i) ? i : -1;
+    };
+    const aim = attachAim(board, {
+      mode,
+      cellAt,
+      litAt: (i) => (isCell(s, i) ? !!state().practice?.cells[i] : null),
+      cols: () => s.cols,
+      press: (i) => ctx.emit('learn:press', { index: i }),
+      onAim: (i) => board.querySelectorAll<HTMLElement>('[data-mini-cell]').forEach((el) => setAttr(el, 'data-aimed', Number(el.dataset.index) === i ? 'true' : null)),
+    });
+    // touch-action has to be set before a finger lands, so the aim mode follows the board's size
+    const fit = () => {
+      const aiming = mode() === 'aim';
+      if (board.dataset.aim === String(aiming)) return;
+      setAttr(board, 'data-aim', String(aiming));
+      patchPractice(state());
+    };
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(fit) : null;
+    observer?.observe(board);
+    practiceInput = { aim, observer };
     board.addEventListener('pointerdown', (e) => {
-      if ((e as PointerEvent).button > 0) return;
+      if ((e as PointerEvent).button > 0 || aim.active()) return;
       const i = indexOf(e);
       if (i < 0) return;
       pointerPressed = i;
@@ -127,6 +186,8 @@ export function createLearnView(d: Deps) {
     board.addEventListener('click', (e) => {
       const i = indexOf(e);
       if (i < 0) return;
+      // aim and tap modes already pressed on release; only a keyboard click (detail 0) presses here
+      if ((e as MouseEvent).detail !== 0 && mode() !== null) return;
       if (pointerPressed === i && (e as MouseEvent).detail !== 0) { pointerPressed = -1; return; }
       pointerPressed = -1;
       ctx.emit('learn:press', { index: i });
@@ -170,7 +231,13 @@ export function createLearnView(d: Deps) {
     const basics = rules.lessons.map((id, k) => tile(id, miniBoard(TILE_GLYPH[id]?.(d) ?? blank(), 'glyph'), k + 1, copy.lessons[id]!.title, copy.lessons[id]!.summary));
     const progress = ctx.read('progress');
     // the room's own picture, lit as it is on the menu (the share of its levels solved)
-    const boards = catalog.guides().map((g) => tile(g.id, roomGlyph(g.pack, progress?.packs?.[g.pack.id]?.solved ?? 0), null, g.pack.name, copy.guides[g.pack.id]!.summary));
+    const glyph = (pack: Pack) => {
+      const g = roomGlyph(pack, progress?.packs?.[pack.id]?.solved ?? 0);
+      // a taller-than-wide room (5×6, the Tower) keeps the tile's height: its picture narrows instead
+      if (pack.shape.rows > pack.shape.cols) g.style.setProperty('--glyph-scale', String(pack.shape.cols / pack.shape.rows));
+      return g;
+    };
+    const boards = catalog.guides().map((g) => tile(g.id, glyph(g.pack), null, g.pack.name, copy.guides[g.pack.id]!.summary));
     return [header, section('basics', basics), ...(boards.length ? [section('boards', boards)] : [])];
   }
 
@@ -263,9 +330,13 @@ export function createLearnView(d: Deps) {
     if (demo.pos < demo.taps.length && clock) demo.cancel = clock.setTimeout(demoTick, delayBefore(demo.pos));
   }
 
-  /** a top-row (or top-edge) tap and a spotted shape are held a little longer, so the eye finds them before they happen */
+  /**
+   * A top-row (or top-edge) tap and a spotted shape are held a little longer, so the eye finds them before they happen.
+   * Other taps speed up on a long demo (10×10, the Tower), so a whole demo runs about demoMaxMs.
+   */
   const HOLD: (Phase | null | undefined)[] = ['top', 'edge', 'spot'];
-  const delayBefore = (pos: number) => (HOLD.includes(demo?.phases[pos]) ? rules.demoHoldMs : rules.demoStepMs);
+  const delayBefore = (pos: number) => (HOLD.includes(demo?.phases[pos]) ? rules.demoHoldMs
+    : Math.min(rules.demoStepMs, Math.round(rules.demoMaxMs / Math.max(1, demo?.taps.length ?? 1))));
 
   function restartDemo() {
     if (!demo) return;
@@ -306,10 +377,14 @@ export function createLearnView(d: Deps) {
     );
     const dots = h('div', { class: 'learn-dots', 'aria-hidden': 'true' }, ...lesson.steps.map((_, k) => h('i', { 'data-state': k < s.step ? 'done' : k === s.step ? 'now' : 'todo' })));
     const text = h('p', { class: 'learn-text' }, c.steps[s.step] ?? '');
-    const stage = h('div', { class: `learn-stage learn-stage--${step.kind}`, 'data-shape': shape ? shapeKey(shape) : null });
+    const stage = h('div', {
+      class: `learn-stage learn-stage--${step.kind}`, 'data-shape': shape ? shapeKey(shape) : null,
+      'data-tall': shape && isTall(shape) ? 'true' : null, style: shape ? ratio(shape) : null,
+    });
     const under = h('div', { class: 'learn-under' });
 
     practiceEls = null;
+    stopInput();
     demoEls = null;
     stopDemo();
     demo = null;
@@ -343,6 +418,12 @@ export function createLearnView(d: Deps) {
       const board = miniBoard(demo.start, 'demo', [], shape);
       const line = h('p', { class: 'tutorial-line', 'data-learn-line': 'demo', 'aria-live': 'polite' });
       const button = h('button', { class: 'btn btn--ghost learn-small', type: 'button', 'data-action': 'learn-demo', onclick: onDemoButton }, copy.demoPlay);
+      // up to 7 wide: the bottom strip with its light → the top strip; wider: the lit light with its letter → the top strip
+      const wide = cols >= WIDE_STRIP;
+      const bottomOf = (r: { bottom: number }, c: number) => wide
+        ? h('span', { class: 'learn-row learn-row--key', 'aria-hidden': 'true', style: '--strip-n:1' },
+          h('span', { class: 'cell', 'data-mini-cell': '', 'data-index': r.bottom, 'data-lit': 'true', 'data-letter': copy.letters[c]! }))
+        : strip({ lit: [c], n: cols, bottom: r.bottom - c });
       const rowsEl = step.rows.map((r, c) => h('button', {
         class: 'learn-lights__row', type: 'button', 'data-action': 'learn-strip', 'data-col': c, 'aria-pressed': String(c === step.pick),
         'aria-label': fmt(copy.lights.row, { name: copy.letters[c]!, taps: names(copy, r.top) }),
@@ -352,8 +433,8 @@ export function createLearnView(d: Deps) {
           restartDemo();
           board.scrollIntoView?.({ block: 'nearest', behavior: view.reducedMotion() ? 'auto' : 'smooth' });
         },
-      }, strip({ lit: [c], n: cols, bottom: r.bottom - c }), h('span', { class: 'learn-table__arrow', 'aria-hidden': 'true' }, '→'), strip({ ring: r.top, row: 'top', kind: 'top', letters: copy.letters, n: cols })));
-      stage.append(h('div', { class: 'learn-lights', style: `--strip-n:${cols}` },
+      }, bottomOf(r, c), h('span', { class: 'learn-table__arrow', 'aria-hidden': 'true' }, '→'), strip({ ring: r.top, row: 'top', kind: 'top', letters: copy.letters, n: cols })));
+      stage.append(h('div', { class: 'learn-lights', 'data-wide': wide ? 'true' : null, style: `--strip-n:${cols}` },
         h('div', { class: 'learn-lights__list', role: 'group', 'aria-label': copy.lights.pick }, ...rowsEl), board));
       under.append(line, h('div', { class: 'learn-controls' }, button));
       demoEls = { board, line, button, echo: null };
@@ -381,7 +462,7 @@ export function createLearnView(d: Deps) {
       stage.append(board);
       under.append(line, h('div', { class: 'learn-controls' }, moves, assist, another));
       if (lesson.echoHelp) under.append(h('p', { class: 'learn-caption' }, copy.echoTip));
-      practiceEls = { board, line, moves, another, assist };
+      practiceEls = { board, line, moves, another, assist, suggest: null };
     }
 
     const navRow = h('nav', { class: 'learn-nav' },
@@ -419,7 +500,15 @@ export function createLearnView(d: Deps) {
     if (p.status === 'solved') line = fmt(showPar ? (p.moves <= par ? copy.solvedAtPar : copy.solvedPar) : copy.solved, { moves: p.moves, par });
     else if (echo) line = fmt(copy.echoMatch, { name: names(copy, echo.top) });
     else if (p.suggest !== null) line = copy.assistLine;
+    else if (practiceEls.board.dataset.aim === 'true') line = copy.aimTip;
     setText(practiceEls.line, line);
+    // the Tower scrolls: bring a newly ringed light into view (only if it's off screen)
+    if (p.suggest !== practiceEls.suggest) {
+      practiceEls.suggest = p.suggest;
+      if (p.suggest !== null && practiceEls.board.dataset.tall === 'true') {
+        practiceEls.board.querySelector<HTMLElement>(`[data-mini-cell][data-index="${p.suggest}"]`)?.scrollIntoView?.({ block: 'nearest', behavior: view.reducedMotion() ? 'auto' : 'smooth' });
+      }
+    }
     setAttr(practiceEls.line, 'data-tone', tone);
     setText(practiceEls.another, p.status === 'solved' ? copy.another : copy.newBoard);
     if (practiceEls.assist) setAttr(practiceEls.assist, 'aria-pressed', String(s.assist));
@@ -454,8 +543,14 @@ export function createLearnView(d: Deps) {
   });
   render();
 
+  function stopInput() {
+    practiceInput?.aim.destroy();
+    practiceInput?.observer?.disconnect();
+    practiceInput = null;
+  }
+
   return {
-    stop: stopDemo,
+    stop: () => { stopDemo(); stopInput(); },
     debug: () => (demo ? { demoAt: demo.pos, demoTaps: demo.taps.length } : null),
   };
 }
