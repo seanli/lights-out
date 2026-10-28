@@ -142,7 +142,12 @@
   --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
-  --gutter: 16px;
+  /* layout rhythm (DESIGN: one room, one rhythm). Screens use only these between their blocks. */
+  --gutter: clamp(16px, 4.6vw, 22px);   /* side padding of every screen: 16 at 320–360, ~18 at 390, ~20 at 430 */
+  --stack: var(--space-3);              /* between the blocks of a screen: header, status, board, panel, bar */
+  --stack-lg: var(--space-6);           /* between sections of a scrolling screen (menu groups, chapters) */
+  --card-pad: var(--space-4);           /* inside every card and panel */
+  --sheet-pad: var(--space-6);          /* inside sheets */
 
   /* ---- shape ---- */
   --hairline: 1px;
@@ -159,6 +164,9 @@
   /* board slots smaller than this switch to aim-and-release (src/lib/aim.ts); 40px slots stay instant (DECISIONS #40, #48) */
   --aim-below: 40px;
   --btn-h: 56px;
+  --header-h: 56px;                     /* every screen header: back · eyebrow + title · end slot */
+  --bar-h: 56px;                        /* every bottom bar: play actions, lesson Previous/Next */
+  --bar-h-short: 48px;                  /* the same bars on short screens (max-height: 640px) */
   --chip-h: 28px;
   --chip-h-lg: 36px;
   --icon-sm: 14px;
