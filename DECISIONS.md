@@ -16,3 +16,7 @@
 | 12 | Debug console behind `#debug` (not `?debug`) | changed after evidence | The artifact frame passes only a plain hash, never a query string |
 | 13 | Offline: zero network requests (fonts bundled via @fontsource), standalone HTML file, plus a PWA build with a hand-written service worker | lead default | Artifact pages can't register service workers; the PWA is the only way to open with no connection on a phone. The app is one file, so a 30-line worker beats Workbox |
 | 14 | Hints used are counted by `progress` (from `hints:shown`), not read from the hints slice at solve time | lead default | Keeps handlers order-independent |
+| 15 | Levels come from a fixed seed (rules.json → levels.seed): every player gets the same 50 boards | lead default | Stars are comparable between players; tuning is reproducible |
+| 16 | Sound on by default; pentatonic blips by lit count, chord on solve, mute remembered | lead default | Tactile feedback; synthesized so nothing is downloaded |
+| 17 | The progress slice carries the star rule (`scoring`) so views show tiers without owning the rule | lead default | One source of truth for the star thresholds |
+| 18 | Offline version hosted on GitHub Pages (seanli/lights-out), deployed by Actions on push | decided with the user | User created the repo |
