@@ -25,10 +25,12 @@
 /* a tile: its number dead centre, a boss's skull above it, Play or the stars below */
 .variety .level-tile { display: grid; grid-template-rows: 1fr auto 1fr; justify-items: center; gap: 0; }
 .variety .level-tile__num { grid-row: 2; }
-.variety .level-tile .skull { grid-row: 1; align-self: end; width: var(--space-4); height: var(--space-4); margin-bottom: var(--space-half); color: var(--c-text-dim); }
+.variety .level-tile .skull { grid-row: 1; align-self: end; width: var(--space-5); height: var(--space-5); margin-bottom: var(--space-half); color: var(--c-text); }
 .variety .level-tile__deco { grid-row: 3; align-self: start; display: flex; margin-top: var(--space-1); }
 .variety .level-tile[data-current="true"] .skull { color: currentColor; }
-.variety .level-tile[data-locked="true"] .skull { color: var(--c-text-faint); opacity: var(--lost-opacity); }
+.variety .level-tile[data-locked="true"] .skull { color: var(--c-text-dim); }
+/* a boss reads at a glance even while locked: its socket carries a faint ring */
+.variety .level-tile[data-boss="true"][data-locked="true"] { box-shadow: var(--shadow-recessed), inset 0 0 0 var(--hairline) var(--c-line-strong); }
 
 /* a level a solve just unlocked: its light comes on once */
 .variety .level-tile[data-power-on] { animation: lo-variety-power-on calc(var(--dur-sweep) * .56) var(--ease-out) both; }
