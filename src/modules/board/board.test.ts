@@ -254,7 +254,7 @@ describe('board', () => {
     test.each([
       ['wrong length for the shape', grid(25, 0), ring],
       ['a lit gap', grid(49, 24), ring],
-      ['a shape that is too big', grid(64, 0), { cols: 8, rows: 8, mask: null }],
+      ['a shape that is too big', grid(88, 0), { cols: 11, rows: 8, mask: null }],
       ['a mask of the wrong length', grid(16, 0), { cols: 4, rows: 4, mask: [true, false] }],
     ])('refuses a bad shaped board (%s)', (_, cells, shape) => {
       const t = bootModule(board);

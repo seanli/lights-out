@@ -44,7 +44,10 @@ export interface ViewService {
 export interface Env {
   target: 'artifact' | 'pwa' | 'file' | 'dev' | 'test';
   debug: boolean;
+  /** UTC build time, yyyymmddhhmm */
   buildId: string;
+  /** the release (package.json version), shown at the bottom of home so the player can tell which build they have */
+  version: string;
 }
 
 /** Provided by the storage module. Keys are namespaced by the service. Never throws. */

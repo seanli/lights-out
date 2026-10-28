@@ -5,6 +5,7 @@ import { refPress, refSolve } from '../../../test/ref-solver';
 import type { Cells, LevelsState, ProgressState, Shape, SolverService } from '../../contracts';
 import { cellIndexes, fitsShape, gridSize, parseShape, pressTargets } from '../../lib/shape';
 import levels from './index';
+import { parsOf } from './generate';
 
 /** independent reference for shaped boards: BigInt elimination over real cells, then the lightest of every solution */
 function refShapedSolve(shape: Shape, cells: readonly boolean[]): number[] | null {
@@ -46,9 +47,11 @@ const shapedSolve = (cells: Cells, shape?: Shape) => (shape ? refShapedSolve(sha
 
 // modules never import each other: inject an independent reference solver
 const solver: SolverService = { press: shapedPress, solve: shapedSolve, isSolvable: (c, s) => shapedSolve(c, s) !== null };
-type Room = { id: string; kind: string; cols?: number; rows?: number; picture?: string[]; idBase: number; seed: number; pars: number[] };
+type Band = { pars: number[]; boss: number };
+type Room = { id: string; kind: string; group: string; cols?: number; rows?: number; picture?: string[]; idBase: number; seed: number; bands: Band[] };
 const rules = (fixtureData.rules as { levels: Record<string, unknown> & { rooms: Room[] } }).levels;
-const target = rules.pars as number[];
+const target = parsOf(rules.bands as Band[]);
+const nine = (p: number) => Array<number>(9).fill(p);
 const rooms = rules.rooms;
 const roomNames = (fixtureData.copy as { levels: { rooms: Record<string, string> } }).levels.rooms;
 const classicOf = (s: LevelsState) => s.list.filter((l) => l.pack === undefined);
@@ -80,9 +83,10 @@ describe('levels', () => {
     expect(t.seen('levels:generated')).toEqual({ count: target.length, pars: target });
   });
 
+  // pinned so an accidental change to generation or data shows up here; re-pinned on purpose with decision 45 (bosses)
   test('the classic 50 boards are exactly the ones players already have (pinned hash)', () => {
     const hash = createHash('sha256').update(JSON.stringify(classicOf(state))).digest('hex');
-    expect(hash).toBe('d17fc66b45708cf75aa0dc11a51ebebd591c1541ee9bcc097f4adbae94134872');
+    expect(hash).toBe('f30beedd5784af473eeeb2a386f4164ebb38601d8cab9f5cab14d82a1fa810a4');
   });
 
   test('every par is the solver’s fewest presses and matches the data', () => {
@@ -115,17 +119,18 @@ describe('levels', () => {
   });
 
   test('when tries run out it keeps the closest board and warns with the real par', () => {
-    const b = boot({ data: withRules({ pars: [15, 15], maxTries: 1, chapters: [{ id: 'first-light', from: 1, to: 2 }], rooms: [] }) });
+    const b = boot({ data: withRules({ bands: [{ pars: nine(14), boss: 15 }], maxTries: 1, chapters: [{ id: 'first-light', from: 1, to: 10 }], rooms: [] }) });
     const s = b.state('levels') as LevelsState;
     expect(s.status).toBe('ready');
     for (const l of s.list) {
       expect(refSolve(l.cells)?.length).toBe(l.par);
       expect(l.par).toBeLessThanOrEqual(15);
     }
-    const missed = s.list.filter((l) => l.par !== 15);
-    expect(missed.length).toBeGreaterThan(0); // a random 15-press board is rarely par 15
+    const wanted = (id: number) => (id === 10 ? 15 : 14);
+    const missed = s.list.filter((l) => l.par !== wanted(l.id));
+    expect(missed.length).toBeGreaterThan(0); // a random 14- or 15-press board is rarely that par
     const warns = b.kernel.debug.logs().filter((r) => r.level === 'warn' && r.source === 'levels');
-    expect(warns.map((w) => w.msg)).toEqual(missed.map((l) => expect.stringContaining(`Level ${l.id} has par ${l.par}, not 15`)));
+    expect(warns.map((w) => w.msg)).toEqual(missed.map((l) => expect.stringContaining(`Level ${l.id} has par ${l.par}, not ${wanted(l.id)}`)));
   });
 
   test.each([
@@ -140,7 +145,9 @@ describe('levels', () => {
   });
 
   test('data with a par no board can have is rejected before init', () => {
-    expect(() => boot({ data: withRules({ pars: [1, 16] }) })).toThrow(/A par must be 1–15/);
+    expect(() => boot({ data: withRules({ bands: [{ pars: nine(1), boss: 16 }] }) })).toThrow(/A classic par must be 1–15/);
+    expect(() => boot({ data: withRules({ bands: [{ pars: nine(5), boss: 5 }] }) })).toThrow(/A boss must need more presses/);
+    expect(() => boot({ data: withRules({ bands: [{ pars: [1, 2], boss: 5 }] }) })).toThrow(/A band has 9 levels before its boss/);
   });
 
   test('start loads the board and says so', () => {
@@ -191,7 +198,8 @@ describe('levels', () => {
     const b = boot();
     const cmd = b.instance!.commands!;
     expect(String(cmd.list!([])).split('\n')[0]).toBe(`1: ${target[0]}`);
-    expect(String(cmd.list!([]))).toContain('1001: 1 (4x4 1)');
+    expect(String(cmd.list!([]))).toContain('7001: 2 (5x6 1)');
+    expect(String(cmd.list!([]))).toContain('10: 7 boss');
     cmd.start!(['5']);
     expect(b.seen('levels:started', { levelId: 5 })).toBeTruthy();
     expect(cmd.start!([])).toMatch(/Usage/);
@@ -202,18 +210,20 @@ describe('levels', () => {
 
     test('packs: classic first, then each room in data order, named from copy', () => {
       expect(state.packs).toEqual([
-        { id: 'classic', name: 'Classic', kind: 'classic', shape: { cols: 5, rows: 5, mask: null }, first: 1, count: 50 },
-        ...rooms.map((r) => ({ id: r.id, name: roomNames[r.id], kind: r.kind, shape: shapeOf(r), first: r.idBase + 1, count: r.pars.length })),
+        { id: 'classic', name: 'Classic', kind: 'classic', group: 'boards', shape: { cols: 5, rows: 5, mask: null }, first: 1, count: 50 },
+        ...rooms.map((r) => ({ id: r.id, name: roomNames[r.id], kind: r.kind, group: r.group, shape: shapeOf(r), first: r.idBase + 1, count: r.bands.length * 10 })),
       ]);
-      expect(state.list.length).toBe(50 + rooms.reduce((n, r) => n + r.pars.length, 0));
+      expect(state.list.length).toBe(50 + rooms.reduce((n, r) => n + r.bands.length * 10, 0));
     });
 
     test.each(rooms.map((r) => [r.id, r] as const))('%s: ids, pack, index, shape; par = fewest presses = data; no repeats', (id, room) => {
       const shape = shapeOf(room);
       const list = state.list.filter((l) => l.pack === id);
-      expect(list.map((l) => l.id)).toEqual(room.pars.map((_, i) => room.idBase + i + 1));
-      expect(list.map((l) => l.index)).toEqual(room.pars.map((_, i) => i + 1));
-      expect(list.map((l) => l.par)).toEqual(room.pars);
+      const pars = parsOf(room.bands);
+      expect(list.map((l) => l.id)).toEqual(pars.map((_, i) => room.idBase + i + 1));
+      expect(list.map((l) => l.index)).toEqual(pars.map((_, i) => i + 1));
+      expect(list.map((l) => l.par)).toEqual(pars);
+      expect(list.filter((l) => l.boss).map((l) => l.index)).toEqual(room.bands.map((_, k) => (k + 1) * 10));
       for (const l of list) {
         expect(l.shape).toEqual(shape);
         expect(l.cells.length).toBe(gridSize(shape));
@@ -242,22 +252,22 @@ describe('levels', () => {
       const level = state.list.find((l) => l.id === 5001)!;
       b.emit('levels:start', { levelId: 5001 });
       expect(b.seen('board:load')).toEqual({ levelId: 5001, cells: level.cells, par: level.par, shape: shapeOf(ring) });
-      expect(b.seen('levels:started')).toEqual({ levelId: 5001, par: level.par, count: 12, pack: 'ring', index: 1, next: 5002 });
-      b.emit('levels:start', { levelId: 5012 });
-      expect(b.seen('levels:started')).toMatchObject({ levelId: 5012, pack: 'ring', index: 12, next: null });
+      expect(b.seen('levels:started')).toEqual({ levelId: 5001, par: level.par, count: 30, pack: 'ring', index: 1, next: 5002 });
+      b.emit('levels:start', { levelId: 5030 });
+      expect(b.seen('levels:started')).toMatchObject({ levelId: 5030, pack: 'ring', index: 30, next: null, boss: true });
     });
 
     test('rooms stay locked until Variety opens, then unlock one at a time inside each room', () => {
       const closed = boot({ state: { progress: progress(50) } });
-      closed.emit('levels:start', { levelId: 1001 });
-      expect(closed.seen('levels:refused')).toEqual({ levelId: 1001, reason: 'locked' });
+      closed.emit('levels:start', { levelId: 7001 });
+      expect(closed.seen('levels:refused')).toEqual({ levelId: 7001, reason: 'locked' });
 
-      const open = boot({ state: { progress: progress(21, { varietyOpen: true, packs: { '4x4': { unlockedUpTo: 3, solved: 2, stars: 6 } } }) } });
-      for (const id of [1001, 1003, 2001]) {
+      const open = boot({ state: { progress: progress(21, { varietyOpen: true, packs: { '5x6': { unlockedUpTo: 3, solved: 2, stars: 6 } } }) } });
+      for (const id of [7001, 7003, 2001]) {
         open.emit('levels:start', { levelId: id });
         expect(open.seen('levels:started', { levelId: id })).toBeTruthy();
       }
-      for (const id of [1004, 2002]) {
+      for (const id of [7004, 2002]) {
         open.emit('levels:start', { levelId: id });
         expect(open.seen('levels:refused')).toEqual({ levelId: id, reason: 'locked' });
       }
@@ -266,16 +276,16 @@ describe('levels', () => {
       expect(open.seen('levels:refused')).toEqual({ levelId: 22, reason: 'locked' });
 
       const free = boot();
-      free.emit('levels:start', { levelId: 6012 });
-      expect(free.seen('levels:started', { levelId: 6012 })).toBeTruthy();
+      free.emit('levels:start', { levelId: 6030 });
+      expect(free.seen('levels:started', { levelId: 6030 })).toBeTruthy();
     });
 
     test.each([
       ['no name in copy', { rooms: [{ ...rooms[0]!, id: 'nameless' }] }, /"nameless" has no name/],
       ['ids that overlap the classic path', { rooms: [{ ...rooms[0]!, idBase: 40 }] }, /overlap "classic"/],
-      ['ids that overlap another room', { rooms: [rooms[0]!, { ...rooms[1]!, idBase: 1005 }] }, /overlap "4x4"/],
-      ['the same room twice', { rooms: [rooms[0]!, rooms[0]!] }, /Two rooms are called "4x4"/],
-      ['a par above the cell count', { rooms: [{ ...rooms[0]!, pars: [17] }] }, /par 17, but its board has only 16 cells/],
+      ['ids that overlap another room', { rooms: [rooms[0]!, { ...rooms[1]!, idBase: 7005 }] }, /overlap "5x6"/],
+      ['the same room twice', { rooms: [rooms[0]!, rooms[0]!] }, /Two rooms are called "5x6"/],
+      ['a par above the cell count', { rooms: [{ ...rooms[0]!, bands: [{ pars: nine(1), boss: 31 }] }] }, /par 31, but its board has only 30 cells/],
       ['a ragged picture', { rooms: [{ ...rooms[3]!, picture: ['XXX', 'XX', 'XXX'] }] }, /same length/],
     ])('a room with %s stops the game with a plain message', (_, patch, message) => {
       expect(() => boot({ data: withRules(patch) })).toThrow(message);
@@ -283,9 +293,31 @@ describe('levels', () => {
 
     test.each([
       ['both a size and a picture', { ...rooms[0]!, picture: ['XXX', 'XXX', 'XXX'] }, /either cols and rows, or a picture/],
-      ['an 8×8 board', { ...rooms[0]!, cols: 8, rows: 8 }, /Invalid value/],
+      ['an 11-wide board', { ...rooms[0]!, cols: 11, rows: 8 }, /Invalid value/],
     ])('data with %s is rejected before init', (_, room, message) => {
       expect(() => boot({ data: withRules({ rooms: [room] }) })).toThrow(message);
     });
+  });
+});
+
+describe('bosses', () => {
+  const st = boot().state('levels') as LevelsState;
+  const packIds = ['classic', ...rooms.map((r) => r.id)];
+  test.each(packIds)('%s: every 10th level is a boss, at least 1.5× the hardest level in its band', (id) => {
+    const list = st.list.filter((l) => (l.pack ?? 'classic') === id);
+    expect(list.length % 10).toBe(0);
+    list.forEach((l, i) => {
+      expect(l.boss === true).toBe((i + 1) % 10 === 0);
+      if (!l.boss) return;
+      const band = list.slice(i - 9, i);
+      expect(l.par).toBeGreaterThanOrEqual(Math.ceil(1.5 * Math.max(...band.map((x) => x.par))));
+    });
+  });
+  test('the level-10 boss says so when it starts', () => {
+    const b = boot();
+    b.emit('levels:start', { levelId: 10 });
+    expect(b.seen('levels:started')).toMatchObject({ levelId: 10, boss: true });
+    b.emit('levels:start', { levelId: 9 });
+    expect(b.seen('levels:started', { levelId: 9 })).not.toHaveProperty('boss');
   });
 });

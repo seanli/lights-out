@@ -7,7 +7,12 @@
 //
 // Play screen (play-view):
 //   [data-board]                     the grid; data-status="playing|solved", data-cols, data-rows
-//   [data-cell][data-index="0..48"][data-lit="true|false"]   one button per REAL cell (index over the whole grid)
+//     data-scroll="true"             the board is taller than the screen (the Tower): it scrolls, a swipe never presses,
+//                                    a press lands on release
+//     data-aim="true"                touch slots are under the tap minimum (10×10, 8×8 on narrow phones): press-and-hold
+//                                    shows [data-aim-bubble] magnifying the target; slide to adjust; lift to press
+//   [data-boss="true"]               on the play header when the level is a boss (skull shown)
+//   [data-cell][data-index="0..159"][data-lit="true|false"]   one button per REAL cell (index over the whole grid)
 //   gaps of a shaped board render as an element with [data-gap] and NO data-cell (never a button)
 //     data-hint="true"               on the hinted cell (hints slice)
 //     data-pointer="true"            on the tutorial target (tutorial slice)
@@ -30,17 +35,20 @@
 //   [data-action="continue"]         starts the suggested level (the board last played, else classic)
 //   [data-room-tile][data-room="<pack id>"][data-solved="N"][data-stars="N"][data-locked="true|false"]
 //                                    one row per pack in levels.packs order, classic first → variety:open {room}
+//   [data-group="boards|shapes|extreme"]  the menu section holding a pack's row (from Pack.group)
 //   [data-action="learn"]            → learn:open {}
 //   [data-action="sound"]            toggles sound; aria-pressed reflects state
 //   [data-action="reset"]            opens the reset confirmation
 //
 // Solved sheet (solved-sheet):
 //   [data-sheet="solved"] [data-stars-earned="1..3"]  [data-result]  (e.g. "6 moves · par 5")
+//     data-boss="true" on the sheet after a boss level
 //   [data-action="next"|"replay"|"levels"]
 //
 // Board screen (variety): one board's levels, classic included  [data-screen="variety"]
 //   [data-room-view="<pack id>"]     classic groups its tiles into chapters ([data-chapter]); rooms are one grid
 //   [data-level-tile][data-level="<global id>"][data-stars="0..3"][data-locked="true|false"][data-current="true|false"]
+//     data-boss="true"               every 10th level: drawn with a skull
 //   [data-action="variety-back"]     → back to where the player came from (the menu)
 //   [data-action="guide"]            → learn:open {lessonId: "guide-<pack id>"} (classic: learn:open {}); only while learn runs
 //

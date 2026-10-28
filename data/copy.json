@@ -8,12 +8,15 @@
       "blackout": "Blackout"
     },
     "rooms": {
-      "4x4": "Small room",
+      "5x6": "Tall room",
       "6x6": "Wide room",
       "7x7": "Great hall",
       "cross": "Cross",
       "ring": "Ring",
-      "diamond": "Diamond"
+      "diamond": "Diamond",
+      "8x8": "Ballroom",
+      "10x10": "Cathedral",
+      "tower": "Tower"
     }
   },
   "home-view": {

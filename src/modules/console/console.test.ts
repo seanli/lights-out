@@ -5,7 +5,7 @@ import { bootModule, fixtureData } from '../../../test/fake-ctx';
 import consoleModule from './index';
 import { groupEvents, isFact } from './format';
 
-const env = { target: 'test' as const, debug: true, buildId: 't' };
+const env = { target: 'test' as const, debug: true, buildId: 't', version: '0.0.0-test' };
 
 /** requestAnimationFrame that only runs when the test says so */
 function stubFrames() {

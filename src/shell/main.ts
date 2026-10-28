@@ -16,7 +16,7 @@ function detectEnv(): Env {
   const debug = /(^|[#&?])debug\b/.test(location.hash) || /[?&]debug\b/.test(location.search);
   const target: Env['target'] =
     import.meta.env.MODE === 'pwa' ? 'pwa' : import.meta.env.DEV ? 'dev' : location.protocol === 'file:' ? 'file' : 'artifact';
-  return { target, debug, buildId: __BUILD_ID__ };
+  return { target, debug, buildId: __BUILD_ID__, version: __VERSION__ };
 }
 
 function seed(): number {

@@ -24,8 +24,8 @@ export interface Events {
 
   // ---- levels ----
   'levels:start': { levelId: LevelId };
-  /** count = levels in this pack; next = the following level in the same pack, or null after its last */
-  'levels:started': { levelId: LevelId; par: number; count: number; pack?: string; index?: number; next?: LevelId | null };
+  /** count = levels in this pack; next = the following level in the same pack, or null after its last; boss = a boss level */
+  'levels:started': { levelId: LevelId; par: number; count: number; pack?: string; index?: number; next?: LevelId | null; boss?: boolean };
   'levels:generated': { count: number; pars: number[] };
   'levels:refused': { levelId: LevelId; reason: 'locked' | 'unknown' | 'not_ready' };
 

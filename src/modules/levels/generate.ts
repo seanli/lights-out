@@ -3,7 +3,6 @@ import { type Cells, type Chapter, type LevelDef, type Rng, type Shape, type Sol
 import { cellIndexes, emptyCells, shapeOf } from '../../lib/shape';
 
 export interface LevelsRules {
-  seed: number;
   pars: number[];
   maxTries: number;
   chapters: { id: string; from: number; to: number }[];
@@ -13,8 +12,10 @@ export interface LevelsRules {
 export interface PackPlan {
   idBase: number;
   shape?: Shape;
-  /** stamped on every LevelDef (absent for classic, so classic levels stay byte-identical) */
+  /** stamped on every LevelDef (absent for classic) */
   pack?: string;
+  /** every Nth level (by position in the pack) is stamped `boss: true` */
+  bossEvery?: number;
 }
 
 export interface Generated {
@@ -24,6 +25,9 @@ export interface Generated {
   /** levels whose par came out lower than the data asked for */
   missed: { id: number; wanted: number; got: number }[];
 }
+
+/** the pars of a list of bands, in level order: each band's nine, then its boss */
+export const parsOf = (bands: readonly { pars: readonly number[]; boss: number }[]): number[] => bands.flatMap((b) => [...b.pars, b.boss]);
 
 const key = (cells: Cells) => cells.map((on) => (on ? '1' : '0')).join('');
 
@@ -38,7 +42,7 @@ export function generateLevels(
   solver: SolverService,
   plan: PackPlan = { idBase: 0 },
 ): Generated {
-  const { shape, pack, idBase } = plan;
+  const { shape, pack, idBase, bossEvery } = plan;
   const empty: Cells = emptyCells(shapeOf(shape));
   const seen = new Set<string>();
   const list: LevelDef[] = [];
@@ -71,7 +75,8 @@ export function generateLevels(
     if (!best) throw new Error(`Couldn't find a new board for level ${id} (par ${wanted}) in ${rules.maxTries} tries`);
     if (best.par !== wanted) missed.push({ id, wanted, got: best.par });
     seen.add(key(best.cells));
-    list.push(pack === undefined ? { id, cells: best.cells, par: best.par } : { id, cells: best.cells, par: best.par, pack, index: n + 1, ...(shape ? { shape } : {}) });
+    const boss = bossEvery && (n + 1) % bossEvery === 0 ? { boss: true as const } : {};
+    list.push(pack === undefined ? { id, cells: best.cells, par: best.par, ...boss } : { id, cells: best.cells, par: best.par, pack, index: n + 1, ...(shape ? { shape } : {}), ...boss });
     tries.push(t);
   });
   return { list, tries, missed };

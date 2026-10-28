@@ -84,7 +84,7 @@ describe('solver on every room shape', () => {
   test('null-space dimensions are small enough to search fully', () => {
     const dims = Object.fromEntries(SHAPES.map(([id, s]) => [id, createShaped(s).nullDim]));
     console.log('solver: null-space dimension per room', JSON.stringify(dims));
-    expect(dims).toEqual({ '4x4': 4, '6x6': 0, '7x7': 0, cross: 2, ring: 2, diamond: 0 });
+    expect(dims).toEqual({ '5x6': 0, '6x6': 0, '7x7': 0, cross: 2, ring: 2, diamond: 0, '8x8': 0, '10x10': 0, tower: 0 });
     for (const [, s] of SHAPES) expect(createShaped(s).approximate).toBe(false);
   });
 
@@ -171,5 +171,30 @@ describe('solver on every room shape', () => {
     }
     console.log('solver: µs per solve', JSON.stringify(timings));
     for (const us of Object.values(timings)) expect(us).toBeLessThan(100);
+  });
+});
+
+describe('large boards (more than 64 cells, several mask words)', () => {
+  const rect = (cols: number, rows: number): Shape => ({ cols, rows, mask: null });
+  test.each([[8, 8, 0], [10, 10, 0], [5, 16, 0], [9, 9, 8], [7, 16, 0]])('%i×%i: null space %i, solve clears and agrees with the reference', (cols, rows, nullDim) => {
+    const shape = rect(cols, rows);
+    const s = createShaped(shape);
+    expect(s.cells).toBe(cols * rows);
+    expect(s.nullDim).toBe(nullDim);
+    const rng = createRng(cols * 100 + rows);
+    for (let t = 0; t < 12; t++) {
+      let cells = emptyCells(shape) as Cells;
+      const taps = new Set<number>();
+      while (taps.size < 3 + t * 2) taps.add(rng.int(cols * rows));
+      for (const i of taps) cells = s.press(cells, i);
+      const sol = s.solve(cells)!;
+      expect(sol).not.toBeNull();
+      let after = cells;
+      for (const i of sol) after = s.press(after, i);
+      expect(after.every((on) => !on)).toBe(true);
+      // invertible boards: the solution is unique, so par is exactly the taps that built the board
+      if (nullDim === 0) expect([...sol].sort((a, b) => a - b)).toEqual([...taps].sort((a, b) => a - b));
+      else expect(sol.length).toBe(refSolve(shape, cells)!.length);
+    }
   });
 });

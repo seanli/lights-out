@@ -1,18 +1,31 @@
-// levels: makes the classic 50 levels and every Variety room from fixed seeds at boot, owns the `levels` slice, starts a level.
+// levels: makes every board's levels from fixed seeds at boot, owns the `levels` slice, starts a level.
+// Levels come in bands of ten: nine that ramp up, then a boss (every 10th level) that is drastically harder.
 import * as v from 'valibot';
-import { CLASSIC_SHAPE, MAX_SIDE, type LevelDef, type LevelsState, type ModuleDef, type Pack, type Shape } from '../../contracts';
+import { CLASSIC_SHAPE, MAX_COLS, MAX_ROWS, type LevelDef, type LevelsState, type ModuleDef, type Pack, type Shape } from '../../contracts';
 import { cellCount, parseShape } from '../../lib/shape';
-import { checkChapters, generateLevels, type Generated, type LevelsRules } from './generate';
+import { checkChapters, generateLevels, parsOf, type Generated } from './generate';
 
 /** No 5×5 board needs more than 15 presses, so a higher par could never be generated. */
 const MAX_PAR = 15;
+/** levels per band: the last of each ten is the boss */
+const BAND = 10;
 const int = v.pipe(v.number(), v.integer());
+
+/** nine levels that ramp up, then the boss: always ten levels, so every 10th level is a boss */
+const BandSchema = v.pipe(
+  v.object({
+    pars: v.pipe(v.array(v.pipe(int, v.minValue(1))), v.length(BAND - 1, `A band has ${BAND - 1} levels before its boss`)),
+    boss: v.pipe(int, v.minValue(1)),
+  }),
+  v.check((b) => b.boss > Math.max(...b.pars), 'A boss must need more presses than every level in its band'),
+);
+const BandsSchema = v.pipe(v.array(BandSchema), v.minLength(1, 'There must be at least one band of levels'));
 
 const RulesSchema = v.object({
   seed: int,
-  pars: v.pipe(
-    v.array(v.pipe(int, v.minValue(1), v.maxValue(MAX_PAR, `A par must be 1–${MAX_PAR}: no 5×5 board needs more than ${MAX_PAR} presses`))),
-    v.minLength(1, 'There must be at least one level'),
+  bands: v.pipe(
+    BandsSchema,
+    v.check((bands) => parsOf(bands).every((p) => p <= MAX_PAR), `A classic par must be 1–${MAX_PAR}: no 5×5 board needs more than ${MAX_PAR} presses`),
   ),
   maxTries: v.pipe(int, v.minValue(1)),
   chapters: v.array(v.object({ id: v.pipe(v.string(), v.minLength(1)), from: v.pipe(int, v.minValue(1)), to: v.pipe(int, v.minValue(1)) })),
@@ -21,12 +34,14 @@ const RulesSchema = v.object({
     v.object({
       id: v.pipe(v.string(), v.regex(/^[a-z0-9-]+$/, 'A room id uses only a-z, 0-9 and "-"')),
       kind: v.picklist(['size', 'shape']),
-      cols: v.optional(v.pipe(int, v.minValue(3), v.maxValue(MAX_SIDE))),
-      rows: v.optional(v.pipe(int, v.minValue(3), v.maxValue(MAX_SIDE))),
-      picture: v.optional(v.pipe(v.array(v.string()), v.maxLength(MAX_SIDE, `A room picture has at most ${MAX_SIDE} rows`))),
+      /** the menu section: boards (one screen), shapes, extreme (big or scrolling) */
+      group: v.picklist(['boards', 'shapes', 'extreme']),
+      cols: v.optional(v.pipe(int, v.minValue(3), v.maxValue(MAX_COLS))),
+      rows: v.optional(v.pipe(int, v.minValue(3), v.maxValue(MAX_ROWS))),
+      picture: v.optional(v.pipe(v.array(v.string()), v.maxLength(MAX_ROWS, `A room picture has at most ${MAX_ROWS} rows`))),
       idBase: v.pipe(int, v.minValue(1)),
       seed: int,
-      pars: v.pipe(v.array(v.pipe(int, v.minValue(1))), v.minLength(1, 'A room needs at least one level')),
+      bands: BandsSchema,
     }),
     v.check((r) => (r.picture !== undefined) !== (r.cols !== undefined || r.rows !== undefined), 'A room has either cols and rows, or a picture'),
     v.check((r) => r.picture !== undefined || (r.cols !== undefined && r.rows !== undefined), 'A size room needs both cols and rows'),
@@ -50,9 +65,9 @@ function roomShape(room: Room): Shape {
   } catch (err) {
     throw new Error(`Room "${room.id}": ${err instanceof Error ? err.message : String(err)}`);
   }
-  if (shape.cols > MAX_SIDE) throw new Error(`Room "${room.id}" is ${shape.cols} cells wide; the most is ${MAX_SIDE}`);
+  if (shape.cols > MAX_COLS) throw new Error(`Room "${room.id}" is ${shape.cols} cells wide; the most is ${MAX_COLS}`);
   const cells = cellCount(shape);
-  const top = Math.max(...room.pars);
+  const top = Math.max(...parsOf(room.bands));
   if (top > cells) throw new Error(`Room "${room.id}" asks for par ${top}, but its board has only ${cells} cells`);
   return shape;
 }
@@ -60,16 +75,17 @@ function roomShape(room: Room): Shape {
 /** packs in menu order (classic first); throws on overlapping ids, duplicate rooms or missing names */
 function planPacks(rules: Rules, copy: v.InferOutput<typeof CopySchema>): { pack: Pack; room: Room | null }[] {
   const out: { pack: Pack; room: Room | null }[] = [
-    { pack: { id: 'classic', name: copy.classic, kind: 'classic', shape: CLASSIC_SHAPE, first: 1, count: rules.pars.length }, room: null },
+    { pack: { id: 'classic', name: copy.classic, kind: 'classic', group: 'boards', shape: CLASSIC_SHAPE, first: 1, count: rules.bands.length * BAND }, room: null },
   ];
   for (const room of rules.rooms) {
     if (out.some((p) => p.pack.id === room.id)) throw new Error(`Two rooms are called "${room.id}"`);
     const name = copy.rooms[room.id];
     if (!name) throw new Error(`Room "${room.id}" has no name in copy.json → levels.rooms`);
-    const first = room.idBase + 1, last = room.idBase + room.pars.length;
+    const count = room.bands.length * BAND;
+    const first = room.idBase + 1, last = room.idBase + count;
     const clash = out.find((p) => first <= p.pack.first + p.pack.count - 1 && p.pack.first <= last);
     if (clash) throw new Error(`Room "${room.id}" uses level ids ${first}–${last}, which overlap "${clash.pack.id}"`);
-    out.push({ pack: { id: room.id, name, kind: room.kind, shape: roomShape(room), first, count: room.pars.length }, room });
+    out.push({ pack: { id: room.id, name, kind: room.kind, group: room.group, shape: roomShape(room), first, count }, room });
   }
   return out;
 }
@@ -84,7 +100,8 @@ const levels: ModuleDef = {
     data: { rules: RulesSchema, copy: CopySchema },
   },
   init(ctx) {
-    const rules = ctx.data.rules as Rules & LevelsRules;
+    const rules = ctx.data.rules as Rules;
+    const classicPars = parsOf(rules.bands);
     const copy = ctx.data.copy as v.InferOutput<typeof CopySchema>;
     const solver = ctx.need('solver');
     const fail = (error: string) => ctx.write('levels', { status: 'error', list: [], chapters: [], error });
@@ -93,7 +110,7 @@ const levels: ModuleDef = {
     let chapters: LevelsState['chapters'];
     let plan: ReturnType<typeof planPacks>;
     try {
-      chapters = checkChapters(rules.chapters, copy.chapters, rules.pars.length);
+      chapters = checkChapters(rules.chapters, copy.chapters, classicPars.length);
       plan = planPacks(rules, copy);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -109,10 +126,10 @@ const levels: ModuleDef = {
       const list: LevelDef[] = [];
       for (const { pack, room } of plan) {
         const t0 = performance.now();
-        // classic: exactly the generation it always had (same seed, no pack fields), so the 50 boards never change
+        // classic levels carry no pack fields (ids 1..n); every 10th level of every pack is a boss
         const g = room
-          ? generateLevels({ pars: room.pars, maxTries: rules.maxTries }, rng.seeded(room.seed), solver, { idBase: room.idBase, shape: pack.shape, pack: pack.id })
-          : generateLevels(rules, rng.seeded(rules.seed), solver);
+          ? generateLevels({ pars: parsOf(room.bands), maxTries: rules.maxTries }, rng.seeded(room.seed), solver, { idBase: room.idBase, shape: pack.shape, pack: pack.id, bossEvery: BAND })
+          : generateLevels({ pars: classicPars, maxTries: rules.maxTries }, rng.seeded(rules.seed), solver, { idBase: 0, bossEvery: BAND });
         const took = performance.now() - t0;
         ms += took;
         made[pack.id] = { ms: Number(took.toFixed(2)), tries: g.tries, missed: g.missed };
@@ -157,7 +174,7 @@ const levels: ModuleDef = {
       }
       ctx.emit('board:load', { levelId, cells: level.cells, par: level.par, ...(level.shape ? { shape: level.shape } : {}) });
       const next = index < count ? (pack ? pack.first + index : levelId + 1) : null;
-      ctx.emit('levels:started', { levelId, par: level.par, count, pack: packId, index, next });
+      ctx.emit('levels:started', { levelId, par: level.par, count, pack: packId, index, next, ...(level.boss ? { boss: true } : {}) });
     });
 
     return {
@@ -179,7 +196,7 @@ const levels: ModuleDef = {
         list() {
           const state = ctx.read('levels');
           if (state?.status !== 'ready') return `Levels aren't ready (${state?.error ?? state?.status ?? 'missing'})`;
-          return state.list.map((l) => `${l.id}: ${l.par}${l.pack ? ` (${l.pack} ${l.index})` : ''}`).join('\n');
+          return state.list.map((l) => `${l.id}: ${l.par}${l.pack ? ` (${l.pack} ${l.index})` : ''}${l.boss ? ' boss' : ''}`).join('\n');
         },
       },
     };

@@ -94,7 +94,7 @@ export function bootModule(def: ModuleDef, opts: BootOptions = {}): Booted {
   let view: FakeView | undefined;
   let storage: ReturnType<typeof createMemoryStorage> | undefined;
   if (!opts.bare) {
-    const env: Env = { target: 'test', debug: false, buildId: 'test' };
+    const env: Env = { target: 'test', debug: false, buildId: 'test', version: '0.0.0-test' };
     kernel.provide('env', env, 'test');
     storage = createMemoryStorage();
     if (!opts.services?.storage && !(def.manifest.provides ?? []).includes('storage')) kernel.provide('storage', storage, 'test');

@@ -1,5 +1,5 @@
-// GF(2) maths for a board of any shape (up to 7×7, with gaps). Only real cells are variables:
-// variable j is the j-th real cell in row-major order, held as a two-word mask (bit j of [lo, hi], 32 bits each).
+// GF(2) maths for a board of any shape (with gaps, up to MAX_CELLS real cells). Only real cells are variables:
+// variable j is the j-th real cell in row-major order, held in a mask of W 32-bit words (bit j%32 of word j>>5).
 // createShaped() eliminates the press matrix once per shape; a solve is one pass over the board
 // (building the board mask and its particular solution together), the parity checks, then the
 // lightest of that solution XOR each null-space vector.
@@ -26,39 +26,45 @@ export interface Shaped {
 
 const bitOf = (j: number) => 1 << (j & 31);
 
+/** n masks of w words each, stored flat: mask r is words [r*w, r*w + w) */
+function masks(n: number, w: number) {
+  const a = new Int32Array(n * w);
+  return {
+    a,
+    has: (r: number, j: number) => (a[r * w + (j >> 5)]! & bitOf(j)) !== 0,
+    set: (r: number, j: number) => { a[r * w + (j >> 5)]! |= bitOf(j); },
+    xorInto: (dst: number, src: number) => { for (let k = 0; k < w; k++) a[dst * w + k]! ^= a[src * w + k]!; },
+    swap: (r: number, s: number) => { for (let k = 0; k < w; k++) { const t = a[r * w + k]!; a[r * w + k] = a[s * w + k]!; a[s * w + k] = t; } },
+    row: (r: number) => a.slice(r * w, r * w + w),
+  };
+}
+
 export function createShaped(shape: Shape): Shaped {
   const size = gridSize(shape);
   const key = shapeKey(shape);
   const realCells = cellIndexes(shape);
   const n = realCells.length;
-  if (n > 64) throw new Error(`A board can have at most 64 cells, but this one has ${n}`);
+  const W = Math.max(1, Math.ceil(n / 32));
   /** grid index → variable, or -1 for a gap */
   const varOf = new Int32Array(size).fill(-1);
   realCells.forEach((g, j) => { varOf[g] = j; });
   const targets = Array.from({ length: size }, (_, g) => pressTargets(shape, g));
 
-  // Gauss-Jordan on [A | I], two words per row. A is symmetric: row j = what pressing variable j toggles.
-  const lLo = new Int32Array(n), lHi = new Int32Array(n), rLo = new Int32Array(n), rHi = new Int32Array(n);
+  // Gauss-Jordan on [A | I]. A is symmetric: row j = what pressing variable j toggles.
+  const L = masks(n, W), R = masks(n, W);
   for (let j = 0; j < n; j++) {
-    for (const g of targets[realCells[j]!]!) {
-      const t = varOf[g]!;
-      if (t < 32) lLo[j]! |= bitOf(t); else lHi[j]! |= bitOf(t);
-    }
-    if (j < 32) rLo[j] = bitOf(j); else rHi[j] = bitOf(j);
+    for (const g of targets[realCells[j]!]!) L.set(j, varOf[g]!);
+    R.set(j, j);
   }
-  const has = (lo: Int32Array, hi: Int32Array, r: number, col: number) => ((col < 32 ? lo[r]! : hi[r]!) & bitOf(col)) !== 0;
-  const swap = (a: Int32Array, i: number, k: number) => { const t = a[i]!; a[i] = a[k]!; a[k] = t; };
   const pivots: number[] = [];
   for (let col = 0; col < n; col++) {
     const rank = pivots.length;
     let p = -1;
-    for (let r = rank; r < n; r++) if (has(lLo, lHi, r, col)) { p = r; break; }
+    for (let r = rank; r < n; r++) if (L.has(r, col)) { p = r; break; }
     if (p < 0) continue;
-    for (const a of [lLo, lHi, rLo, rHi]) swap(a, rank, p);
+    L.swap(rank, p); R.swap(rank, p);
     for (let r = 0; r < n; r++) {
-      if (r !== rank && has(lLo, lHi, r, col)) {
-        lLo[r]! ^= lLo[rank]!; lHi[r]! ^= lHi[rank]!; rLo[r]! ^= rLo[rank]!; rHi[r]! ^= rHi[rank]!;
-      }
+      if (r !== rank && L.has(r, col)) { L.xorInto(r, rank); R.xorInto(r, rank); }
     }
     pivots.push(col);
   }
@@ -66,41 +72,35 @@ export function createShaped(shape: Shape): Shaped {
   const nullDim = n - rank;
 
   // b is solvable iff it is orthogonal to every row that eliminated to zero
-  const checks: [number, number][] = [];
-  for (let r = rank; r < n; r++) checks.push([rLo[r]!, rHi[r]!]);
+  const checks: Int32Array[] = [];
+  for (let r = rank; r < n; r++) checks.push(R.row(r));
   // particular solution (free presses = 0) is linear in b: one press mask per lit variable
-  const colLo = new Int32Array(n), colHi = new Int32Array(n);
+  const col = masks(n, W);
   for (let r = 0; r < rank; r++) {
     const pv = pivots[r]!;
-    for (let j = 0; j < n; j++) {
-      if (!has(rLo, rHi, r, j)) continue;
-      if (pv < 32) colLo[j]! |= bitOf(pv); else colHi[j]! |= bitOf(pv);
-    }
+    for (let j = 0; j < n; j++) if (R.has(r, j)) col.set(j, pv);
   }
   // null basis: one vector per free column
   const free = [...Array(n).keys()].filter((c) => !pivots.includes(c));
-  const basis: [number, number][] = free.map((f) => {
-    let lo = f < 32 ? bitOf(f) : 0, hi = f < 32 ? 0 : bitOf(f);
-    for (let r = 0; r < rank; r++) {
-      if (!has(lLo, lHi, r, f)) continue;
-      const pv = pivots[r]!;
-      if (pv < 32) lo |= bitOf(pv); else hi |= bitOf(pv);
-    }
-    return [lo, hi];
+  const basis = masks(free.length, W);
+  free.forEach((f, k) => {
+    basis.set(k, f);
+    for (let r = 0; r < rank; r++) if (L.has(r, f)) basis.set(k, pivots[r]!);
   });
   const approximate = nullDim > MAX_NULL_DIM;
-  // every non-zero null vector when the space is small enough to search; otherwise just the basis
-  let nullLo: Int32Array, nullHi: Int32Array;
+  // every null vector (index 0 = zero) when the space is small enough to search; otherwise just the basis
+  let nulls: Int32Array;
+  let nullCount: number;
   if (!approximate) {
-    const count = 1 << nullDim;
-    nullLo = new Int32Array(count); nullHi = new Int32Array(count);
-    basis.forEach(([lo, hi], k) => {
+    nullCount = 1 << nullDim;
+    nulls = new Int32Array(nullCount * W);
+    for (let k = 0; k < free.length; k++) {
       const half = 1 << k;
-      for (let v = 0; v < half; v++) { nullLo[half + v] = nullLo[v]! ^ lo; nullHi[half + v] = nullHi[v]! ^ hi; }
-    });
+      for (let v = 0; v < half; v++) for (let i = 0; i < W; i++) nulls[(half + v) * W + i] = nulls[v * W + i]! ^ basis.a[k * W + i]!;
+    }
   } else {
-    nullLo = Int32Array.from(basis, (b) => b[0]);
-    nullHi = Int32Array.from(basis, (b) => b[1]);
+    nullCount = free.length;
+    nulls = basis.a;
   }
 
   function check(cells: Cells): void {
@@ -109,38 +109,45 @@ export function createShaped(shape: Shape): Shaped {
     }
   }
 
-  /** lightest press mask [lo, hi] that clears the board, or null (also when a gap is lit) */
-  function solveMask(cells: Cells): [number, number] | null {
+  const weightOf = (x: Int32Array) => { let w = 0; for (let i = 0; i < W; i++) w += popcount(x[i]!); return w; };
+
+  /** lightest press mask (W words) that clears the board, or null (also when a gap is lit) */
+  function solveMask(cells: Cells): Int32Array | null {
     check(cells);
-    let bLo = 0, bHi = 0, xLo = 0, xHi = 0;
+    const b = new Int32Array(W), x = new Int32Array(W);
     for (let g = 0; g < size; g++) {
       if (!cells[g]) continue;
       const j = varOf[g]!;
       if (j < 0) return null; // a lit gap can never be switched off
-      if (j < 32) bLo ^= bitOf(j); else bHi ^= bitOf(j);
-      xLo ^= colLo[j]!; xHi ^= colHi[j]!;
+      b[j >> 5]! ^= bitOf(j);
+      for (let i = 0; i < W; i++) x[i]! ^= col.a[j * W + i]!;
     }
-    for (const [cLo, cHi] of checks) if ((popcount(cLo & bLo) + popcount(cHi & bHi)) & 1) return null;
-    let weight = popcount(xLo) + popcount(xHi);
+    for (const c of checks) {
+      let parity = 0;
+      for (let i = 0; i < W; i++) parity += popcount(c[i]! & b[i]!);
+      if (parity & 1) return null;
+    }
+    let weight = weightOf(x);
+    const trial = new Int32Array(W);
+    const tryVector = (k: number, into: Int32Array): boolean => {
+      let w = 0;
+      for (let i = 0; i < W; i++) { trial[i] = x[i]! ^ nulls[k * W + i]!; w += popcount(trial[i]!); }
+      if (w >= weight) return false;
+      weight = w;
+      into.set(trial);
+      return true;
+    };
     if (!approximate) {
-      let bestLo = xLo, bestHi = xHi;
-      for (let k = 1; k < nullLo.length; k++) {
-        const lo = xLo ^ nullLo[k]!, hi = xHi ^ nullHi[k]!;
-        const w = popcount(lo) + popcount(hi);
-        if (w < weight) { bestLo = lo; bestHi = hi; weight = w; }
-      }
-      return [bestLo, bestHi];
+      const best = x.slice();
+      for (let k = 1; k < nullCount; k++) tryVector(k, best);
+      return best;
     }
     // sound fallback: keep applying any basis vector that makes the solution lighter (still a solution)
     for (let improved = true; improved;) {
       improved = false;
-      for (let k = 0; k < nullLo.length; k++) {
-        const lo = xLo ^ nullLo[k]!, hi = xHi ^ nullHi[k]!;
-        const w = popcount(lo) + popcount(hi);
-        if (w < weight) { xLo = lo; xHi = hi; weight = w; improved = true; }
-      }
+      for (let k = 0; k < nullCount; k++) if (tryVector(k, x)) improved = true;
     }
-    return [xLo, xHi];
+    return x;
   }
 
   return {
@@ -162,7 +169,7 @@ export function createShaped(shape: Shape): Shaped {
       const x = solveMask(cells);
       if (!x) return null;
       const out: number[] = [];
-      for (let w = 0; w < 2; w++) {
+      for (let w = 0; w < W; w++) {
         let m = x[w]!;
         while (m) {
           const low = m & -m;

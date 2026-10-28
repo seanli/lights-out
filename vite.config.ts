@@ -1,5 +1,6 @@
 import { defineConfig, type Plugin } from 'vite';
 import { viteSingleFile } from 'vite-plugin-singlefile';
+import { readFileSync } from 'node:fs';
 
 // One self-contained HTML file. `--mode pwa` adds the install manifest link; scripts/pwa-finish.mjs adds the rest.
 export default defineConfig(({ mode }) => {
@@ -14,7 +15,11 @@ export default defineConfig(({ mode }) => {
   return {
     base: './',
     cacheDir: '.cache/vite',
-    define: { __BUILD_ID__: JSON.stringify(new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')) },
+    define: {
+      __BUILD_ID__: JSON.stringify(new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')),
+      // the release the player sees on home: package.json version (bumped every release)
+      __VERSION__: JSON.stringify(JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version),
+    },
     plugins: [manifestLink, viteSingleFile()],
     build: { outDir: pwa ? 'dist-pwa' : 'dist', target: 'es2022', reportCompressedSize: true },
   };

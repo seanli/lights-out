@@ -3,22 +3,23 @@
 import * as v from 'valibot';
 
 /** Bump when any slice shape below changes; hot-reload snapshots from another version are discarded. */
-export const CONTRACT_VERSION = 2;
+export const CONTRACT_VERSION = 3;
 
 /** The classic board: 5×5, no gaps. The tutorial, Learn and the Patterns table are about this board. */
 export const SIZE = 5;
 export const CELL_COUNT = SIZE * SIZE;
-/** the largest board side (Variety rooms go up to 7×7) */
-export const MAX_SIDE = 7;
-export const MAX_CELLS = MAX_SIDE * MAX_SIDE;
+/** the widest board (10×10 Cathedral) and the tallest (the 5×16 Tower, which scrolls) */
+export const MAX_COLS = 10;
+export const MAX_ROWS = 16;
+export const MAX_CELLS = MAX_COLS * MAX_ROWS;
 
 /**
  * A board's shape: a cols × rows grid. `mask` marks which grid positions are real cells (null = all of them);
  * a gap is never lit, never pressable, and a press never reaches across it. Pure helpers: src/lib/shape.ts.
  */
 export const ShapeSchema = v.object({
-  cols: v.pipe(v.number(), v.integer(), v.minValue(3), v.maxValue(MAX_SIDE)),
-  rows: v.pipe(v.number(), v.integer(), v.minValue(3), v.maxValue(MAX_SIDE)),
+  cols: v.pipe(v.number(), v.integer(), v.minValue(3), v.maxValue(MAX_COLS)),
+  rows: v.pipe(v.number(), v.integer(), v.minValue(3), v.maxValue(MAX_ROWS)),
   mask: v.nullable(v.array(v.boolean())),
 });
 export type Shape = v.InferOutput<typeof ShapeSchema>;
@@ -63,6 +64,8 @@ export const LevelDefSchema = v.object({
   index: v.optional(v.number()),
   /** absent = the classic 5×5 board */
   shape: v.optional(ShapeSchema),
+  /** a boss level (every 10th of a pack): drastically harder than the levels before it; shown with a skull */
+  boss: v.optional(v.literal(true)),
 });
 export type LevelDef = v.InferOutput<typeof LevelDefSchema>;
 
@@ -79,6 +82,8 @@ export const PackSchema = v.object({
   id: v.string(),
   name: v.string(),
   kind: v.picklist(['classic', 'size', 'shape']),
+  /** the menu section it sits in */
+  group: v.optional(v.picklist(['boards', 'shapes', 'extreme'])),
   shape: ShapeSchema,
   first: LevelIdSchema,
   count: v.number(),

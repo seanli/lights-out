@@ -60,11 +60,11 @@ const roomSolver: SolverService = {
 };
 
 /** every room in the frozen data, as the levels module would make it */
-type RoomData = { id: string; kind: 'size' | 'shape'; cols?: number; rows?: number; picture?: string[]; idBase: number; pars: number[] };
+type RoomData = { id: string; kind: 'size' | 'shape'; cols?: number; rows?: number; picture?: string[]; idBase: number; bands: unknown[] };
 const ROOM_DATA = (fixtureData.rules as { levels: { rooms: RoomData[] } }).levels.rooms;
 const ROOM_NAMES = (fixtureData.copy as { levels: { rooms: Record<string, string> } }).levels.rooms;
 const roomShape = (r: RoomData): Shape => (r.picture ? parseShape(r.picture) : { cols: r.cols!, rows: r.rows!, mask: null });
-const PACKS: Pack[] = ROOM_DATA.map((r) => ({ id: r.id, name: ROOM_NAMES[r.id]!, kind: r.kind, shape: roomShape(r), first: r.idBase + 1, count: r.pars.length }));
+const PACKS: Pack[] = ROOM_DATA.map((r) => ({ id: r.id, name: ROOM_NAMES[r.id]!, kind: r.kind, shape: roomShape(r), first: r.idBase + 1, count: r.bands.length * 10 }));
 const ROOM = Object.fromEntries(PACKS.map((p) => [p.id, p.shape])) as Record<string, Shape>;
 /** a levels slice with the classic pack and every room, one level per room (enough for the panel's pack lookup) */
 const levelsState = (): LevelsState => ({
@@ -621,8 +621,8 @@ describe('learn: any shape — chase, start and end cells, the start-cell fix', 
   const ROOM_IDS = PACKS.map((p) => p.id);
 
   test('start cells have nothing above, end cells nothing below', () => {
-    expect(startCells(ROOM['4x4']!)).toEqual([0, 1, 2, 3]);
-    expect(endCells(ROOM['4x4']!)).toEqual([12, 13, 14, 15]);
+    expect(startCells({ cols: 4, rows: 4, mask: null })).toEqual([0, 1, 2, 3]);
+    expect(endCells({ cols: 4, rows: 4, mask: null })).toEqual([12, 13, 14, 15]);
     expect([startCells(ROOM.cross!).length, endCells(ROOM.cross!).length]).toEqual([7, 7]);
     expect([startCells(ROOM.ring!).length, endCells(ROOM.ring!).length]).toEqual([10, 10]);
     expect([startCells(ROOM.diamond!).length, endCells(ROOM.diamond!).length]).toEqual([7, 7]);
@@ -727,7 +727,7 @@ describe('learn: what the board guides say (proved from the solver)', () => {
 describe('learn: board guides', () => {
   const guideCopy = (fixtureData.copy as { learn: { guides: Record<string, { summary: string; steps: string[] }> } }).learn.guides;
   const bootRooms = (opts: Parameters<typeof bootModule>[1] = {}) => boot({ ...opts, services: { solver: roomSolver, ...opts.services }, state: { levels: levelsState(), ...opts.state } });
-  const KIND: Record<string, string> = { '4x4': 'chase', '6x6': 'lights', '7x7': 'lights', cross: 'shapes', ring: 'shapes', diamond: 'shapes' };
+  const KIND: Record<string, string> = { '5x6': 'lights', '6x6': 'lights', '7x7': 'lights', cross: 'shapes', ring: 'shapes', diamond: 'shapes', '8x8': 'lights', '10x10': 'lights', tower: 'lights' };
 
   test('each room gets the guide its maths calls for, with one sentence per step', () => {
     for (const p of PACKS) {
@@ -820,7 +820,7 @@ describe('learn: board guides', () => {
     const data = { ...fixtureData, copy: { ...copy, learn: { ...copy.learn, guides: { ...guides, ring: { summary: 'Ring', steps: ['Too short.'] } } } } };
     const t = bootRooms({ data: data as typeof fixtureData });
     t.emit('learn:open', {});
-    expect(qa('[data-learn-section="boards"] [data-lesson-tile]').map((e) => e.dataset.lesson)).toEqual(['guide-4x4', 'guide-6x6', 'guide-7x7', 'guide-cross']);
+    expect(qa('[data-learn-section="boards"] [data-lesson-tile]').map((e) => e.dataset.lesson)).toEqual(['guide-5x6', 'guide-6x6', 'guide-7x7', 'guide-cross']);
     t.emit('learn:open', { lessonId: 'guide-ring' });
     expect(t.seen('learn:refused', { command: 'learn:open', reason: 'unknown_lesson' })).toBeTruthy();
   });

@@ -20,7 +20,7 @@ describe('offline', () => {
   test('in the PWA build it registers, then says it is ready once', async () => {
     const register = vi.fn().mockResolvedValue({});
     vi.stubGlobal('navigator', { onLine: true, serviceWorker: { register, ready: Promise.resolve({}), controller: null } });
-    const t = bootModule(offline, { services: { env: { target: 'pwa', debug: false, buildId: 't' } } });
+    const t = bootModule(offline, { services: { env: { target: 'pwa', debug: false, buildId: 't', version: '0.0.0-test' } } });
     await flush();
     expect(register).toHaveBeenCalledWith('./sw.js', { scope: './' });
     expect(t.state('offline').worker).toBe('ready');
@@ -31,7 +31,7 @@ describe('offline', () => {
 
   test('a failed registration is reported in plain words and the game keeps going', async () => {
     vi.stubGlobal('navigator', { onLine: true, serviceWorker: { register: vi.fn().mockRejectedValue(new Error('blocked')), ready: new Promise(() => {}), controller: null } });
-    const t = bootModule(offline, { services: { env: { target: 'pwa', debug: false, buildId: 't' } } });
+    const t = bootModule(offline, { services: { env: { target: 'pwa', debug: false, buildId: 't', version: '0.0.0-test' } } });
     await flush();
     expect(t.state('offline')).toMatchObject({ worker: 'error', reason: 'blocked' });
     expect(t.view!.notices.get('offline')?.tone).toBe('warn');

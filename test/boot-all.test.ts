@@ -10,7 +10,7 @@ function bootWith(modules: ModuleDef[]) {
   document.body.replaceChildren();
   const k = createKernel({ data: liveData, seed: 3, clock: createFakeClock() });
   k.provide('view', createFakeView());
-  k.provide('env', { target: 'test', debug: true, buildId: 'test' });
+  k.provide('env', { target: 'test', debug: true, buildId: 'test', version: '0.0.0-test' });
   // storage normally comes from the storage module; provide a fallback only if it's absent
   if (!modules.some((m) => (m.manifest.provides ?? []).includes('storage'))) k.provide('storage', createMemoryStorage());
   modules.forEach((m) => k.register(m));

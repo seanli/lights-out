@@ -1,6 +1,6 @@
 # Lights Out — working rules
 
-Phone-first Lights Out (classic 5×5): a level path of 50 levels, 1–3 stars by moves vs par, one-tap hints that cost a star.
+Phone-first Lights Out: one menu of boards (Classic 5×5, Tall 5×6, Wide 6×6, Great hall 7×7, Cross, Ring, Diamond, and the extreme Ballroom 8×8, Cathedral 10×10, Tower 5×16), levels in bands of ten with a skull boss every 10th, 1–3 stars by moves vs par, one-tap hints that cost a star, a guide per board.
 Ships as ONE self-contained HTML file: `dist/artifact.html` (published as a Claude artifact), `dist/index.html` (standalone, works offline from disk), and `dist-pwa/` (installable, offline via service worker).
 
 ## Principles
@@ -31,6 +31,7 @@ Ships as ONE self-contained HTML file: `dist/artifact.html` (published as a Clau
 ## Guardrails
 - Stay small: no frameworks, no plugin system. A 50-line helper beats a dependency; a dependency beats a 500-line rewrite.
 - One commit per integration; typecheck, tests, build and probe must pass (`npm run check`). Never build on red. Regenerate `ARCHITECTURE.md` with `npm run arch`.
+- Every release bumps `package.json` version (minor for features, patch for fixes); home shows it at the bottom.
 - Test behaviour, not structure: critical flows, recovery, data integrity, regressions.
 - Ask the lead before: breaking kernel/contract changes, changing saved-data shapes (version + migrate), changing a decided behaviour (see DECISIONS.md), removing a feature, anything destructive.
 - Git: commit with explicit paths, never `git add -A`. Builders change nothing outside their module folder (plus their own data sections).
@@ -39,6 +40,6 @@ Ships as ONE self-contained HTML file: `dist/artifact.html` (published as a Clau
 ## Conventions
 - Copy templates use `{name}` placeholders filled with `fmt()` from `src/lib/dom.ts`.
 - DOM: views render the attributes in `src/contracts/dom.ts`; tooling relies on nothing else.
-- Cells are indexed row-major 0–24; `true` = lit.
+- Cells are indexed row-major over the board's grid (`row * cols + col`, gaps included); `true` = lit.
 - Stars: 3★ at par, 2★ within par+3, 1★ any solve; each hint −1★, never below 1★ (numbers in `rules.json → progress`).
 - Commands: `npm run dev`, `npm test`, `npm run typecheck`, `npm run build`, `npm run build:pwa`, `npm run probe`, `npm run look -- --help`.

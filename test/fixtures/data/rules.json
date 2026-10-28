@@ -2,100 +2,144 @@
   "$comment": "Game rules and tuning. One section per owning module. Checked at startup.",
   "levels": {
     "seed": 1995,
-    "pars": [1, 2, 2, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7, 7, 8, 8, 8, 8, 8, 9, 9, 9, 9, 9, 10, 10, 10, 10, 10, 11, 11, 11, 11, 12, 12, 12, 12, 13, 13, 13, 14, 14, 14, 15, 15],
+    "bands": [
+      { "pars": [1, 2, 2, 3, 3, 3, 4, 4, 4], "boss": 7 },
+      { "pars": [3, 3, 4, 4, 5, 5, 5, 6, 6], "boss": 10 },
+      { "pars": [5, 5, 6, 6, 6, 6, 7, 7, 7], "boss": 12 },
+      { "pars": [7, 7, 8, 8, 8, 8, 9, 9, 9], "boss": 14 },
+      { "pars": [8, 8, 9, 9, 9, 9, 10, 10, 10], "boss": 15 }
+    ],
     "maxTries": 20000,
     "chapters": [
-      {
-        "id": "first-light",
-        "from": 1,
-        "to": 20
-      },
-      {
-        "id": "crossfade",
-        "from": 21,
-        "to": 40
-      },
-      {
-        "id": "blackout",
-        "from": 41,
-        "to": 50
-      }
+      { "id": "first-light", "from": 1, "to": 20 },
+      { "id": "crossfade", "from": 21, "to": 40 },
+      { "id": "blackout", "from": 41, "to": 50 }
     ],
     "rooms": [
       {
-        "id": "4x4",
+        "id": "5x6",
         "kind": "size",
-        "cols": 4,
-        "rows": 4,
-        "idBase": 1000,
-        "seed": 4004,
-        "pars": [1, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 6]
+        "group": "boards",
+        "cols": 5,
+        "rows": 6,
+        "idBase": 7000,
+        "seed": 5006,
+        "bands": [
+          { "pars": [2, 2, 3, 3, 4, 4, 4, 5, 5], "boss": 9 },
+          { "pars": [4, 5, 5, 6, 6, 7, 7, 8, 8], "boss": 13 },
+          { "pars": [6, 7, 7, 8, 8, 9, 9, 10, 10], "boss": 16 },
+          { "pars": [8, 9, 9, 10, 10, 11, 11, 12, 12], "boss": 19 }
+        ]
       },
       {
         "id": "6x6",
         "kind": "size",
+        "group": "boards",
         "cols": 6,
         "rows": 6,
         "idBase": 2000,
         "seed": 6006,
-        "pars": [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14]
+        "bands": [
+          { "pars": [2, 2, 3, 3, 4, 4, 4, 5, 5], "boss": 9 },
+          { "pars": [4, 5, 5, 6, 6, 7, 7, 8, 8], "boss": 13 },
+          { "pars": [6, 7, 7, 8, 8, 9, 9, 10, 10], "boss": 16 },
+          { "pars": [8, 9, 9, 10, 10, 11, 11, 12, 12], "boss": 20 }
+        ]
       },
       {
         "id": "7x7",
         "kind": "size",
+        "group": "boards",
         "cols": 7,
         "rows": 7,
         "idBase": 3000,
         "seed": 7007,
-        "pars": [3, 4, 5, 6, 7, 8, 9, 11, 12, 14, 16, 18]
+        "bands": [
+          { "pars": [3, 3, 4, 4, 5, 5, 5, 6, 6], "boss": 10 },
+          { "pars": [5, 6, 6, 7, 7, 8, 8, 9, 9], "boss": 15 },
+          { "pars": [7, 8, 8, 9, 10, 10, 11, 11, 12], "boss": 20 }
+        ]
       },
       {
         "id": "cross",
         "kind": "shape",
-        "picture": [
-          "..XXX..",
-          "..XXX..",
-          "XXXXXXX",
-          "XXXXXXX",
-          "XXXXXXX",
-          "..XXX..",
-          "..XXX.."
-        ],
+        "group": "shapes",
+        "picture": ["..XXX..", "..XXX..", "XXXXXXX", "XXXXXXX", "XXXXXXX", "..XXX..", "..XXX.."],
         "idBase": 4000,
         "seed": 4141,
-        "pars": [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+        "bands": [
+          { "pars": [2, 2, 3, 3, 4, 4, 4, 5, 5], "boss": 8 },
+          { "pars": [4, 4, 5, 5, 6, 6, 6, 7, 7], "boss": 11 },
+          { "pars": [6, 6, 7, 7, 8, 8, 8, 9, 9], "boss": 15 }
+        ]
       },
       {
         "id": "ring",
         "kind": "shape",
-        "picture": [
-          "XXXXXXX",
-          "XXXXXXX",
-          "XX...XX",
-          "XX...XX",
-          "XX...XX",
-          "XXXXXXX",
-          "XXXXXXX"
-        ],
+        "group": "shapes",
+        "picture": ["XXXXXXX", "XXXXXXX", "XX...XX", "XX...XX", "XX...XX", "XXXXXXX", "XXXXXXX"],
         "idBase": 5000,
         "seed": 5151,
-        "pars": [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14]
+        "bands": [
+          { "pars": [2, 2, 3, 3, 4, 4, 4, 5, 5], "boss": 9 },
+          { "pars": [4, 5, 5, 6, 6, 7, 7, 8, 8], "boss": 13 },
+          { "pars": [6, 7, 7, 8, 8, 9, 9, 10, 10], "boss": 16 }
+        ]
       },
       {
         "id": "diamond",
         "kind": "shape",
-        "picture": [
-          "...X...",
-          "..XXX..",
-          ".XXXXX.",
-          "XXXXXXX",
-          ".XXXXX.",
-          "..XXX..",
-          "...X..."
-        ],
+        "group": "shapes",
+        "picture": ["...X...", "..XXX..", ".XXXXX.", "XXXXXXX", ".XXXXX.", "..XXX..", "...X..."],
         "idBase": 6000,
         "seed": 6161,
-        "pars": [2, 3, 4, 4, 5, 6, 6, 7, 8, 9, 10, 11]
+        "bands": [
+          { "pars": [2, 2, 3, 3, 3, 3, 4, 4, 4], "boss": 7 },
+          { "pars": [3, 3, 4, 4, 5, 5, 5, 6, 6], "boss": 10 },
+          { "pars": [5, 5, 6, 6, 7, 7, 7, 8, 8], "boss": 13 }
+        ]
+      },
+      {
+        "id": "8x8",
+        "kind": "size",
+        "group": "extreme",
+        "cols": 8,
+        "rows": 8,
+        "idBase": 8000,
+        "seed": 8008,
+        "bands": [
+          { "pars": [3, 3, 4, 4, 5, 5, 5, 6, 6], "boss": 10 },
+          { "pars": [5, 6, 6, 7, 7, 8, 8, 9, 9], "boss": 15 },
+          { "pars": [7, 8, 8, 9, 10, 10, 11, 11, 12], "boss": 20 }
+        ]
+      },
+      {
+        "id": "10x10",
+        "kind": "size",
+        "group": "extreme",
+        "cols": 10,
+        "rows": 10,
+        "idBase": 9000,
+        "seed": 1010,
+        "bands": [
+          { "pars": [4, 5, 5, 6, 6, 7, 7, 8, 8], "boss": 13 },
+          { "pars": [6, 7, 7, 8, 9, 9, 10, 10, 11], "boss": 18 },
+          { "pars": [9, 10, 10, 11, 12, 12, 13, 13, 14], "boss": 24 }
+        ]
+      },
+      {
+        "id": "tower",
+        "kind": "size",
+        "group": "extreme",
+        "cols": 5,
+        "rows": 16,
+        "idBase": 10000,
+        "seed": 5016,
+        "bands": [
+          { "pars": [4, 5, 5, 6, 6, 7, 7, 8, 8], "boss": 14 },
+          { "pars": [7, 8, 8, 9, 10, 10, 11, 11, 12], "boss": 20 },
+          { "pars": [10, 11, 12, 12, 13, 14, 15, 15, 16], "boss": 26 }
+        ]
       }
     ]
   },
@@ -107,12 +151,8 @@
     "saveKey": "progress",
     "varietyAfter": 20
   },
-  "hints": {
-    "choice": "random"
-  },
-  "solved-sheet": {
-    "delayMs": 640
-  },
+  "hints": { "choice": "random" },
+  "solved-sheet": { "delayMs": 640 },
   "tutorial": {
     "levels": [1, 2]
   },
@@ -121,27 +161,29 @@
     "lowpassHz": 2400,
     "lowpassQ": 0.5,
     "tap": { "ms": 70, "gain": 0.5, "glide": 0.04, "glideMs": 50, "detuneCents": 12, "pan": 0.3 },
-    "win": { "steps": [12, 16, 19, 24], "stepMs": 90, "ms": 350, "gain": 0.35 },
-    "restart": { "steps": [7, 0], "stepMs": 60, "ms": 160, "gain": 0.2 },
+    "win": {
+      "steps": [12, 16, 19, 24],
+      "stepMs": 90,
+      "ms": 350,
+      "gain": 0.35
+    },
+    "restart": {
+      "steps": [7, 0],
+      "stepMs": 60,
+      "ms": 160,
+      "gain": 0.2
+    },
     "stars": { "startMs": 280, "stepMs": 140, "ms": 260, "gain": 0.18 },
-    "haptics": { "tap": 8, "hint": 6, "solved": [0, 60, 14, 50, 22] }
+    "haptics": {
+      "tap": 8,
+      "hint": 6,
+      "solved": [0, 60, 14, 50, 22]
+    }
   },
-  "storage": {
-    "namespace": "lights-out:v1"
-  },
-  "console": {
-    "eventLimit": 200,
-    "logLimit": 200,
-    "snapshotLimit": 5
-  },
+  "storage": { "namespace": "lights-out:v1" },
+  "console": { "eventLimit": 200, "logLimit": 200, "snapshotLimit": 5 },
   "learn": {
-    "lessons": [
-      "shapes",
-      "order",
-      "chase",
-      "bottom-row",
-      "shortest"
-    ],
+    "lessons": ["shapes", "order", "chase", "bottom-row", "shortest"],
     "practicePresses": {
       "shapes": [1, 1],
       "order": [2, 3],
