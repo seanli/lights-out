@@ -1,9 +1,11 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, test } from 'vitest';
 import { bootModule, createFakeView } from '../../../test/fake-ctx';
-import type { BoardState, Cells, HintsState, LearnState, LevelsState, ProgressState, State, TutorialState } from '../../contracts';
+import type { BoardState, Cells, HintsState, LearnState, LevelsState, ProgressState, Shape, State, TutorialState } from '../../contracts';
 import { SEL } from '../../contracts';
+import { parseShape } from '../../lib/shape';
 import playView from './index';
+import { cellAt } from './grid';
 
 const cellsFrom = (bits: string): Cells => Array.from(bits, (c) => c === '1');
 const START = cellsFrom('0001010111110101000100011');
@@ -20,6 +22,21 @@ const progress = (pending = 0): ProgressState => ({
   save: { version: 1, results: {}, pendingHints: pending ? { '7': pending } : {}, lastLevel: 7 },
   scoring: { threeStarsWithin: 0, twoStarsWithin: 3, hintCost: 1, minStars: 1 },
 });
+const RING = parseShape(['XXXXXXX', 'XXXXXXX', 'XX...XX', 'XX...XX', 'XX...XX', 'XXXXXXX', 'XXXXXXX']);
+const square = (n: number) => ({ cols: n, rows: n, mask: null });
+/** a board of any shape: cell 0 lit (every shape here has a real cell at 0) */
+const shaped = (shape: Shape, over: Partial<BoardState> = {}): BoardState => {
+  const cells = new Array<boolean>(shape.cols * shape.rows).fill(false);
+  cells[0] = true;
+  return board({ levelId: 5001, start: cells, cells, shape, ...over });
+};
+const roomLevels: LevelsState = {
+  ...levels,
+  packs: [
+    { id: 'classic', name: 'Classic', kind: 'classic', shape: square(5), first: 1, count: 50 },
+    { id: 'ring', name: 'Ring', kind: 'shape', shape: RING, first: 5001, count: 12 },
+  ],
+};
 const IDLE: HintsState = { status: 'idle', levelId: null, cell: null };
 const LEARN: LearnState = { status: 'ready', lessonId: null, step: 0, completed: [], practice: null, assist: false };
 
@@ -151,23 +168,23 @@ describe('play-view', () => {
     expect(t.state('board').levelId).toBe(7);
   });
 
-  test('max stars and tiers follow hints used; no scoring hides them', () => {
+  test('tiers follow hints used, with a hint chip; no scoring hides them; no "Up to" box in the header', () => {
     const { t, q } = boot({ board: board({ moves: 6 }), progress: progress(1) });
-    const max = q('.play-max');
-    expect(max.querySelectorAll('.star[data-state="on"]')).toHaveLength(2);
-    expect(max.textContent).toBe('Up toHint used');
-    expect(max.getAttribute('aria-label')).toBe('At most 2 of 3 stars still possible');
-    const chips = [...document.querySelectorAll<HTMLElement>('.play-tiers .chip')];
+    expect(document.querySelector('.play-max')).toBeNull();
+    const chips = [...document.querySelectorAll<HTMLElement>('.play-tiers .chip:not([data-state="hint"])')];
     expect(chips.map((c) => c.firstChild!.textContent)).toEqual(['≤5', '≤8', '9+']);
     expect(chips.map((c) => c.dataset.state)).toEqual(['lost', 'now', undefined]);
     expect(chips.map((c) => c.querySelectorAll('.star[data-state="on"]').length)).toEqual([2, 1, 1]);
+    expect(q('.play-tiers').getAttribute('aria-label')).toBe('At most 2 of 3 stars still possible');
 
-    const used = max.querySelector<HTMLElement>('.caption:last-child')!;
-    expect(used.hidden).toBe(false);
+    const hint = q('.play-tiers .chip[data-state="hint"]');
+    expect(hint.hidden).toBe(false);
+    expect(hint.textContent).toBe('−1★ hint');
+    t.kernel.seed('progress', progress(2));
+    expect(hint.textContent).toBe('−2★ hints');
     t.kernel.seed('progress', progress());
-    expect(used.hidden).toBe(true);
+    expect(hint.hidden).toBe(true);
     t.kernel.seed('progress', { ...progress(), scoring: undefined });
-    expect(max.hidden).toBe(true);
     expect(q('.play-tiers').hidden).toBe(true);
   });
 
@@ -237,6 +254,166 @@ describe('play-view', () => {
       expect(screen().dataset.reference).toBe('closed');
       document.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'touch' }));
       expect(screen().dataset.reference).toBe('open');
+    });
+  });
+
+  describe('any board shape', () => {
+    test.each([[4, 16], [6, 36], [7, 49]])('%i×%i renders %i real cells', (n, count) => {
+      boot({ board: shaped(square(n)) });
+      const el = document.querySelector<HTMLElement>(SEL.board)!;
+      expect(document.querySelectorAll(SEL.cells)).toHaveLength(count);
+      expect(document.querySelectorAll('[data-gap]')).toHaveLength(0);
+      expect([el.dataset.n, el.dataset.cols, el.dataset.rows]).toEqual([String(n), String(n), String(n)]);
+    });
+
+    test('the Ring: 40 cells and 9 gaps that are not buttons and take no focus', () => {
+      boot({ board: shaped(RING) });
+      expect(document.querySelectorAll(SEL.cells)).toHaveLength(40);
+      const gaps = [...document.querySelectorAll<HTMLElement>(`${SEL.board} > [data-gap]`)];
+      expect(gaps).toHaveLength(9);
+      for (const g of gaps) {
+        expect(g.tagName).not.toBe('BUTTON');
+        expect(g.hasAttribute('data-cell')).toBe(false);
+        expect(g.getAttribute('aria-hidden')).toBe('true');
+        expect(g.hasAttribute('tabindex')).toBe(false);
+      }
+      // grid order is kept: slot 16 (row 3, col 3) is a gap, 14 and 20 are cells
+      const slots = [...document.querySelector(SEL.board)!.children] as HTMLElement[];
+      expect(slots).toHaveLength(49);
+      expect(slots[16]!.hasAttribute('data-gap')).toBe(true);
+      expect(slots[14]!.dataset.index).toBe('14');
+      expect(slots[20]!.dataset.index).toBe('20');
+    });
+
+    test('the grid is rebuilt only when the shape changes; a press updates in place', () => {
+      const { t, cell } = boot({ board: shaped(RING) });
+      const before = cell(0);
+      t.kernel.seed('board', shaped(RING, { cells: shaped(RING).cells.map((_, i) => i === 1), moves: 1, history: [0] }));
+      expect(cell(0)).toBe(before);
+      expect(cell(1).dataset.lit).toBe('true');
+      t.kernel.seed('board', board());
+      expect(document.querySelectorAll(SEL.cells)).toHaveLength(25);
+      expect(document.querySelectorAll('[data-gap]')).toHaveLength(0);
+      expect(document.querySelector<HTMLElement>(SEL.board)!.dataset.n).toBe('5');
+    });
+
+    test('a press on a gap slot emits nothing; a press in the gutter presses the cell whose slot holds it', () => {
+      const { presses } = boot({ board: shaped(RING) });
+      const el = document.querySelector<HTMLElement>(SEL.board)!;
+      const gap = el.querySelector('[data-gap]')!;
+      pointer(gap);
+      click(gap, 1);
+      expect(presses()).toEqual([]);
+      // happy-dom has no layout: give the board a 7×7 box of 350px (pad 6, gap 4) and press between cells
+      el.getBoundingClientRect = () => ({ left: 0, top: 0, width: 350, height: 350, right: 350, bottom: 350, x: 0, y: 0, toJSON() {} }) as DOMRect;
+      el.style.padding = '6px';
+      el.style.columnGap = '4px';
+      el.style.rowGap = '4px';
+      pointer(el, { clientX: 2, clientY: 2 }); // the padding by the top-left corner → cell 0
+      pointer(el, { clientX: 54, clientY: 30 }); // the gutter just right of cell 0 → cell 1 (slots are 48.3px)
+      pointer(el, { clientX: 175, clientY: 175 }); // the hole in the middle → nothing
+      expect(presses()).toEqual([0, 1]);
+    });
+
+    test('gutter geometry: each slot owns half the gap on each side; gap slots press nothing', () => {
+      const box = { width: 350, height: 350, padX: 6, padY: 6, gapX: 4, gapY: 4 };
+      const pitch = (350 - 12 + 4) / 7;
+      expect(cellAt(RING, 0, 0, box)).toBe(0);
+      expect(cellAt(RING, 6 + pitch - 2.5, 10, box)).toBe(0); // left half of the gap after cell 0
+      expect(cellAt(RING, 6 + pitch - 1.5, 10, box)).toBe(1); // right half
+      expect(cellAt(RING, 349, 349, box)).toBe(48);
+      expect(cellAt(RING, 175, 175, box)).toBe(-1);
+      expect(cellAt(RING, 400, 10, box)).toBe(-1);
+    });
+
+    test('arrow keys skip gaps', () => {
+      const { cell } = boot({ board: shaped(RING) });
+      const key = (i: number, k: string) => cell(i).dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true }));
+      cell(15).focus();
+      key(15, 'ArrowRight'); // 16, 17, 18 are gaps
+      expect(document.activeElement).toBe(cell(19));
+      key(19, 'ArrowLeft');
+      expect(document.activeElement).toBe(cell(15));
+      cell(9).focus();
+      key(9, 'ArrowDown'); // 16, 23, 30 are gaps
+      expect(document.activeElement).toBe(cell(37));
+      key(37, 'End');
+      expect(document.activeElement).toBe(cell(41));
+      expect(cell(41).tabIndex).toBe(0);
+      expect(cell(37).tabIndex).toBe(-1);
+    });
+
+    test('a room level: the header shows the room name and the level within it', () => {
+      const { q } = boot({ board: shaped(RING, { levelId: 5003 }), levels: roomLevels });
+      expect(q('.screen-header__title .eyebrow').textContent).toBe('Ring');
+      expect(q('[data-level-label]').textContent).toBe('Level 3');
+    });
+
+    test('the Patterns button stays on every board', () => {
+      const { q } = boot({ board: shaped(RING), levels: roomLevels, learn: LEARN });
+      expect(q(SEL.action('reference')).hidden).toBe(false);
+    });
+
+    test('a solve on the Ring sweeps over real cells only', async () => {
+      const view = { ...createFakeView(), reducedMotion: () => false };
+      const t = bootModule(playView, { state: { board: shaped(RING), hints: IDLE, levels: roomLevels, progress: progress() }, services: { view } });
+      const off = new Array<boolean>(49).fill(false);
+      t.kernel.seed('board', shaped(RING, { status: 'solved', cells: off, moves: 1, history: [0] }));
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+      const delay = (i: number) => Number(document.querySelector<HTMLElement>(SEL.cell(i))!.style.getPropertyValue('--i'));
+      expect(delay(0)).toBe(0);
+      expect(delay(48)).toBeGreaterThan(delay(8));
+      expect(document.querySelectorAll('[data-gap][style]')).toHaveLength(0);
+    });
+  });
+
+  describe('feel', () => {
+    test('flip markers on the changed cells: the pressed cell at 0ms, its neighbours staggered', () => {
+      const { t, cell } = boot();
+      const after = START.slice();
+      for (const i of [12, 7, 17, 11, 13]) after[i] = !after[i];
+      t.kernel.seed('board', board({ cells: after, moves: 1, history: [12] }));
+      const flipped = [...document.querySelectorAll<HTMLElement>('[data-cell][data-flip]')].map((c) => Number(c.dataset.index)).sort((a, b) => a - b);
+      expect(flipped).toEqual([7, 11, 12, 13, 17]);
+      expect(cell(12).style.getPropertyValue('--flip-delay')).toBe('0ms');
+      expect(cell(7).style.getPropertyValue('--flip-delay')).toBe('var(--flip-stagger)');
+      // undo changes the same cells all at once
+      t.kernel.seed('board', board({ cells: START, moves: 0, history: [] }));
+      expect(cell(7).style.getPropertyValue('--flip-delay')).toBe('0ms');
+      // a level load sets no flip markers (the intro covers it)
+      t.kernel.seed('board', board({ levelId: 8, cells: after }));
+      expect(document.querySelectorAll('[data-cell][data-flip]')).toHaveLength(0);
+    });
+
+    test('the moves numeral bumps on a change', () => {
+      const { t, q } = boot();
+      expect(q(SEL.moves).classList.contains('stat__value--bump')).toBe(false);
+      t.kernel.seed('board', board({ moves: 1, history: [3] }));
+      expect(q(SEL.moves).classList.contains('stat__value--bump')).toBe(true);
+    });
+
+    test('coaching hides the tiers and the hint (data-coaching on the screen)', () => {
+      const tut: TutorialState = { status: 'active', levelId: 7, step: 0, target: 12, copyKey: '1' };
+      const { t } = boot({ tutorial: tut });
+      const screen = document.querySelector<HTMLElement>(SEL.screen('play'))!;
+      expect(screen.dataset.coaching).toBe('true');
+      t.kernel.seed('tutorial', { ...tut, status: 'done', target: null });
+      expect(screen.hasAttribute('data-coaching')).toBe(false);
+    });
+
+    test('a new level lights up with the intro; the first press ends it', () => {
+      const view = { ...createFakeView(), reducedMotion: () => false };
+      const t = bootModule(playView, { state: { board: board(), hints: IDLE, levels, progress: progress() }, services: { view } });
+      const el = document.querySelector<HTMLElement>(SEL.board)!;
+      expect(el.classList.contains('board--intro')).toBe(true);
+      const cell3 = document.querySelector<HTMLElement>(SEL.cell(3))!;
+      expect(cell3.style.getPropertyValue('--i')).toBe('3');
+      t.kernel.seed('board', board({ moves: 1, history: [0] }));
+      expect(el.classList.contains('board--intro')).toBe(false);
+      t.kernel.seed('board', board({ levelId: 8 }));
+      expect(el.classList.contains('board--intro')).toBe(true);
+      t.clock.advance(1000);
+      expect(el.classList.contains('board--intro')).toBe(false);
     });
   });
 

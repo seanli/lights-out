@@ -1,15 +1,17 @@
 // play-view: the play screen. Renders the board, hints, tutorial and progress slices and turns taps into commands.
-// The DOM is built once; every change only touches the attributes and text that differ.
+// The DOM is built once (the grid again only when the board's shape changes); every change only touches what differs.
 import * as v from 'valibot';
-import { CELL_COUNT, SIZE, type BoardState, type HintsState, type LevelsState, type ModuleDef, type ProgressState, type TutorialState } from '../../contracts';
+import { MAX_CELLS, type BoardState, type HintsState, type LevelsState, type ModuleDef, type ProgressState, type Shape, type TutorialState } from '../../contracts';
 import { flip, measure } from './flip';
+import { cellAt, rowEdge, stepFrom, type Box } from './grid';
 import { fmt, h, setAttr, setText } from '../../lib/dom';
+import { cellIndexes, gridSize, isCell, shapeKey, shapeOf } from '../../lib/shape';
 import './play-view.css';
 
 const text = v.pipe(v.string(), v.minLength(1));
 const CopySchema = v.object({
   chapter: text, level: text, moves: text, par: text, undo: text, restart: text, hint: text, hintCost: text,
-  back: text, patterns: text, board: text, maxStars: text, hintUsed: text, maxAria: text, hintLine: text,
+  back: text, patterns: text, board: text, maxAria: text, hintLine: text, hintChip: text, hintChipAria: text,
   cellOn: text, cellOff: text, tierWithin: text, tierOver: text, tierWithinAria: text, tierOverAria: text,
 });
 type Copy = v.InferOutput<typeof CopySchema>;
@@ -37,14 +39,20 @@ function icon(paths: string[]): SVGSVGElement {
   return svg;
 }
 
-const rowOf = (i: number) => (i / SIZE) | 0;
-const colOf = (i: number) => i % SIZE;
 const ARROWS: Record<string, [number, number]> = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
 
 /** a CSS time token in ms ("800ms" / ".8s"), or NaN */
 function ms(value: string): number {
   const n = parseFloat(value);
   return /ms\s*$/.test(value) ? n : /s\s*$/.test(value) ? n * 1000 : NaN;
+}
+
+/** same grid: size and gaps (store writes clone, so shapes are compared by value) */
+function sameGrid(a: Shape, b: Shape): boolean {
+  if (a.cols !== b.cols || a.rows !== b.rows) return false;
+  if (!a.mask || !b.mask) return !a.mask === !b.mask || (a.mask ?? b.mask)!.every(Boolean);
+  for (let k = 0; k < a.mask.length; k++) if (a.mask[k] !== b.mask[k]) return false;
+  return true;
 }
 
 const playView: ModuleDef = {
@@ -69,9 +77,6 @@ const playView: ModuleDef = {
     const back = h('button', { class: 'btn btn--icon', type: 'button', 'data-action': 'back', 'aria-label': copy.back }, icon(ICON.back));
     const chapterEl = h('span', { class: 'eyebrow' });
     const levelEl = h('strong', { 'data-level-label': '' });
-    const maxStars = stars(3);
-    const maxUsed = h('span', { class: 'caption', hidden: true }, copy.hintUsed);
-    const maxBox = h('div', { class: 'play-max', role: 'img' }, h('span', { class: 'caption' }, copy.maxStars), starRow('stars--md', maxStars), maxUsed);
     const refBtn = h('button', {
       class: 'btn btn--icon', type: 'button', 'data-action': 'reference', 'aria-label': copy.patterns, title: copy.patterns,
       'aria-expanded': 'false', 'aria-controls': 'play-reference', hidden: true,
@@ -79,13 +84,13 @@ const playView: ModuleDef = {
     const header = h('header', { class: 'screen-header' },
       back,
       h('div', { class: 'screen-header__title' }, chapterEl, levelEl),
-      h('div', { class: 'screen-header__end play-head-end' }, maxBox, refBtn));
+      h('div', { class: 'screen-header__end' }, refBtn));
 
     const movesEl = h('span', { class: 'stat__value', 'data-moves': '' }, '0');
     const parEl = h('span', { class: 'stat__value', 'data-par': '' }, '0');
     const stats = h('div', { class: 'play-stats' },
       h('div', { class: 'stat' }, h('span', { class: 'eyebrow' }, copy.moves), movesEl),
-      h('div', { class: 'stat stat--end stat--muted' }, h('span', { class: 'eyebrow' }, copy.par), parEl));
+      h('div', { class: 'stat stat--muted' }, h('span', { class: 'eyebrow' }, copy.par), parEl));
 
     const tiers = [3, 2, 1].map((base) => {
       const label = h('span', {});
@@ -93,23 +98,11 @@ const playView: ModuleDef = {
       const el = h('span', { class: 'chip', role: 'listitem' }, label, starRow('stars--xs', list));
       return { base, el, label, stars: list };
     });
-    const tiersEl = h('div', { class: 'play-tiers', role: 'list' }, ...tiers.map((t) => t.el));
+    // hints already taken on this level: the stars they cost, next to the tiers they lowered
+    const hintChip = h('span', { class: 'chip', 'data-state': 'hint', role: 'listitem', hidden: true });
+    const tiersEl = h('div', { class: 'play-tiers', role: 'list' }, ...tiers.map((t) => t.el), hintChip);
 
-    const labels = { on: [] as string[], off: [] as string[] };
     const board = h('div', { class: 'board', 'data-board': '', 'data-status': 'playing', role: 'group', 'aria-label': copy.board });
-    const cells: HTMLButtonElement[] = [];
-    for (let i = 0; i < CELL_COUNT; i++) {
-      const pos = { row: rowOf(i) + 1, col: colOf(i) + 1 };
-      labels.on.push(fmt(copy.cellOn, pos));
-      labels.off.push(fmt(copy.cellOff, pos));
-      const cell = h('button', {
-        class: 'cell', type: 'button', 'data-cell': '', 'data-index': i, 'data-lit': 'false',
-        'aria-pressed': 'false', 'aria-label': labels.off[i], tabindex: i === 0 ? '0' : '-1',
-      });
-      cell.style.setProperty('--i', String(rowOf(i) + colOf(i)));
-      cells.push(cell);
-      board.append(cell);
-    }
 
     const hintLine = h('p', { class: 'tutorial-line', 'data-tone': 'hint', role: 'status', hidden: true }, copy.hintLine);
     const line = h('div', { class: 'play-line', 'data-hint': 'false' }, hintLine, view.region('slot:coach'));
@@ -131,6 +124,66 @@ const playView: ModuleDef = {
     root.dataset.reference = 'closed';
     root.append(header, slot, actions, reference);
 
+    // ---------- the grid: rebuilt only when the board's shape changes ----------
+    let shape: Shape | null = null;
+    /** one entry per grid position: the cell's button, or null for a gap */
+    let cells: (HTMLButtonElement | null)[] = [];
+    /** the real cells' grid indexes, ascending */
+    let real: number[] = [];
+    let labels = { on: [] as string[], off: [] as string[] };
+    const shown = new Int8Array(MAX_CELLS).fill(-1);
+    /** --flip-delay per cell as last written: 0 = 0ms, 1 = the stagger, -1 = never set */
+    const delays = new Int8Array(MAX_CELLS).fill(-1);
+    /** cells pressed on pointerdown whose trailing click must be swallowed */
+    const pending = new Uint8Array(MAX_CELLS);
+    let focusIndex = 0;
+    let hintCell = -1;
+    let pointerCell = -1;
+    const rowOf = (i: number) => Math.floor(i / shape!.cols);
+    const colOf = (i: number) => i % shape!.cols;
+    const resetOrder = () => { for (const i of real) cells[i]!.style.setProperty('--i', String(rowOf(i) + colOf(i))); };
+
+    const buildGrid = (next: Shape) => {
+      stopSweep();
+      shape = next;
+      real = cellIndexes(next);
+      labels = { on: [], off: [] };
+      cells = [];
+      const slots: HTMLElement[] = [];
+      for (let i = 0; i < gridSize(next); i++) {
+        const pos = { row: rowOf(i) + 1, col: colOf(i) + 1 };
+        labels.on.push(fmt(copy.cellOn, pos));
+        labels.off.push(fmt(copy.cellOff, pos));
+        if (!isCell(next, i)) {
+          // a gap keeps its grid slot and nothing else: not a button, not focusable, invisible to assistive tech
+          cells.push(null);
+          slots.push(h('div', { 'data-gap': '', 'aria-hidden': 'true' }));
+          continue;
+        }
+        const cell = h('button', {
+          class: 'cell', type: 'button', 'data-cell': '', 'data-index': i, 'data-lit': 'false',
+          'aria-pressed': 'false', 'aria-label': labels.off[i], tabindex: i === real[0] ? '0' : '-1',
+        });
+        cells.push(cell);
+        slots.push(cell);
+      }
+      board.replaceChildren(...slots);
+      resetOrder();
+      const n = Math.max(next.cols, next.rows);
+      board.dataset.n = String(n);
+      board.dataset.cols = String(next.cols);
+      board.dataset.rows = String(next.rows);
+      board.style.setProperty('--board-n', String(n));
+      board.style.setProperty('--board-cols', String(next.cols));
+      board.style.setProperty('--board-rows', String(next.rows));
+      shown.fill(-1);
+      delays.fill(-1);
+      pending.fill(0);
+      focusIndex = real[0] ?? 0;
+      hintCell = -1;
+      pointerCell = -1;
+    };
+
     // ---------- input ----------
     const press = (index: number) => {
       if (ctx.read('board')?.status !== 'playing') return; // solved / sweeping: taps do nothing
@@ -140,13 +193,24 @@ const playView: ModuleDef = {
       const el = (target as Element | null)?.closest?.('[data-cell]') as HTMLElement | null | undefined;
       return el && board.contains(el) ? Number(el.dataset.index) : -1;
     };
-    /** cells pressed on pointerdown whose trailing click must be swallowed */
-    const pending = new Uint8Array(CELL_COUNT);
+    /** the space between cells and the board's padding are hit area too: they press the real cell whose slot holds the point */
+    const gutterCell = (e: PointerEvent): number => {
+      if (!shape) return -1;
+      const r = board.getBoundingClientRect(); // layout is clean on pointerdown: nothing has been written yet
+      const css = getComputedStyle(board);
+      const px = (v: string) => parseFloat(v) || 0;
+      const box: Box = {
+        width: r.width, height: r.height, padX: px(css.paddingLeft), padY: px(css.paddingTop),
+        gapX: px(css.columnGap), gapY: px(css.rowGap),
+      };
+      return cellAt(shape, e.clientX - r.left, e.clientY - r.top, box);
+    };
     board.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return; // primary mouse button; every touch/pen contact is button 0
-      const i = cellIndex(e.target);
+      let i = cellIndex(e.target);
+      if (i < 0 && e.target === board) i = gutterCell(e);
       if (i < 0) return;
-      pending[i] = 1;
+      if (cellIndex(e.target) === i) pending[i] = 1; // the click that follows lands on the cell; a gutter click lands on the board
       press(i);
     });
     board.addEventListener('click', (e) => {
@@ -156,28 +220,29 @@ const playView: ModuleDef = {
       if (pending[i]) { pending[i] = 0; return; } // already pressed on pointerdown
       press(i); // a click with no pointerdown before it
     });
-    let focusIndex = 0;
     const rove = (i: number) => {
       if (i === focusIndex) return;
-      cells[focusIndex]!.tabIndex = -1;
+      if (cells[focusIndex]) cells[focusIndex]!.tabIndex = -1;
       cells[i]!.tabIndex = 0;
       focusIndex = i;
     };
     board.addEventListener('focusin', (e) => { const i = cellIndex(e.target); if (i >= 0) rove(i); });
     board.addEventListener('keydown', (e) => {
       const i = cellIndex(e.target);
-      if (i < 0) return;
-      let next = -1;
+      if (i < 0 || !shape) return;
       const step = ARROWS[e.key];
-      if (step) {
-        const r = rowOf(i) + step[0], c = colOf(i) + step[1];
-        next = r >= 0 && r < SIZE && c >= 0 && c < SIZE ? r * SIZE + c : i;
-      } else if (e.key === 'Home') next = rowOf(i) * SIZE;
-      else if (e.key === 'End') next = rowOf(i) * SIZE + SIZE - 1;
+      const next = step ? stepFrom(shape, i, step[0], step[1])
+        : e.key === 'Home' ? rowEdge(shape, i, -1)
+        : e.key === 'End' ? rowEdge(shape, i, 1) : -1;
       if (next < 0) return;
       e.preventDefault();
       rove(next);
       cells[next]!.focus();
+    });
+    // a flip marker lives for one animation (bloom / afterglow); the cell's own, not its rings'
+    board.addEventListener('animationend', (e) => {
+      const el = e.target as HTMLElement;
+      if (!e.pseudoElement && el.hasAttribute?.('data-flip')) el.removeAttribute('data-flip');
     });
     board.addEventListener('contextmenu', (e) => e.preventDefault());
     board.addEventListener('touchstart', () => {}, { passive: true }); // lets iOS apply :active on the cells
@@ -234,15 +299,15 @@ const playView: ModuleDef = {
     // ---------- solve sweep ----------
     let cancelSweep: (() => void) | null = null;
     let sweepFrame = 0;
-    const stopSweep = () => {
+    function stopSweep() {
       cancelAnimationFrame(sweepFrame);
       cancelSweep?.();
       cancelSweep = null;
       if (!board.classList.contains('board--sweep')) return;
       board.classList.remove('board--sweep');
-      cells.forEach((c, i) => c.style.setProperty('--i', String(rowOf(i) + colOf(i))));
-    };
-    /** a ripple from the winning tap: each cell waits by its distance, scaled so the farthest one ends on --dur-sweep */
+      resetOrder();
+    }
+    /** a ripple from the winning tap over the real cells: each waits by its distance, scaled so the farthest ends on --dur-sweep */
     let timing: { total: number; span: number } | null = null; // tokens never change at runtime: read once
     const startSweep = (origin: number) => {
       stopSweep();
@@ -257,71 +322,127 @@ const playView: ModuleDef = {
           timing = { total, span: (total - ms(css.getPropertyValue('--dur-sweep-cell'))) / ms(css.getPropertyValue('--sweep-step')) };
         }
         const { total, span } = timing;
-        const dist = cells.map((_, i) => Math.hypot(rowOf(i) - rowOf(origin), colOf(i) - colOf(origin)));
+        const dist = real.map((i) => Math.hypot(rowOf(i) - rowOf(origin), colOf(i) - colOf(origin)));
         const far = Math.max(...dist) || 1;
         const scale = Number.isFinite(span) && span > 0 ? span / far : 1;
-        cells.forEach((c, i) => c.style.setProperty('--i', (dist[i]! * scale).toFixed(2)));
+        real.forEach((i, k) => cells[i]!.style.setProperty('--i', (dist[k]! * scale).toFixed(2)));
         board.classList.add('board--sweep');
         if (clock && Number.isFinite(total)) cancelSweep = clock.setTimeout(stopSweep, total);
       });
     };
 
+    // ---------- level intro: the room's lights come on (paint only; taps work at once) ----------
+    let cancelIntro: (() => void) | null = null;
+    const endIntro = () => {
+      cancelIntro?.();
+      cancelIntro = null;
+      board.classList.remove('board--intro');
+    };
+    let introTiming: { step: number; dur: number } | null = null; // tokens never change at runtime: read once, on a level load
+    const startIntro = (lit: number[]) => {
+      endIntro();
+      if (!lit.length || view.reducedMotion()) return;
+      board.classList.add('board--intro');
+      if (!introTiming) {
+        const css = getComputedStyle(board);
+        introTiming = { step: ms(css.getPropertyValue('--power-step')), dur: ms(css.getPropertyValue('--dur-power-on')) };
+      }
+      const last = Math.max(...lit.map((i) => rowOf(i) + colOf(i)));
+      const total = last * introTiming.step + introTiming.dur;
+      if (clock) cancelIntro = clock.setTimeout(endIntro, Number.isFinite(total) ? total : 450);
+    };
+
+    // ---------- moves bump: one animation per change, restarted without a layout read ----------
+    let bumpFrame = 0;
+    const bump = () => {
+      cancelAnimationFrame(bumpFrame);
+      if (!movesEl.classList.contains('stat__value--bump')) { movesEl.classList.add('stat__value--bump'); return; }
+      movesEl.classList.remove('stat__value--bump');
+      bumpFrame = requestAnimationFrame(() => movesEl.classList.add('stat__value--bump'));
+    };
+    movesEl.addEventListener('animationend', () => movesEl.classList.remove('stat__value--bump'));
+
     // ---------- render ----------
-    const shown = new Int8Array(CELL_COUNT).fill(-1);
     let lastStatus: BoardState['status'] | null = null;
     let lastLevel: number | null = null;
-    let hintCell = -1;
-    let pointerCell = -1;
+    let lastHistory = 0;
 
     const mark = (attr: string, prev: number, next: number): number => {
       if (prev === next) return prev;
-      if (prev >= 0) cells[prev]!.removeAttribute(attr);
-      if (next >= 0) cells[next]!.setAttribute(attr, 'true');
-      return next;
+      if (prev >= 0) cells[prev]?.removeAttribute(attr);
+      if (next >= 0 && cells[next]) cells[next]!.setAttribute(attr, 'true');
+      return cells[next] ? next : -1;
     };
     const setStars = (list: HTMLElement[], on: number) => list.forEach((s, k) => setAttr(s, 'data-state', k < on ? 'on' : 'off'));
     const disable = (el: HTMLElement, off: boolean) => setAttr(el, 'aria-disabled', off ? 'true' : null);
 
     const renderBoard = (b: BoardState | undefined) => {
       if (!b) return;
-      for (let i = 0; i < CELL_COUNT; i++) {
-        const lit = b.cells[i] ? 1 : 0;
-        if (shown[i] === lit) continue;
-        shown[i] = lit;
+      const next = shapeOf(b.shape);
+      const rebuilt = !shape || !sameGrid(shape, next);
+      if (rebuilt) buildGrid(next);
+      const load = rebuilt || b.levelId !== lastLevel;
+      // a single new press ripples out from that cell; undo, restart and loads change everything at once
+      const pressed = !load && b.history.length === lastHistory + 1 ? b.history.at(-1)! : -1;
+      const lit: number[] = [];
+      for (const i of real) {
+        const on = b.cells[i] ? 1 : 0;
+        if (on) lit.push(i);
+        if (shown[i] === on) continue;
+        const first = shown[i] === -1;
+        shown[i] = on;
         const cell = cells[i]!;
-        cell.dataset.lit = lit ? 'true' : 'false';
-        cell.setAttribute('aria-pressed', lit ? 'true' : 'false');
-        cell.setAttribute('aria-label', lit ? labels.on[i]! : labels.off[i]!);
+        cell.dataset.lit = on ? 'true' : 'false';
+        cell.setAttribute('aria-pressed', on ? 'true' : 'false');
+        cell.setAttribute('aria-label', on ? labels.on[i]! : labels.off[i]!);
+        if (first) continue;
+        // the pressed cell answers at once, its neighbours a stagger later; everything else changes together
+        const delay = pressed < 0 || i === pressed ? 0 : 1;
+        if (delays[i] !== delay) {
+          delays[i] = delay;
+          cell.style.setProperty('--flip-delay', delay ? 'var(--flip-stagger)' : '0ms');
+        }
+        if (load) cell.removeAttribute('data-flip'); // a load is the intro's job (C4)
+        else cell.setAttribute('data-flip', '');
       }
+      if (load) startIntro(lit);
+      else if (cancelIntro || board.classList.contains('board--intro')) endIntro(); // the first press ends the intro
       const solved = b.status === 'solved';
-      if (solved && lastStatus === 'playing' && lastLevel === b.levelId) startSweep(b.history.at(-1) ?? (CELL_COUNT >> 1));
+      if (solved && lastStatus === 'playing' && !load) startSweep(b.history.at(-1) ?? real[real.length >> 1]!);
       else if (!solved) stopSweep();
+      const moved = !load && movesEl.textContent !== String(b.moves);
       lastStatus = b.status;
       lastLevel = b.levelId;
+      lastHistory = b.history.length;
       setAttr(board, 'data-status', solved ? 'solved' : 'playing');
       setText(movesEl, String(b.moves));
       setText(parEl, String(b.par));
+      if (moved) bump();
       disable(undo, b.status !== 'playing' || b.history.length === 0);
       disable(restart, b.status === 'empty' || b.moves === 0);
     };
 
     const renderHeader = (b: BoardState | undefined, levels: LevelsState | undefined, progress: ProgressState | undefined) => {
       const id = b?.levelId ?? null;
-      setText(levelEl, id === null ? '' : fmt(copy.level, { level: id }));
-      const chapter = id === null ? -1 : (levels?.chapters ?? []).findIndex((c) => id >= c.from && id <= c.to);
-      setText(chapterEl, chapter < 0 ? '' : fmt(copy.chapter, { chapter: chapter + 1 }));
+      // a Variety level: the room's name over its place in the room; a classic level: its chapter over its number
+      const pack = id === null ? undefined : levels?.packs?.find((p) => p.kind !== 'classic' && id >= p.first && id < p.first + p.count);
+      setText(levelEl, id === null ? '' : fmt(copy.level, { level: pack ? id - pack.first + 1 : id }));
+      const chapter = id === null || pack ? -1 : (levels?.chapters ?? []).findIndex((c) => id >= c.from && id <= c.to);
+      setText(chapterEl, pack ? pack.name : chapter < 0 ? '' : fmt(copy.chapter, { chapter: chapter + 1 }));
 
       const scoring = progress?.scoring;
-      maxBox.hidden = !scoring || id === null;
       tiersEl.hidden = !scoring || id === null;
       setAttr(slot, 'data-tiers', tiersEl.hidden ? 'false' : 'true');
       if (!scoring || !b || id === null) return;
       const used = progress?.save.pendingHints[String(id)] ?? 0;
       const starsFor = (base: number) => Math.min(3, Math.max(scoring.minStars, base - used * scoring.hintCost));
       const max = starsFor(3);
-      setStars(maxStars, max);
-      maxUsed.hidden = used === 0;
-      setAttr(maxBox, 'aria-label', fmt(copy.maxAria, { stars: max }));
+      setAttr(tiersEl, 'aria-label', fmt(copy.maxAria, { stars: max }));
+      hintChip.hidden = used === 0;
+      if (used > 0) {
+        setText(hintChip, fmt(copy.hintChip, { stars: 3 - max, count: used }));
+        setAttr(hintChip, 'aria-label', fmt(copy.hintChipAria, { stars: 3 - max, count: used }));
+      }
 
       const limits = [b.par + scoring.threeStarsWithin, b.par + scoring.twoStarsWithin, b.par + scoring.twoStarsWithin + 1];
       let now = -1;
@@ -340,8 +461,8 @@ const playView: ModuleDef = {
     };
 
     const renderMarks = (b: BoardState | undefined, hints: HintsState | undefined, tutorial: TutorialState | undefined) => {
-      const coaching = tutorial?.status === 'active';
-      const pointing = coaching && tutorial!.target !== null && (tutorial!.levelId === null || tutorial!.levelId === b?.levelId);
+      const coaching = tutorial?.status === 'active' && (tutorial.levelId === null || tutorial.levelId === b?.levelId);
+      const pointing = coaching && tutorial!.target !== null;
       // the tutorial's ring wins: a hint mark never shares the board with it (both draw on ::before)
       const showing = hints?.status === 'showing' && hints.cell !== null && b?.status === 'playing' && !pointing;
       if (pointing) hintCell = mark('data-hint', hintCell, -1);
@@ -349,6 +470,8 @@ const playView: ModuleDef = {
       hintCell = mark('data-hint', hintCell, showing ? hints!.cell! : -1);
       hintLine.hidden = !showing;
       setAttr(line, 'data-hint', showing ? 'true' : 'false');
+      // first-run focus: while the coach talks, only the board, the ring and one sentence
+      setAttr(root, 'data-coaching', coaching ? 'true' : null);
       hintBtn.hidden = !hints;
       disable(hintBtn, !hints || hints.status === 'showing' || b?.status !== 'playing' || coaching);
     };
@@ -370,17 +493,23 @@ const playView: ModuleDef = {
       seen = now;
     };
     for (const slice of ['board', 'hints', 'tutorial', 'levels', 'progress'] as const) ctx.watch(slice, render);
+    if (!ctx.read('board')) buildGrid(shapeOf(null));
     render();
 
     return {
       start: render,
       stop: () => {
         cancelSweep?.();
+        cancelIntro?.();
+        cancelAnimationFrame(bumpFrame);
         document.removeEventListener('pointerup', release, true);
         document.removeEventListener('pointercancel', release, true);
         document.removeEventListener('keydown', onKey);
       },
-      debug: () => ({ hintCell, pointerCell, focusIndex, reference: refOpen ? 'open' : 'closed', sweeping: board.classList.contains('board--sweep') }),
+      debug: () => ({
+        shape: shape ? shapeKey(shape) : null, hintCell, pointerCell, focusIndex,
+        reference: refOpen ? 'open' : 'closed', sweeping: board.classList.contains('board--sweep'), intro: board.classList.contains('board--intro'),
+      }),
       commands: {
         /** reference [open|close]: toggles the in-game pattern reference */
         reference(args) {
