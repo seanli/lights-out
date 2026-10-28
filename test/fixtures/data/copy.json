@@ -1,0 +1,77 @@
+{
+  "$comment": "Every sentence the player sees. One section per owning module. {name} is filled in by the module.",
+  "levels": {
+    "chapters": {
+      "first-light": "First light",
+      "crossfade": "Crossfade",
+      "blackout": "Blackout"
+    }
+  },
+  "home-view": {
+    "title": "Lights Out",
+    "continue": "Continue",
+    "start": "Start",
+    "level": "Level {level}",
+    "solvedCount": "{solved} of {total} solved",
+    "savedNote": "Progress is saved on this device",
+    "chapterRange": "Levels {from}–{to}",
+    "chapterLocked": "Unlocks at level {level}",
+    "starLegend": { "three": "par", "two": "par +3", "one": "solved", "hint": "hint −1★" },
+    "soundOn": "Sound on",
+    "soundOff": "Sound off",
+    "reset": "Reset progress",
+    "resetTitle": "Reset all progress?",
+    "resetBody": "This clears every star and locks all levels after level 1. It can't be undone.",
+    "resetConfirm": "Reset progress",
+    "resetCancel": "Keep my progress",
+    "allSolved": "Every level solved. Replay any level to improve your stars."
+  },
+  "play-view": {
+    "chapter": "Chapter {chapter}",
+    "level": "Level {level}",
+    "moves": "Moves",
+    "par": "Par",
+    "undo": "Undo",
+    "restart": "Restart",
+    "hint": "Hint",
+    "hintCost": "−1★",
+    "back": "Back to levels",
+    "maxStars": "Max",
+    "hintUsed": "Hint used",
+    "hintLine": "Hint: tap the ringed light",
+    "cellOn": "Light {row}, {col}: on",
+    "cellOff": "Light {row}, {col}: off"
+  },
+  "solved-sheet": {
+    "eyebrow": "Level {level} · solved",
+    "title": "Lights out.",
+    "result": "{moves} moves · par {par}",
+    "atPar": "Solved in par.",
+    "overPar": "{over} over par. Replay in {par} for three stars.",
+    "hinted": "Solve it without a hint for more stars.",
+    "next": "Next level",
+    "replay": "Replay",
+    "levels": "Levels",
+    "allDoneTitle": "All 50 levels solved.",
+    "allDoneBody": "Replay any level to collect the stars you missed."
+  },
+  "tutorial": {
+    "1": ["Tap the glowing light. It switches itself and its neighbours."],
+    "2": ["Each tap flips a plus shape. Turn every light off."]
+  },
+  "storage": {
+    "memoryNotice": "This browser isn't saving progress, so it will be lost when you close the page."
+  },
+  "progress": {
+    "recovered": "Your saved progress couldn't be read, so the game started fresh.",
+    "saveFailed": "Your latest progress couldn't be saved."
+  },
+  "offline": {
+    "ready": "Ready to play offline.",
+    "offline": "You're offline. The game still works.",
+    "workerFailed": "Offline play couldn't be set up, so this page needs a connection to open next time."
+  },
+  "console": {
+    "title": "debug"
+  }
+}

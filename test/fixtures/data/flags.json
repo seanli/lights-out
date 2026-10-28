@@ -1,0 +1,7 @@
+{
+  "$comment": "On/off switches. One section per owning module.",
+  "hints": { "enabled": true },
+  "tutorial": { "enabled": true },
+  "sound": { "defaultOn": true },
+  "console": { "enabled": true }
+}

@@ -1,0 +1,16 @@
+/* Shell structure only. Tokens and components live in ./styles (the design system). */
+html, body { height: 100%; }
+body { margin: 0; background: var(--c-room, #0d1015); color: var(--c-text, #efe8da); overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+#app { min-height: 100%; position: relative; display: flex; flex-direction: column; }
+.screens { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.notices { display: flex; flex-direction: column; gap: 8px; }
+.notices:empty { display: none; }
+.sheet-host { position: fixed; inset: 0; pointer-events: none; z-index: 20; }
+.sheet-host > * { pointer-events: auto; }
+.sheet-backdrop[hidden] { display: none; }
+.overlays { position: fixed; inset: 0; pointer-events: none; z-index: 30; }
+.overlays > * { pointer-events: auto; }
+.overlays > :empty { display: none; }
+.fatal { max-width: 32rem; margin: 15vh auto 0; padding-inline: 16px; font-family: system-ui, sans-serif; line-height: 1.5; }
+.fatal h1 { font-size: 1.25rem; text-wrap: balance; }
+.fatal p { color: var(--c-text-dim, #8b93a0); margin: 0.5rem 0; }
