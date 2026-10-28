@@ -131,7 +131,7 @@
         "id": "tower",
         "kind": "size",
         "group": "extreme",
-        "cols": 5,
+        "cols": 6,
         "rows": 16,
         "idBase": 10000,
         "seed": 5016,

@@ -2,7 +2,7 @@
 import type { Shape } from '../../contracts';
 import { isCell } from '../../lib/shape';
 
-/** a tall board (the Tower, 5×16): it fits its width and scrolls instead of shrinking into the screen */
+/** a tall board (the Tower, 6×16): it fits its width and scrolls instead of shrinking into the screen */
 export const isTall = (shape: Shape): boolean => shape.rows >= 2 * shape.cols;
 
 /** the board's box in px: its width/height (padding box; a scrolling board's whole content), padding and the gap between cells */

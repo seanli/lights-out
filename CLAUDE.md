@@ -1,6 +1,6 @@
 # Lights Out — working rules
 
-Phone-first Lights Out: one menu of boards (Classic 5×5, Tall 5×6, Wide 6×6, Great hall 7×7, Cross, Ring, Diamond, and the extreme Ballroom 8×8, Cathedral 10×10, Tower 5×16), levels in bands of ten with a skull boss every 10th, 1–3 stars by moves vs par, one-tap hints that cost a star, a guide per board.
+Phone-first Lights Out: one menu of boards (Classic 5×5, Tall 5×6, Wide 6×6, Great hall 7×7, Cross, Ring, Diamond, and the extreme Ballroom 8×8, Cathedral 10×10, Tower 6×16), levels in bands of ten with a skull boss every 10th, 1–3 stars by moves vs par, one-tap hints that cost a star, a guide per board.
 Ships as ONE self-contained HTML file: `dist/artifact.html` (published as a Claude artifact), `dist/index.html` (standalone, works offline from disk), and `dist-pwa/` (installable, offline via service worker).
 
 ## Principles

@@ -1,7 +1,11 @@
 /* Shell structure only. Tokens and components live in ./styles (the design system). */
 html, body { height: 100%; }
 body { margin: 0; background: var(--c-room, #0d1015); color: var(--c-text, #efe8da); overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
-#app { min-height: 100%; position: relative; display: flex; flex-direction: column; }
+/* The game fills the screen like a native one: fixed to the viewport, so a host's root padding (the artifact frame pads
+   :root by the safe areas) or a short html height never leaves a band. Safe areas are padded once, inside .app. */
+#app { position: fixed; inset: 0; display: flex; flex-direction: column; }
+/* installed (PWA): let the page reach under the status bar on iOS */
+@media (display-mode: standalone) { html { min-height: min(100lvh, calc(100% + env(safe-area-inset-top, 0px))); } }
 .screens { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .notices { display: flex; flex-direction: column; gap: 8px; }
 .notices:empty { display: none; }

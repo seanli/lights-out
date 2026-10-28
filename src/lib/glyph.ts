@@ -1,6 +1,6 @@
 // A board's shape as a small dot picture (gaps stay empty), for menus and lists. Styled by `.room-glyph` in
 // src/shell/styles/components.css; size it with --glyph-box. The picture keeps the board's proportions inside that
-// square box: its longer side fills the box, so a 10×10 draws fine dots and the 5×16 Tower a tall narrow sliver,
+// square box: its longer side fills the box, so a 10×10 draws fine dots and the 6×16 Tower a tall narrow sliver,
 // while every glyph keeps the same footprint. Pure DOM helper: no state, no events.
 import type { Pack } from '../contracts';
 import { cellIndexes, gridSize } from './shape';

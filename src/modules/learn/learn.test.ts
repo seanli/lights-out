@@ -710,7 +710,8 @@ describe('learn: what the board guides say (proved from the solver)', () => {
   test('5×6 and the Tower: one bottom light → the top light straight above it', () => {
     for (const id of ['5x6', 'tower']) {
       const { perLight } = rectTopSets(roomSolver, ROOM[id] as never);
-      expect(perLight, id).toEqual([0, 1, 2, 3, 4].map((c) => [c]));
+      const cols = (ROOM[id] as { cols: number }).cols;
+      expect(perLight, id).toEqual([...Array(cols).keys()].map((c) => [c]));
       expect(rectRule(perLight)).toBe('straightAbove');
     }
   });

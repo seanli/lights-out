@@ -8,7 +8,7 @@ export const CONTRACT_VERSION = 3;
 /** The classic board: 5×5, no gaps. The tutorial, Learn and the Patterns table are about this board. */
 export const SIZE = 5;
 export const CELL_COUNT = SIZE * SIZE;
-/** the widest board (10×10 Cathedral) and the tallest (the 5×16 Tower, which scrolls) */
+/** the widest board (10×10 Cathedral) and the tallest (the 6×16 Tower, which scrolls) */
 export const MAX_COLS = 10;
 export const MAX_ROWS = 16;
 export const MAX_CELLS = MAX_COLS * MAX_ROWS;
