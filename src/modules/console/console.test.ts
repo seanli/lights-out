@@ -124,7 +124,7 @@ describe('console', () => {
     boot(d.fake);
     openConsole(frames);
     const rows = $$('[data-console-content="events"] .console__row');
-    expect(rows.map((r) => r.children[1]!.textContent)).toEqual(['hints:request', 'board:press → board:pressed', 'offline:status_changed']);
+    expect(rows.map((r) => r.children[1]!.textContent)).toEqual(['hints:request', 'board:press→pressed', 'offline:status_changed']);
     expect(rows[1]!.querySelector('.console__count')!.textContent).toBe('×2');
     expect(rows[2]!.querySelector('.console__count')!.textContent).toBe('×3');
     expect(rows[1]!.classList.contains('console__row--repeat')).toBe(true);
@@ -132,7 +132,7 @@ describe('console', () => {
     expect(rows[0]!.dataset.input).toBe('true');
     expect(rows[2]!.dataset.input).toBeUndefined();
     expect(rows[1]!.querySelector('[data-kind="command"]')!.textContent).toBe('board:press');
-    expect(rows[1]!.querySelector('[data-kind="fact"]')!.textContent).toBe('board:pressed');
+    expect(rows[1]!.querySelector('[data-kind="fact"]')!.getAttribute('title')).toBe('board:pressed');
     // clear empties the view, not the record
     runLine('clear');
     frames.flush();

@@ -3,7 +3,10 @@
 .console { --console-bar-h: var(--tap-min); }
 .console__bar { min-height: var(--console-bar-h); cursor: pointer; user-select: none; }
 .console__bar .console__meta { margin-left: 0; }
+.console__title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .console__title em { font-variant-numeric: tabular-nums; }
+.console__bar .console__meta { white-space: nowrap; }
+.console__bar .console__meta[data-tone="error"] { color: var(--c-error); }
 .console[data-collapsed="true"] { box-shadow: var(--shadow-outline); }
 .console[data-collapsed="true"] .console__bar { border-bottom: 0; }
 .console [data-console-toggle] .icon { transition: rotate var(--dur-fast) var(--ease-out); }
@@ -14,7 +17,11 @@
 .console__row[data-tone] > :nth-child(2) [data-kind] { color: var(--key); }
 .console__row[data-input="true"] > :nth-child(2)::before { content: "›"; margin-right: var(--space-1); color: var(--c-accent); }
 .console__row--event, .console__slice { cursor: pointer; }
-.console__row > :last-child { display: inline-flex; justify-content: flex-end; align-items: center; gap: var(--space-1-5); white-space: nowrap; }
+/* event rows: the name keeps its full width; the payload gives way (tap the row for all of it); the count never hides */
+.console__row--event { grid-template-columns: var(--console-time-w) minmax(0, max-content) minmax(0, 1fr); }
+.console__row--event > :last-child { display: flex; justify-content: flex-end; align-items: center; gap: var(--space-1-5); min-width: 0; white-space: nowrap; }
+.console__payload { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.console__count { flex: none; }
 .console__count { color: var(--c-text); }
 .console__row--log > :nth-child(2) { white-space: normal; overflow-wrap: anywhere; color: var(--c-debug-text); }
 .console__row--log[data-tone] > :nth-child(2) { color: var(--key); }
@@ -27,8 +34,10 @@
 .console__grid [data-on="true"] { color: var(--c-tile-on); }
 .console__grid [data-on="false"] { color: var(--c-text-faint); }
 .console__grid [data-hint="true"] { color: var(--c-hint); text-decoration: underline; }
+.console__slices { display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: var(--space-3); }
+.console__slices > .console__pre { grid-column: 1 / -1; }
 .console__slice {
-  display: grid; grid-template-columns: var(--console-time-w) minmax(0, 1fr); gap: var(--space-2); width: 100%; padding: 0;
+  display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; width: 100%; padding: 0;
   border: 0; background: var(--c-none); font: inherit; color: var(--c-text-dim); text-align: left;
 }
 .console__slice > b { font-weight: inherit; color: var(--c-debug-key); }
@@ -36,7 +45,7 @@
 .console__slice[aria-expanded="true"] > b { color: var(--c-text); }
 .console__pre {
   margin: var(--space-1) 0 var(--space-2); padding: var(--space-2); max-height: calc(var(--level-tile-h) * 4); overflow: auto;
-  border-radius: var(--radius-xs); background: var(--c-surface); color: var(--c-debug-text); font: inherit; white-space: pre; tab-size: 2;
+  border-radius: var(--radius-xs); background: var(--c-surface); color: var(--c-debug-text); font: inherit; white-space: pre-wrap; overflow-wrap: break-word; tab-size: 2;
 }
 
 .console__empty, .console__detail { color: var(--c-text-faint); }

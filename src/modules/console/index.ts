@@ -22,7 +22,7 @@ const s = v.string();
 const Copy = v.object({
   title: s, collapse: s, expand: s,
   sections: v.object({ state: s, events: s, log: s, modules: s, services: s, snapshots: s }),
-  stateMeta: s, eventsMeta: s, logMeta: s, logQuiet: s, modulesMeta: s, servicesMeta: s, snapshotsMeta: s,
+  stateMeta: s, eventsMeta: s, warnCount: s, errorCount: s, logQuiet: s, modulesMeta: s, servicesMeta: s, snapshotsMeta: s,
   none: s, noSnapshots: s, save: s, restore: s, live: s, mock: s, ok: s, notOk: s,
   inputLabel: s, placeholder: s, run: s, help: s, done: s, followed: s, unknown: s,
   emitUsage: s, badJson: s, notObject: s, emitted: s, noSlice: s, restoreUsage: s, noSnapshot: s,
@@ -211,10 +211,14 @@ const consoleModule: ModuleDef = {
       return { warn, error };
     }
 
-    function renderBar({ warn, error }: { warn: number; error: number }) {
-      setText(em, `${env.buildId} · ${env.target} · ${lastRenderMs.toFixed(1)}ms`);
-      setText(barMeta, warn || error ? fmt(copy.logMeta, { warn, error }) : '');
-      setAttr(barMeta, 'data-tone', warn || error ? 'warn' : null);
+    const problems = ({ warn, error }: { warn: number; error: number }) =>
+      [error ? fmt(copy.errorCount, { n: error }) : '', warn ? fmt(copy.warnCount, { n: warn }) : ''].filter(Boolean).join(' · ');
+
+    function renderBar(counts: { warn: number; error: number }) {
+      setText(em, `${env.target} · ${lastRenderMs.toFixed(1)}ms`);
+      setAttr(em, 'title', `build ${env.buildId} · last render ${lastRenderMs.toFixed(2)}ms · ${renders} renders`);
+      setText(barMeta, problems(counts));
+      setAttr(barMeta, 'data-tone', counts.error ? 'error' : counts.warn ? 'warn' : null);
     }
 
     function renderMetas(logs: LogRecord[], { warn, error }: { warn: number; error: number }) {
@@ -227,7 +231,7 @@ const consoleModule: ModuleDef = {
       const board = state.board as BoardState | undefined;
       meta('state', board?.levelId ? `L${board.levelId} · ${board.status}` : fmt(copy.stateMeta, { count: Object.keys(state).length }));
       meta('events', fmt(copy.eventsMeta, { limit: rules.eventLimit }));
-      meta('log', warn || error ? fmt(copy.logMeta, { warn, error }) : fmt(copy.logQuiet, { count: logs.length }), warn || error ? 'warn' : undefined);
+      meta('log', warn || error ? problems({ warn, error }) : fmt(copy.logQuiet, { count: logs.length }), warn || error ? 'warn' : undefined);
       const mods = debug.modules();
       const up = mods.filter((m) => m.status === 'started').length;
       meta('modules', fmt(copy.modulesMeta, { up, total: mods.length }), up < mods.length ? 'warn' : undefined);
@@ -268,11 +272,13 @@ const consoleModule: ModuleDef = {
           });
           nodes.push(h('div', { class: 'console__boardrow' }, kv, grid));
         }
+        const list = h('div', { class: 'console__slices' });
         for (const name of names) {
           const open = expandedSlices.has(name);
-          nodes.push(h('button', { class: 'console__slice', type: 'button', 'data-slice': name, 'aria-expanded': String(open) }, h('b', {}, name), h('span', {}, summarize(all[name]))));
-          if (open) nodes.push(pre(prettyJson(all[name])));
+          list.append(h('button', { class: 'console__slice', type: 'button', 'data-slice': name, 'aria-expanded': String(open) }, h('b', {}, name), h('span', {}, summarize(all[name]))));
+          if (open) list.append(pre(prettyJson(all[name])));
         }
+        if (names.length) nodes.push(list);
         if (!nodes.length) nodes.push(empty(copy.none));
         content('state').replaceChildren(...nodes);
       },
@@ -286,11 +292,13 @@ const consoleModule: ModuleDef = {
           const rec = g.last;
           const tone = g.types.some((t) => /failed$/.test(t)) ? 'error' : g.types.some((t) => /refused$/.test(t)) ? 'warn' : null;
           const name = h('span', {});
+          const mod = g.types[0]!.split(':')[0];
           g.types.forEach((t, i) => {
-            if (i) name.append(' → ');
-            name.append(h('span', { 'data-kind': isFact(t) ? 'fact' : 'command' }, t));
+            if (i) name.append('→');
+            const label = i && t.split(':')[0] === mod ? t.slice(mod!.length + 1) : t;
+            name.append(h('span', { 'data-kind': isFact(t) ? 'fact' : 'command', title: t }, label));
           });
-          const tail = h('span', {}, shortPayload(rec.payload), g.count > 1 ? h('span', { class: 'console__count' }, `×${g.count}`) : null);
+          const tail = h('span', {}, h('span', { class: 'console__payload' }, shortPayload(rec.payload)), g.count > 1 ? h('span', { class: 'console__count' }, `×${g.count}`) : null);
           frag.append(h('div', {
             class: `console__row console__row--event${g.count > 1 ? ' console__row--repeat' : ''}`,
             'data-seq': rec.seq, 'data-tone': tone, 'data-input': g.input ? 'true' : null,
