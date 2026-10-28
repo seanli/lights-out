@@ -1,0 +1,20 @@
+/* play-view: only what the design system doesn't cover yet (see requests.md). Tokens only. */
+
+/* header right slot: max-stars indicator + learn button side by side */
+.play-head-end { flex-direction: row; align-items: center; gap: var(--space-2); }
+.play-max { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-1); text-align: right; }
+.play-max .caption { white-space: nowrap; }
+
+/* one line under the board: the hint line, or the tutorial's coach line (slot:coach) */
+.play-line { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: var(--line-h); }
+.play-line[data-hint="true"] > [data-slot] { display: none; }
+
+/* no tier chips (no scoring): the board may use their height */
+.board-slot[data-tiers="false"] { --board-chrome-y: calc(var(--line-h) + var(--space-3)); }
+
+/* the board is a touch surface: no selection, no callout, no double-tap zoom */
+.screen--play .board { touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+
+@media (orientation: landscape) and (max-height: 540px) {
+  .screen--play .play-line { grid-area: line; align-self: center; }
+}
