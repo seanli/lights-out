@@ -1725,7 +1725,7 @@ describe('learn: the twist guides (Hex, Cube, Wired, Stuck)', () => {
     expect(cell.hasAttribute('data-jam')).toBe(true);
     expect(t.all('learn:press')).toHaveLength(0);
     t.emit('learn:press', { index: s });
-    expect(t.seen('learn:refused', { command: 'learn:press' })).toBeTruthy();
+    expect(t.seen('learn:refused', { command: 'learn:press', reason: 'stuck' })).toBeTruthy();
     expect(t.state('learn').practice).toEqual(before);
     // the coach: chase, then (lights left over the bottom and the screws) the top-edge fix, then chase again
     const line = () => q('[data-learn-line="practice"]')!.textContent;

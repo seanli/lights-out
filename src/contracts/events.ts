@@ -100,7 +100,7 @@ export interface Events {
   'learn:lesson_opened': { lessonId: string | null };
   'learn:lesson_completed': { lessonId: string };
   'learn:practice_solved': { lessonId: string | null; moves: number; par: number };
-  'learn:refused': { command: string; reason: 'unknown_lesson' | 'no_practice' | 'bad_index' };
+  'learn:refused': { command: string; reason: 'unknown_lesson' | 'no_practice' | 'bad_index' | 'stuck' };
 
   // ---- offline ----
   'offline:status_changed': { target: string; worker: string; online: boolean };

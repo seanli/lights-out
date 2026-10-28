@@ -337,8 +337,8 @@ const learn: ModuleDef = {
         return ctx.emit('learn:refused', { command: 'learn:press', reason: 'bad_index' });
       }
       // a stuck switch can't be pressed (the view shakes it, as the play board does); no tap is counted.
-      // ('bad_index' until the contract has board:refused's 'stuck' reason here too: requests.md)
-      if (shape && isStuck(shape, index)) return ctx.emit('learn:refused', { command: 'learn:press', reason: 'bad_index' });
+      // a stuck mini switch: refused like the board refuses it (no move counts; the view shakes it)
+      if (shape && isStuck(shape, index)) return ctx.emit('learn:refused', { command: 'learn:press', reason: 'stuck' });
       const cells = shape ? solver.press(pr.cells, index, shape) : solver.press(pr.cells, index);
       const solved = isClear(cells);
       const moves = pr.moves + 1;

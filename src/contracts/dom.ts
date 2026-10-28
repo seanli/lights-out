@@ -40,7 +40,9 @@
 //   [data-pattern-row][data-match="true|false"][data-pattern="0,1,2"]   classic: the live row → its top taps (data-pattern
 //                                    names the matched table row; the full table lives in lesson 4, not the panel)
 //   [data-reference-status="chase|match|nomatch|clear"]   which advice is showing
-//   [data-reference-kind="classic|rect|shaped"]  [data-reference-rule]  the one-line rule beside the match
+//   [data-reference-kind="classic|rect|shaped|hex|cube|wired|stuck"]  [data-reference-rule]  the one-line rule beside
+//                                    the match; on hex, cube, wired and stuck boards [data-reference-status="tip"]: the
+//                                    room's one-line tip and its guide link instead of a bottom row
 //   [data-action="learn"] inside it  → learn:open {} (full lessons; Back returns to the level)
 //
 // Home screen (home-view): one menu, every board its own row (The Good Sudoku pattern)
@@ -82,6 +84,9 @@
 //   lesson 4: [data-action="learn-echo"][data-col="0..4"] (pick a top cell), [data-action="learn-deeper"] (Go deeper),
 //             [data-action="learn-drill"] with [data-drill="idle|asking|right|wrong|done"]
 //   board guides: [data-lesson-tile][data-lesson="guide-<pack id>"] (one per room; classic's guide is the five lessons)
+//   twist guides: mini boards [data-mini-grid="hex|cube"] (a honeycomb; the cube as its unfolded net, .mini-face[data-face]
+//     panels), mini cells [data-stuck="true"] (+ [data-jam] while it shakes: refused, learn:refused 'stuck'),
+//     wired mini cells carry the play board's spokes
 // Entry points: [data-action="learn"] on the home screen and inside the in-game reference → learn:open;
 //               [data-action="guide"] on a board screen and inside the in-game reference → learn:open {lessonId}
 //

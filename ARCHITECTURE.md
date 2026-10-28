@@ -9,15 +9,16 @@ Shell: `src/shell` (entry, view service, design system in `src/shell/styles`). C
 |---|---|---|---|---|---|---|
 | **board** | `board` | — | `solver?` | `board:loaded`, `board:pressed`, `board:undone`, `board:restarted`, `board:solved`, `board:refused`, `board:load`, `board:press` | `board:load`, `board:press`, `board:undo`, `board:restart` | — |
 | **console** | — | — | `view`, `debug`, `env`, `clock?` | — | — | `rules`, `copy`, `flags` |
+| **custom** | `custom` | — | `view`, `solver`, `rng`, `clock`, `storage?` | `custom:started`, `custom:refused`, `custom:set`, `custom:play`, `board:load`, `nav:go`, `nav:back` | `custom:open`, `custom:set`, `custom:play` | `copy`, `rules` |
 | **hints** | `hints` | — | `solver`, `rng` | `hints:shown`, `hints:cleared`, `hints:refused` | `hints:request`, `board:pressed`, `board:undone`, `board:restarted`, `board:loaded`, `board:solved` | `rules`, `flags` |
-| **home-view** | — | — | `view`, `env?` | `levels:start`, `sound:set`, `learn:open`, `variety:open`, `nav:open_sheet`, `nav:close_sheet`, `progress:clear` | — | `copy` |
+| **home-view** | — | — | `view`, `env?` | `levels:start`, `sound:set`, `learn:open`, `variety:open`, `custom:open`, `nav:open_sheet`, `nav:close_sheet`, `progress:clear` | — | `copy` |
 | **learn** | `learn` | — | `view`, `solver`, `rng`, `storage?`, `clock?` | `learn:lesson_opened`, `learn:lesson_completed`, `learn:practice_solved`, `learn:refused`, `nav:go`, `nav:back`, `learn:open`, `learn:step`, `learn:press`, `learn:new_practice`, `learn:set_assist` | `learn:open`, `learn:step`, `learn:press`, `learn:new_practice`, `learn:set_assist` | `rules`, `copy` |
 | **levels** | `levels` | — | `solver`, `rng` | `levels:start`, `levels:generated`, `levels:started`, `levels:refused`, `board:load` | `levels:start` | `rules`, `copy` |
 | **nav** | `nav` | — | — | `nav:changed` | `nav:go`, `nav:back`, `nav:open_sheet`, `nav:close_sheet`, `levels:started` | — |
 | **offline** | `offline` | — | `env?`, `view?`, `clock?` | `offline:status_changed` | — | `copy` |
 | **play-view** | — | — | `view`, `clock?` | `board:press`, `board:undo`, `board:restart`, `hints:request`, `nav:back` | — | `copy` |
-| **progress** | `progress` | — | `clock`, `storage?`, `view?` | `progress:loaded`, `progress:level_completed`, `progress:cleared`, `progress:save_failed`, `progress:clear` | `progress:clear`, `levels:started`, `levels:generated`, `hints:shown`, `board:solved` | `rules`, `copy` |
-| **solved-sheet** | — | — | `view`, `clock` | `nav:open_sheet`, `nav:close_sheet`, `nav:go`, `levels:start`, `variety:open` | `board:solved`, `progress:level_completed`, `levels:started`, `board:loaded`, `board:restarted`, `kernel:state_loaded` | `rules`, `copy` |
+| **progress** | `progress` | — | `clock`, `storage?`, `view?` | `progress:loaded`, `progress:level_completed`, `progress:cleared`, `progress:save_failed`, `progress:clear` | `progress:clear`, `levels:started`, `levels:generated`, `hints:shown`, `board:solved`, `custom:started` | `rules`, `copy` |
+| **solved-sheet** | — | — | `view`, `clock` | `nav:open_sheet`, `nav:close_sheet`, `nav:go`, `levels:start`, `variety:open`, `custom:play`, `custom:open`, `board:restart` | `board:solved`, `progress:level_completed`, `levels:started`, `board:loaded`, `board:restarted`, `kernel:state_loaded` | `rules`, `copy` |
 | **solver** | — | `solver` | — | — | — | — |
 | **sound** | `sound` | — | `rng`, `storage?`, `clock?`, `view?` | `sound:changed` | `sound:set`, `board:loaded`, `board:pressed`, `board:undone`, `board:restarted`, `board:solved`, `hints:shown`, `levels:started`, `progress:level_completed`, `nav:changed` | `rules`, `flags` |
 | **storage** | `storage` | `storage` | `view?` | `storage:checked` | — | `rules`, `copy` |
@@ -26,16 +27,21 @@ Shell: `src/shell` (entry, view service, design system in `src/shell/styles`). C
 
 ## Who reacts to what
 
-- `board:load`: board, levels → board
+- `board:load`: board, custom, levels → board
 - `board:loaded`: board → hints, solved-sheet, sound, tutorial
 - `board:press`: board, play-view → board
 - `board:pressed`: board → hints, sound, tutorial
 - `board:refused`: board → (nobody yet)
-- `board:restart`: play-view → board
+- `board:restart`: play-view, solved-sheet → board
 - `board:restarted`: board → hints, solved-sheet, sound, tutorial
 - `board:solved`: board → hints, progress, solved-sheet, sound, tutorial
 - `board:undo`: play-view → board
 - `board:undone`: board → hints, sound, tutorial
+- `custom:open`: home-view, solved-sheet → custom
+- `custom:play`: custom, solved-sheet → custom
+- `custom:refused`: custom → (nobody yet)
+- `custom:set`: custom → custom
+- `custom:started`: custom → progress
 - `hints:cleared`: hints → (nobody yet)
 - `hints:refused`: hints → (nobody yet)
 - `hints:request`: play-view → hints
@@ -53,10 +59,10 @@ Shell: `src/shell` (entry, view service, design system in `src/shell/styles`). C
 - `levels:refused`: levels → (nobody yet)
 - `levels:start`: home-view, levels, solved-sheet, variety → levels
 - `levels:started`: levels → nav, progress, solved-sheet, sound
-- `nav:back`: learn, play-view, variety → nav
+- `nav:back`: custom, learn, play-view, variety → nav
 - `nav:changed`: nav → sound
 - `nav:close_sheet`: home-view, solved-sheet → nav
-- `nav:go`: learn, solved-sheet, variety → nav
+- `nav:go`: custom, learn, solved-sheet, variety → nav
 - `nav:open_sheet`: home-view, solved-sheet → nav
 - `offline:status_changed`: offline → (nobody yet)
 - `progress:clear`: home-view, progress → progress
