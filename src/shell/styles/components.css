@@ -60,14 +60,101 @@ button, input { font: inherit; color: inherit; }
 .screen-header__title > strong { font: var(--fw-display) min(var(--text-lg), 5.6vw) / var(--leading-snug) var(--font-display); letter-spacing: var(--tracking-display); }
 .screen-header__end { grid-column: 3; justify-self: end; display: flex; align-items: center; justify-content: flex-end; gap: var(--space-1); }
 
-/* play screen. Portrait: one column, the board-slot takes the leftover height.
-   .board-slot is a size container holding tiers + board + tutorial line; the board is the
-   largest square that fits it minus --board-chrome-y (set 0px on the slot if it holds only the board). */
-.screen--play { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto; }
-.play-stats { display: flex; justify-content: space-between; align-items: flex-end; padding-inline: var(--space-1); }
-.play-tiers { display: flex; justify-content: center; flex-wrap: wrap; gap: var(--space-1-5); }
-.play-actions { display: grid; grid-template-columns: 1fr 1fr 1.35fr; gap: var(--space-2); }
-.board-slot { min-height: 0; min-width: 0; container-type: size; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-3); }
+/* ---------- play screen: one anatomy, Patterns open or closed ----------
+   header · status row · board area · [Patterns panel] · action bar, --stack apart (the .screen gap).
+   Opening Patterns only inserts the panel above the bar: the board area gives up that height and the board snaps to its
+   new size (never animated, so a tap never lands on a moving cell); nothing else moves or changes form.
+   The board area is a size container. The board is the largest of its shape that fits, centred, and rests on the area's
+   bottom (next to the panel or the bar), so spare height collects above it, under the status row. */
+.screen--play {
+  /* the classic board at its smallest instant-press size (5 slots of --aim-below): the panel never squeezes the area below */
+  --play-board-min: calc(5 * var(--aim-below));
+  /* while the tutorial coaches (levels 1–2) its sentence (up to 3 lines) always has room over the board */
+  --play-coach-h: calc(3 * var(--text-md) * var(--leading-snug) + var(--stack));
+}
+.screen--play > * { flex: none; }
+/* status row: Moves (the number that matters) and Par as a pair on the left, the star tiers on the right; never wraps */
+.play-status { container: play-status / inline-size; display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-2); }
+.play-stats { display: flex; align-items: stretch; gap: var(--space-4); flex: none; }
+.play-stats > .stat { justify-content: space-between; gap: var(--space-1-5); }
+.play-stats .stat__value { font-size: var(--text-xl); }
+.play-stats [data-par] { font-size: var(--text-lg); }
+.play-tiers { display: flex; justify-content: flex-end; gap: var(--space-1-5); flex: none; padding-bottom: var(--hairline); }
+/* the row stays one line by folding in steps as it narrows (or a hint chip joins): tighter chips and a hint chip that says
+   just "−1★"; then no "≤N" limits. The stars, the chip states and the aria-labels keep the meaning. */
+:where(.play-status:has(.chip[data-state="hint"]:not([hidden]))) .play-tiers { gap: var(--space-1); }
+:where(.play-status:has(.chip[data-state="hint"]:not([hidden]))) .play-tiers > .chip { padding-inline: var(--space-1-5); }
+:where(.play-status:has(.chip[data-state="hint"]:not([hidden]))) .play-hint-word { display: none; }
+@container play-status (max-width: 399px) {
+  .play-tiers { gap: var(--space-1); }
+  .play-tiers > .chip { padding-inline: var(--space-2); }
+  .play-hint-word { display: none; }
+  :where(.play-status:has(.chip[data-state="hint"]:not([hidden]))) .play-tiers > .chip { padding-inline: var(--space-1-5); }
+}
+@container play-status (max-width: 379px) {
+  :where(.play-status:has(.chip[data-state="hint"]:not([hidden]))) .play-tiers[data-long] .play-tier__limit { display: none; }
+}
+@container play-status (max-width: 351px) {
+  :where(.play-status:has(.chip[data-state="hint"]:not([hidden]))) .play-tier__limit { display: none; }
+}
+@container play-status (max-width: 349px) {
+  .play-tiers > .chip { padding-inline: var(--space-1-5); }
+}
+@container play-status (max-width: 339px) {
+  .play-tier__limit { display: none; }
+}
+@container play-status (max-width: 299px) {
+  .play-stats { gap: var(--space-3); }
+}
+.board-slot {
+  flex: 1 1 0; min-height: var(--play-board-min); min-width: 0; container-type: size;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  --board-chrome-y: 0px;
+}
+.screen--play[data-coaching="true"]:not([data-reference="open"]) .board-slot { --board-chrome-y: var(--play-coach-h); }
+/* the line over the board (the hint line, or the coach in slot:coach) lives in the spare height above it, shown whole
+   or not at all: a column-wrapping flex box whose items wrap out of its clip when they don't fit */
+.play-line {
+  flex: 1 1 0; min-height: 0; align-self: stretch; overflow: hidden; pointer-events: none;
+  display: flex; flex-flow: column wrap; justify-content: flex-end;
+}
+.play-line::before { content: ""; width: 100%; }
+.play-line > * { width: 100%; margin-bottom: var(--stack); }
+.play-line[data-hint="true"] > [data-slot] { display: none; }
+/* the Patterns panel (learn fills slot:reference): its content's height, at most ~42% of the screen; slides in */
+.play-reference { display: none; flex: 0 1 auto; min-height: 0; max-height: 42%; flex-direction: column; }
+.play-reference > [data-slot] { flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.screen--play[data-reference="open"] > .play-reference { display: flex; animation: lo-panel-in var(--dur-sheet) var(--ease-out) both; }
+@keyframes lo-panel-in { from { opacity: 0; translate: 0 var(--space-2); } }
+/* the action bar is the shared .bar.bar--icons; Undo / Restart with nothing to take back are resting, not broken */
+.play-actions > .btn[aria-disabled="true"] { opacity: var(--rest-opacity, .55); }
+
+/* side by side (a phone on its side always; tablets and desktops while Patterns is open): the same blocks in two columns.
+   The screen wraps its column of blocks: the board area (full height, hugging the board, which it centres) is the first
+   column; header · status, then [panel] · bar at the foot, the second. The screen is the size container. */
+@media (orientation: landscape) and (max-height: 540px) {
+  .screen--play { flex-flow: column wrap; align-content: center; column-gap: var(--space-6); container-type: size; }
+  .screen--play > * { width: var(--side-w); }
+  .screen--play > .board-slot { order: -1; flex: none; width: auto; height: 100%; min-height: 0; container-type: normal; justify-content: center; }
+  .screen--play:not([data-coaching="true"]) > .board-slot::after { content: ""; flex: 1 1 0; }
+  .screen--play .play-line { width: 0; min-width: 100%; }
+  .screen--play .board { --fit-w: min(100cqw - var(--side-w) - var(--space-6), var(--board-max)); --fit-h: min(100cqh - var(--board-chrome-y), var(--board-max)); }
+  .screen--play > .play-status { flex-wrap: wrap; row-gap: var(--space-2); margin-bottom: auto; }
+  .screen--play > .play-reference { max-height: none; }
+  /* a narrow column: the tools keep their icon above the label */
+  .screen--play > .play-actions > .btn { flex-basis: 0; flex-direction: column; gap: var(--space-1); }
+}
+@media (min-width: 700px) {
+  .app:has(> .screens > .screen--play[data-reference="open"]:not([hidden])) { max-width: var(--app-max-wide); }
+  .screen--play[data-reference="open"] { flex-flow: column wrap; align-content: center; column-gap: var(--space-6); container-type: size; }
+  .screen--play[data-reference="open"] > * { width: var(--side-w); }
+  .screen--play[data-reference="open"] > .board-slot { order: -1; flex: none; width: auto; height: 100%; min-height: 0; container-type: normal; justify-content: center; }
+  .screen--play[data-reference="open"]:not([data-coaching="true"]) > .board-slot::after { content: ""; flex: 1 1 0; }
+  .screen--play[data-reference="open"] .play-line { width: 0; min-width: 100%; }
+  .screen--play[data-reference="open"] .board { --fit-w: min(100cqw - var(--side-w) - var(--space-6), var(--board-max)); --fit-h: min(100cqh - var(--board-chrome-y), var(--board-max)); }
+  .screen--play[data-reference="open"] > .play-status { flex-wrap: wrap; row-gap: var(--space-2); margin-bottom: auto; }
+  .screen--play[data-reference="open"] > .play-reference { max-height: none; }
+}
 
 /* ---------- buttons ---------- */
 .btn {
@@ -450,19 +537,6 @@ button, input { font: inherit; color: inherit; }
    The slot dissolves (display: contents) and the screen itself becomes the size container. */
 @media (orientation: landscape) and (max-height: 540px) {
   .app { max-width: var(--app-max-wide); }
-  .screen--play {
-    container-type: size; column-gap: var(--space-6); justify-content: center;
-    grid-template-columns: auto minmax(0, var(--side-w));
-    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
-    grid-template-areas: "board head" "board stats" "board tiers" "board line" "board actions";
-  }
-  .screen--play > .screen-header { grid-area: head; }
-  .screen--play .play-stats { grid-area: stats; }
-  .screen--play .play-tiers { grid-area: tiers; }
-  .screen--play .tutorial-line { grid-area: line; }
-  .screen--play .play-actions { grid-area: actions; }
-  .screen--play .board-slot { display: contents; container-type: normal; }
-  .screen--play .board { grid-area: board; align-self: center; --fit-w: min(100cqw - var(--side-w) - var(--space-6), var(--board-max)); --fit-h: min(100cqh, var(--board-max)); }
   .sheet { max-width: var(--app-max-wide); gap: var(--space-2); }
   .sheet__actions { flex-direction: row; }
   .sheet__actions > .btn { flex: 1; }

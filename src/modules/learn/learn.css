@@ -270,85 +270,83 @@
   .learn-lesson > .learn-nav { grid-column: 2; grid-row: 6; }
 }
 
-/* ---------- in-game pattern reference (slot:reference, placed by play-view) ----------
-   One column of 7 rows on a phone; two columns once the panel is wide enough (container query). */
+/* ---------- in-game Patterns panel (slot:reference, placed by play-view) ----------
+   A card with one structure on every board: line 1 the status (coach tone) with the guide link at its right; line 2 the
+   rule (dim, at most two lines, shown whole or not at all); then the live strips, in a body that scrolls on its own
+   under a fade. Up to 740px tall the panel keeps line 1 and the strips (the board needs the height). */
 .reference {
-  --strip-cell: calc(var(--tap-min) / 2 - var(--space-1));
+  --strip-max: calc(var(--tap-min) / 2);
+  --strip-cell: var(--strip-max);
+  --pair-caption-w: calc(6 * var(--space-3));
   container-type: inline-size;
-  max-height: 100%; overflow-y: auto; overscroll-behavior: contain;
-  display: flex; flex-direction: column; gap: var(--space-1-5);
-  padding: var(--space-2) var(--space-3) var(--space-3); border-radius: var(--radius-md); background: var(--c-surface); box-shadow: var(--shadow-outline);
+  flex: 0 1 auto; min-height: 0;
+  display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--card-pad); border-radius: var(--radius-lg);
+  background: var(--c-surface); box-shadow: var(--shadow-outline);
 }
-.reference__pin {
-  position: sticky; top: calc(-1 * var(--space-2)); z-index: 1; display: flex; flex-direction: column; gap: var(--space-1);
-  margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-3)) 0; padding: var(--space-2) var(--space-3) var(--space-1); background: var(--c-surface);
-}
-.reference__top { display: flex; flex-wrap: wrap; align-items: center; column-gap: var(--space-2); row-gap: var(--space-1); }
-.reference__top > .reference__rule { flex: 1 0 100%; }
-/* a revealed row clears the pinned lines above and the fade below */
-.reference__row > .learn-row { scroll-margin-top: calc(3 * var(--line-h)); scroll-margin-bottom: var(--space-6); }
-.reference__top > .reference__status { flex: 1; min-width: 0; }
-.reference__status { min-height: var(--line-h); font: var(--fw-bold) var(--text-sm) / var(--leading-snug) var(--font-ui); color: var(--c-text); text-wrap: balance; }
+.reference__line { flex: none; display: flex; align-items: first baseline; gap: var(--space-3); }
+.reference__status { flex: 1; min-width: 0; font: var(--fw-medium) var(--text-md) / var(--leading-snug) var(--font-ui); color: var(--c-text); text-wrap: pretty; }
 .reference__status[data-tone="match"] { color: var(--c-accent-hi); }
 .reference__status[data-tone="warn"] { color: var(--c-warn); }
-.reference__rule { font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--c-pointer); }
-/* more below: fade the bottom edge (data-overflow from a ResizeObserver + scroll) */
-.reference[data-overflow="true"] {
+/* the link keeps its 44px target but takes one text line of height; its text ends on the card's padding edge */
+.reference__link {
+  flex: none; white-space: nowrap;
+  margin-block: calc((var(--text-md) * var(--leading-snug) - var(--tap-min)) / 2); margin-inline-end: calc(-1 * var(--space-2));
+}
+/* the rule, whole or not at all: a column-wrapping box two lines tall whose item wraps out of its clip when it is longer */
+.reference__fit { flex: none; display: flex; flex-flow: column wrap; max-height: calc(2 * var(--text-sm) * var(--leading-snug)); overflow: hidden; }
+.reference__fit::before { content: ""; width: 100%; }
+.reference__rule { width: 100%; font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--c-text-dim); text-wrap: pretty; }
+.reference__body {
+  flex: 0 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-3); padding-top: var(--space-1);
+}
+/* more below: fade the body's bottom edge (data-overflow from a ResizeObserver + scroll) */
+.reference__body[data-overflow="true"] {
   -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--space-6)), transparent);
   mask-image: linear-gradient(to bottom, #000 calc(100% - var(--space-6)), transparent);
 }
-/* other boards: advice only (no live row, no table) */
-.reference:not([data-reference-kind="classic"]) :is(.reference__you, .reference__table) { display: none; }
-/* shaped rooms: the board's picture with the fix ringed, beside the advice (so the board above keeps its room) */
-.reference__shape { display: flex; justify-content: center; }
-.reference__shape[hidden] { display: none; }
-.reference .learn-row--shape { --strip-cell: var(--icon-sm); gap: var(--space-half); padding: var(--space-1); }
-.reference[data-reference-kind="shaped"][data-matched="true"] {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--space-3); align-items: center;
+/* your bottom row over the top taps that clear it: caption, strip; the top strip rests (dim, empty) until there are taps */
+.reference__pair {
+  display: grid; grid-template-columns: var(--pair-caption-w) auto; align-items: center; justify-content: start;
+  column-gap: var(--space-3); row-gap: var(--space-1-5);
 }
-.reference[data-reference-kind="shaped"][data-matched="true"] > .reference__pin { position: static; margin: 0; padding: 0; }
-.reference[data-reference-kind="shaped"][data-matched="true"] .reference__top { flex-direction: column; align-items: flex-start; }
-.reference[data-reference-kind="shaped"][data-matched="true"] .reference__top > .reference__status { flex: none; }
-.reference[data-reference-kind="shaped"] > .reference__shape { grid-column: 2; grid-row: 1; }
-.reference:not([data-reference-kind="classic"]) .reference__rule { color: var(--c-text-dim); }
-.reference__you { display: flex; align-items: center; gap: var(--space-2); }
-.reference__you > .caption { flex: none; }
-.reference__lessons { flex: none; min-height: var(--tap-min); padding-inline: var(--space-2); margin-right: calc(-1 * var(--space-2)); white-space: nowrap; }
+.reference__pair > .learn-row[data-empty] { opacity: var(--lost-opacity); }
+/* full rectangles: as many cells as the board is wide, within the panel; 9 wide and up on a narrow panel, captions above */
+.reference__rect {
+  --strip-cell: min(var(--strip-max),
+    (100cqw - var(--pair-caption-w) - var(--space-3) - 2 * var(--space-half) - (var(--strip-n, 5) - 1) * var(--space-half)) / var(--strip-n, 5));
+}
+@container (max-width: 300px) {
+  .reference__rect[data-wide] { grid-template-columns: auto; --strip-cell: min(var(--strip-max), (100cqw - 2 * var(--space-half) - (var(--strip-n, 5) - 1) * var(--space-half)) / var(--strip-n, 5)); }
+}
+.reference .learn-row { padding: var(--space-half); gap: var(--space-half); border-radius: var(--radius-xs); }
+.reference .learn-row > .cell { border-radius: var(--glyph-radius); }
+.reference .learn-row > .cell[data-letter]::after { font-size: max(var(--text-2xs), calc(var(--strip-cell) * .6)); }
+.reference .learn-row--top > .cell[data-suggest="true"]::after { inset: 28%; box-shadow: none; }
+/* classic: the seven bottom rows and their top taps, the matching one ringed */
 .reference__table {
-  display: grid; grid-template-columns: auto auto auto; justify-content: center; align-items: center;
+  --strip-cell: calc(var(--tap-min) / 2 - var(--space-1));
+  display: grid; grid-template-columns: auto auto auto; justify-content: start; align-items: center;
   column-gap: var(--space-2); row-gap: var(--space-1);
 }
+.reference:not([data-reference-kind="classic"]) .reference__table { display: none; }
 .reference__head, .reference__row { display: contents; }
 .reference__head > .caption { text-align: center; }
 .reference__head2 { display: none; }
-.reference .learn-row { padding: var(--space-half); gap: var(--space-half); border-radius: var(--radius-xs); }
-/* full rectangles: your live bottom row over the top taps, cell for cell. Each caption sits above its strip, so a
-   strip of up to 10 gets the panel's whole width and its letters stay readable at 320 wide. */
-.reference__rect {
-  --strip-cell: min(calc(var(--tap-min) / 2), calc((100cqw - 2 * var(--space-half) - (var(--strip-n, 5) - 1) * var(--space-half)) / var(--strip-n, 5)));
-  display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1);
-}
-.reference__rect[hidden] { display: none; }
-.reference .reference__rect > .reference__you { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-half); }
-.reference .learn-row > .cell { border-radius: var(--glyph-radius); }
+/* a revealed row clears the fade below */
+.reference__row > .learn-row { scroll-margin-block: var(--space-2) var(--space-6); }
 .reference__row[data-match="true"] > .learn-row { box-shadow: 0 0 0 var(--ring-w) var(--c-pointer), 0 0 var(--pulse-spread) var(--c-pointer-glow); }
-.reference .learn-row--top > .cell[data-suggest="true"]::after { inset: 28%; box-shadow: none; }
-/* short screens: smaller strips so the table stays readable next to the board */
+/* shaped rooms: the board's picture, the end lights lit, the top-edge fix ringed with the tap pointer (dashed) */
+.reference .learn-row--shape { --strip-cell: var(--icon-sm); gap: var(--space-half); padding: var(--space-1); }
+/* up to 740px tall: line 1 and the strips (the pair says what to tap; the table and the rule wait for a taller screen) */
 @media (max-height: 740px) {
-  .reference { --strip-cell: var(--icon-sm); }
+  .reference { --strip-max: calc(var(--tap-min) / 2 - var(--space-half)); }
   .reference .learn-row--shape { --strip-cell: var(--glyph-cell); }
-  .reference__table { row-gap: var(--space-half); }
-  /* little room: before a match the table stays folded (no half rows under a fade); */
-  .reference[data-matched="false"] .reference__table { display: none; }
-  /* once a row matches, show just that row under its line */
-  .reference[data-matched="true"] > :is(.reference__you, .reference__table > .reference__head, .reference__table > .reference__row[data-match="false"]) { display: none; }
-  .reference[data-matched="true"] .reference__table > :is(.reference__head, .reference__row[data-match="false"]) { display: none; }
-  /* full rectangles: the two strips matter more than the general rule line and their captions */
-  .reference[data-reference-kind="rect"][data-matched="true"] :is(.reference__rule, .reference__rect .caption) { display: none; }
-  .reference[data-matched="true"] .reference__pin { position: static; }
+  .reference__fit, .reference__table { display: none; }
 }
 @container (min-width: 470px) {
-  .reference__table { grid-template-columns: repeat(2, auto auto auto); justify-content: space-evenly; }
+  .reference__table { grid-template-columns: repeat(2, auto auto auto); column-gap: var(--space-3); }
   .reference__head2 { display: block; }
 }
 

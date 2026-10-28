@@ -4,7 +4,6 @@
 // finger moved (a tall board that scrolls), or aim-and-release with a magnifier (slots under the tap minimum).
 import * as v from 'valibot';
 import { MAX_CELLS, type BoardState, type HintsState, type LevelsState, type ModuleDef, type ProgressState, type Shape, type TutorialState } from '../../contracts';
-import { flip, measure } from './flip';
 import { cellAt, isTall, rowEdge, stepFrom } from './grid';
 import { attachAim, type AimMode } from '../../lib/aim';
 import { fmt, h, setAttr, setText } from '../../lib/dom';
@@ -101,7 +100,8 @@ const playView: ModuleDef = {
       h('div', { class: 'stat stat--muted' }, h('span', { class: 'eyebrow' }, copy.par), parEl));
 
     const tiers = [3, 2, 1].map((base) => {
-      const label = h('span', {});
+      // the "≤N" limit may fold away on the narrowest phones; the stars and the chip's state keep the meaning
+      const label = h('span', { class: 'play-tier__limit' });
       const list = stars(3);
       const el = h('span', { class: 'chip', role: 'listitem' }, label, starRow('stars--xs', list));
       return { base, el, label, stars: list };
@@ -111,28 +111,31 @@ const playView: ModuleDef = {
     const hintWord = h('span', { class: 'play-hint-word' });
     const hintChip = h('span', { class: 'chip', 'data-state': 'hint', role: 'listitem', hidden: true }, hintCost, hintWord);
     const tiersEl = h('div', { class: 'play-tiers', role: 'list' }, ...tiers.map((t) => t.el), hintChip);
+    // one status row, the same with Patterns open or closed: Moves and Par on the left, the tiers on the right
+    const status = h('div', { class: 'play-status' }, stats, tiersEl);
 
     const board = h('div', { class: 'board', 'data-board': '', 'data-status': 'playing', role: 'group', 'aria-label': copy.board });
 
+    // the line over the board: the hint line, or the tutorial's coach line (slot:coach); shown whole or not at all
     const hintLine = h('p', { class: 'tutorial-line', 'data-tone': 'hint', role: 'status', hidden: true }, copy.hintLine);
     const line = h('div', { class: 'play-line', 'data-hint': 'false' }, hintLine, view.region('slot:coach'));
-    const slot = h('div', { class: 'board-slot', 'data-tiers': 'true' }, stats, tiersEl, board, line);
+    const slot = h('div', { class: 'board-slot' }, line, board);
 
-    // labels sit in .play-act__label so the compact layout (panel open) can hide them visually but keep them for screen readers
+    // the tools: always icon + label (the shared .bar); Hint is the wider one
     const label = (...kids: (Node | string)[]) => h('span', { class: 'play-act__label' }, ...kids);
-    const undo = h('button', { class: 'btn btn--stack', type: 'button', 'data-action': 'undo' }, icon(ICON.undo), label(copy.undo));
-    const restart = h('button', { class: 'btn btn--stack', type: 'button', 'data-action': 'restart' }, icon(ICON.restart), label(copy.restart));
-    const hintBtn = h('button', { class: 'btn btn--stack btn--hint', type: 'button', 'data-action': 'hint' },
+    const undo = h('button', { class: 'btn', type: 'button', 'data-action': 'undo' }, icon(ICON.undo), label(copy.undo));
+    const restart = h('button', { class: 'btn', type: 'button', 'data-action': 'restart' }, icon(ICON.restart), label(copy.restart));
+    const hintBtn = h('button', { class: 'btn btn--hint bar__main', type: 'button', 'data-action': 'hint' },
       icon(ICON.hint), label(`${copy.hint} `, h('span', { class: 'btn__meta' }, `· ${copy.hintCost}`)));
-    const actions = h('div', { class: 'play-actions' }, undo, restart, hintBtn);
+    const actions = h('div', { class: 'bar bar--icons play-actions' }, undo, restart, hintBtn);
 
-    // the in-game pattern reference: learn fills slot:reference, we place it once and open/close it
+    // the in-game pattern reference: learn fills slot:reference; opening it only inserts it above the actions
     const reference = h('div', { class: 'play-reference', id: 'play-reference' }, view.region('slot:reference'));
 
     const root = view.region('screen:play');
     root.classList.add('screen--play');
     root.dataset.reference = 'closed';
-    root.append(header, slot, actions, reference);
+    root.append(header, status, slot, reference, actions);
 
     // ---------- the grid: rebuilt only when the board's shape changes ----------
     let shape: Shape | null = null;
@@ -302,14 +305,12 @@ const playView: ModuleDef = {
     let refOpen = false;
     let refWanted = false;
     let boardPointers = 0;
+    // the board snaps to its new size (never animated, so a tap never lands on a moving cell); the panel fades in (CSS)
     const applyReference = () => {
       if (refWanted === refOpen) return;
-      const moving = [board, stats, actions];
-      const before = measure(moving);
       refOpen = refWanted;
       root.dataset.reference = refOpen ? 'open' : 'closed';
       refBtn.setAttribute('aria-expanded', refOpen ? 'true' : 'false');
-      if (!view.reducedMotion()) flip(moving, before, ms(getComputedStyle(root).getPropertyValue('--dur-sheet')));
     };
     /** never move the board under a finger: a change asked for mid-press waits for the release */
     const setReference = (open: boolean) => {
@@ -487,7 +488,6 @@ const playView: ModuleDef = {
 
       const scoring = progress?.scoring;
       tiersEl.hidden = !scoring || id === null;
-      setAttr(slot, 'data-tiers', tiersEl.hidden ? 'false' : 'true');
       if (!scoring || !b || id === null) return;
       const used = progress?.save.pendingHints[String(id)] ?? 0;
       const starsFor = (base: number) => Math.min(3, Math.max(scoring.minStars, base - used * scoring.hintCost));
@@ -501,6 +501,8 @@ const playView: ModuleDef = {
       }
 
       const limits = [b.par + scoring.threeStarsWithin, b.par + scoring.twoStarsWithin, b.par + scoring.twoStarsWithin + 1];
+      // two-digit limits need more room: the status row folds them away sooner (CSS)
+      setAttr(tiersEl, 'data-long', limits[2]! >= 10 ? 'true' : null);
       let now = -1;
       tiers.forEach((t, k) => {
         const over = k === 2;
