@@ -23,6 +23,7 @@ Options:
   --widths 375,768,1440   widths to shoot (height: 844 below 768, 1024 at 768–1199, 900 from 1200)
   --sizes 320x568,390x844 exact viewports to shoot instead of --widths
   --landscape             also shoot a 812×375 phone on its side
+  --panel                 play/hint/aim states: open the Patterns panel first
   --short                 also shoot a short 375×600 phone
   --out look-out          output folder
   --url <url>             page to load (default: dist/artifact.html in the host skeleton)
@@ -73,9 +74,11 @@ async function shoot(size) {
     await page.goto(withHash(target.url, 'debug'), { waitUntil: 'load' });
     await waitInteractive(page);
     if (!(await hasDebug(page))) throw new Error('window.__lightsOut.debug is missing (is #debug passed through?)');
+    // the collapsed debug console reserves a band at the bottom of the app: take it away so the shot is what a player sees
+    if (kind !== 'console') await page.evaluate(() => document.querySelector('[data-console]')?.remove());
     await reach(page);
     await settle(page);
-    const path = join(outDir, `${args.state.replace(':', '-')}${solvedUpTo ? `-solved${solvedUpTo}` : ''}-${label}.png`);
+    const path = join(outDir, `${args.state.replace(':', '-')}${args.panel ? '-panel' : ''}${solvedUpTo ? `-solved${solvedUpTo}` : ''}-${label}.png`);
     await page.screenshot({ path });
     return { size: label, path };
   } catch (err) {
@@ -123,6 +126,12 @@ async function reach(page) {
   else if (!room && level > unlocked) await unlockUpTo(page, level);
   await emit(page, 'levels:start', { levelId: level });
   await enterLevel(page, 4000, { cells: null });
+  if (args.panel) {
+    const opened = await page.evaluate(() => window.__lightsOut.debug.commands()['play-view.reference']?.(['open']) ?? null);
+    if (!opened) problems.push('--panel: no play-view.reference console command');
+    else await page.waitForSelector('[data-screen="play"][data-reference="open"] [data-reference]', { timeout: 2000 })
+      .catch(() => problems.push('--panel: the Patterns panel did not open (no learn slice?)'));
+  }
   if (kind === 'aim') {
     // hold a finger on a cell near the middle of the board (a lit one if there is one), slightly off its centre
     const at = await page.evaluate((PLAY) => {

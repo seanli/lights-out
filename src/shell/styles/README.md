@@ -7,12 +7,13 @@ Fonts are bundled woff2 (Fraunces 600, Manrope 500/700, Latin only, 45 KB). ≤ 
 | Class | Variants / parts | States (what drives them) |
 |---|---|---|
 | `.app` | the single column, 480px max (880px in short landscape), safe-area gutters | `height:100%` |
-| `.screen` | `.screen--play` (grid: header, stats, `.board-slot`, actions), `.screen--scroll` (reaches the screen edges, pads back by `--gutter`, children never shrink) | `[hidden]`, `[data-enter="forward"\|"back"]` (shell: 200ms fade in, ±12px) |
+| `.screen` | `.screen--play` (header, `.play-status`, `.board-slot`, `.play-reference`, `.play-actions`: see "Play screen"), `.screen--scroll` (reaches the screen edges, pads back by `--gutter`, children never shrink) | `[hidden]`, `[data-enter="forward"\|"back"]` (shell: 200ms fade in, ±12px) |
 | `.screen-header` | `> button.btn--icon` · `__title` (`.eyebrow` + `strong`) · `__end` (a row; may be empty, always reserved) | — (see "Shared screen parts") |
 | `.bar` | `> .btn` (equal widths), `.bar__main` (1.5× wide: Hint, Next), `.bar--icons` (icon above a small label) | short screens (`max-height: 640px`): `--bar-h-short`, `.bar--icons` puts the icon beside the label; buttons use `.btn` states |
 | `.btn` | `--primary` `--secondary` `--ghost` `--icon` `--hint` `--danger` `--link` (quiet underlined text, 44px tall) `--block` `--stack` (icon over label), `__meta` | `:hover` `:active` (scale) `:focus-visible` `:disabled` `[aria-disabled="true"]` `[aria-pressed="true"]` |
 | `.menu-list` > `.menu-row` | `__glyph` (a `.room-glyph` or an `.icon`) `__body` > `__title` + `__sub`, `__end` (score or `.menu-row__mark`); rows may sit in `<li>` | `:active` `:hover` `:focus-visible` `[aria-disabled="true"]` (dim glyph, quiet words, inert) |
-| `.board-slot` | size container holding `.play-tiers`, `.board`, `.tutorial-line` | |
+| `.board-slot` | the play board area: a size container holding `.play-line` over the `.board` | `[data-coaching="true"]` ancestor: room for the coach line |
+| `.play-status` | `.play-stats` (Moves + Par, `.stat`s) · `.play-tiers` (`.chip`s, `.play-tier__limit`, `.play-hint-word`); a size container that folds, never wraps | `.play-tiers[data-long]` (limits ≥ 10 fold sooner), a shown hint chip |
 | `.board` | `.board--sweep` (warm wash; `--i` = distance), `.board--intro` (lit cells power on by `--i`); `> [data-gap]` keeps its slot, invisible | `[data-status="playing"\|"solved"]` (solved = dimmed, inert), `[data-n="4".."10"]` (gap, pad, radius, glow scale with the cell), `[data-scroll]`, `[data-aim]` |
 | `.cell` | button per light | `[data-lit]` (fades `--lit` over `--dur-flip` after `--flip-delay`) `[data-flip]` (bloom on / afterglow off; remove on `animationend`) `[data-hint="true"]` `[data-pointer="true"]` `:active` (lit: brighter) `:focus-visible` |
 | `.stat` | `.eyebrow` + `.stat__value`; `--end` (right-aligned), `--muted` | `.stat__value--bump` (one 160ms pop; restart it per change) |
@@ -23,24 +24,35 @@ Fonts are bundled woff2 (Fraunces 600, Manrope 500/700, Latin only, 45 KB). ≤ 
 | `.glyph` | 3×3 logo of `<i>`, `--dim` | `i[data-lit="true"]` |
 | `.sheet` / `.sheet-backdrop` | `--sheet-pad` inside (handle close to the top); `__handle` `__title` `__result` (`.dim`) `__note` `__actions` (stacked, `--space-2` apart) | `[data-open="true"\|"false"]` (slides from translateY(100%)), `[hidden]` |
 | `.notice` | slim banner with a tone dot | `[data-tone="info"\|"warn"\|"error"]` |
-| `.tutorial-line` | one line of coach copy; keeps its height when `:empty` | `[data-tone="coach"\|"hint"]` (coach: `--text-md`, full contrast); `[data-coaching="true"]` ancestor hides tiers + hint |
+| `.tutorial-line` | one line of coach copy (in play: inside `.play-line`, shown whole or not at all) | `[data-tone="coach"\|"hint"]` (coach: `--text-md`, full contrast); `[data-coaching="true"]` ancestor hides tiers + hint |
 | `.console` | `__bar` `__title` `__body` `__section` `__head` `__meta` `__content` `__row` (`--repeat`) `__count` (×12) `__kv` `__chips`/`__chip` `__cmd` `__input` | `[data-collapsed="true"]`, `__head[aria-expanded="false"]` hides the next sibling, `__row[data-tone]`, `__meta[data-tone="warn"]`, `__chip[data-up="false"]` |
 | helpers | `.eyebrow` (11px/700, tracked caps, dim) `.caption` (the same, faint) `.display` `.muted` `.num` `.row` `.icon` (inline SVG) | |
 
 ## Board sizing (no JS)
 A play board (`.board[data-n]`) gets `--board-cols`/`--board-rows` inline and square cells as big as its fit box allows:
 `--fit-w`/`--fit-h` (from `cq` units of the `.board-slot` size container, capped by `--board-max`) minus padding and gaps.
-A tall board (`[data-scroll="true"]`, the 5×16 Tower) fits its width instead (cells capped at `--cell-max-tall`) and scrolls
+A tall board (`[data-scroll="true"]`, the 6×16 Tower) fits its width instead (cells capped at `--cell-max-tall`) and scrolls
 inside the fit box (`touch-action: pan-y`); its window ends mid-row so it reads as continuing. Slots under `--aim-below` (40px)
 switch the board to `[data-aim="true"]`: `touch-action: none`, and `src/lib/aim.ts` presses on release with `.aim-bubble`.
 Other boards (`.board` without `data-n`): `--board-size: min(100cqw, 100cqh - var(--board-chrome-y), var(--board-max))`.
-`--board-chrome-y` is the height of the tiers + tutorial line that share the slot (default `chip-h + line-h + 2 gaps`).
-If a slot holds only the board, set `--board-chrome-y: 0px` on it. The slot must be a grid/flex child with `min-height: 0` (as in `.screen--play`).
-In short landscape (`max-height: 540px`), the slot uses `display: contents`, `.screen--play` becomes the container, and the board fills the left column.
+`--board-chrome-y` is height in the slot the board must leave free (play: 0, or the coach line's room while coaching).
+The slot must be a grid/flex child with `min-height: 0` (as in `.screen--play`). Side by side, `.screen--play` is the container.
 Views set nothing else for size. `data-lit` is never delayed: the paint follows in `--dur-flip` (90ms), neighbours `--flip-stagger` (24ms) later.
 Cheap motion: bloom, afterglow and the win wash are a `.cell::after` layer whose blur is painted once; only its `opacity` animates. No blur radius or shadow is ever animated.
 Shell: info/warn notices are hidden on the play screen (errors show everywhere); home's scroll position is restored when it comes back.
 Solve: set `data-status="solved"` and add `.board--sweep` at the same time. The 800ms sweep runs, then the cells dim. Remove the class before the next level.
+
+## Play screen (one anatomy, Patterns open or closed)
+Top to bottom, `--stack` apart: `.screen-header` · `.play-status` · `.board-slot` (takes the rest) · `.play-reference` (Patterns) · `.play-actions`
+(`.bar.bar--icons`: Undo, Restart, Hint as `.bar__main`). Opening Patterns only shows the panel: its content's height, at most 42% of the screen,
+sliding in 8px; the board area gives up that height (never below 5 slots of `--aim-below`) and the board snaps to its new size, never animated.
+The board is centred and rests on the bottom of its area, so spare height collects under the status row; the coach or hint line sits in it,
+right over the board, whole or not at all (a column-wrapping flex box clips what doesn't fit). The status row folds as it narrows: tighter chips,
+a hint chip of just "−1★", then no "≤N" limits (from 340px, or 352px/380px with a hint chip). The panel (learn's `.reference`, a card with
+`--card-pad` and `--radius-lg`) is the same on every board: status line + guide link, the rule (two lines at most, hidden when it won't fit
+or under 741px tall), then the live strips (your bottom row over the taps), scrolling on their own under a fade.
+Side by side (landscape phones always, tablets and desktops while Patterns is open) the screen wraps the same blocks into two columns:
+the board area (full height, hugging the board) first, then header · status, and panel · bar at the foot of the second.
 
 ## Shared screen parts (use these; don't restyle them in a module)
 Header, on every screen but home (home's logo row is the same `--header-h` tall, so the two line up):
