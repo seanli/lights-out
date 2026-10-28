@@ -62,10 +62,11 @@
   },
   "tutorial": {
     "1": [
-      "Tap the glowing light. It switches itself and its neighbours."
+      "Turn every light off. Tap the ringed light: it flips, and so do the lights next to it."
     ],
     "2": [
-      "Each tap flips a plus shape. Turn every light off."
+      "A tap flips a light and the lights next to it. Tap the ringed light.",
+      "Each tap flips a plus shape. Now tap the ringed light."
     ]
   },
   "storage": {
