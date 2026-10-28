@@ -167,6 +167,10 @@
   --header-h: 56px;                     /* every screen header: back · eyebrow + title · end slot */
   --bar-h: 56px;                        /* every bottom bar: play actions, lesson Previous/Next */
   --bar-h-short: 48px;                  /* the same bars on short screens (max-height: 640px) */
+  --row-h: 64px;                        /* a menu row (.menu-row): home's boards, Learn's lessons */
+  --row-glyph: 40px;                    /* the picture at a menu row's start */
+  --row-glyph-narrow: 32px;             /* the same under 360px wide */
+  --underline-offset: 3px;              /* a quiet text link (.btn--link) */
   --chip-h: 28px;
   --chip-h-lg: 36px;
   --icon-sm: 14px;
