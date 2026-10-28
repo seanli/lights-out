@@ -30,7 +30,9 @@ button, input { font: inherit; color: inherit; }
   width: 100%; max-width: var(--app-max); height: 100%; margin-inline: auto;
   padding-left: max(var(--gutter), env(safe-area-inset-left, 0px));
   padding-right: max(var(--gutter), env(safe-area-inset-right, 0px));
-  padding-block: max(var(--space-3), env(safe-area-inset-top, 0px)) max(var(--space-3), env(safe-area-inset-bottom, 0px));
+  /* a notched phone softens and dims what sits right under its status bar (iOS's top edge effect): the header starts a
+     little below the safe area there; phones without a top inset keep the plain 12px */
+  padding-block: max(var(--space-3), calc(env(safe-area-inset-top, 0px) * 1.4)) max(var(--space-3), env(safe-area-inset-bottom, 0px));
   font-family: var(--font-ui);
   overflow-x: clip;
 }
@@ -73,20 +75,26 @@ button, input { font: inherit; color: inherit; }
 }
 
 /* ---------- play screen: one anatomy, Patterns open or closed ----------
-   header · status row · board area · [Patterns panel] · action bar, --stack apart (the .screen gap).
+   header · board area (status row + board) · [Patterns panel] · action bar, --stack apart (the .screen gap).
    Opening Patterns only inserts the panel above the bar: the board area gives up that height and the board snaps to its
    new size (never animated, so a tap never lands on a moving cell); nothing else moves or changes form.
-   The board area is a size container. The board is the largest of its shape that fits, centred, and rests on the area's
-   bottom (next to the panel or the bar), so spare height collects above it, under the status row. */
+   The board area is a size container. The board is the largest of its shape that fits; the status row sits right above
+   it, and the pair is centred in the area, so spare height on a tall phone splits evenly above and below instead of
+   pooling under the header. While the tutorial coaches, the pair rests on the bar and its sentence takes the space above. */
 .screen--play {
   /* the classic board at its smallest instant-press size (5 slots of --aim-below): the panel never squeezes the area below */
   --play-board-min: calc(5 * var(--aim-below));
   /* while the tutorial coaches (levels 1–2) its sentence (up to 3 lines) always has room over the board */
   --play-coach-h: calc(3 * var(--text-md) * var(--leading-snug) + var(--stack));
+  /* the status row's height (labels over the numerals) and the gap under it: the board leaves it room */
+  --play-status-h: calc(var(--text-xs) + var(--space-1-5) + var(--text-xl) * var(--leading-tight) + var(--stack));
 }
 .screen--play > * { flex: none; }
 /* status row: Moves (the number that matters) and Par as a pair on the left, the star tiers on the right; never wraps */
-.play-status { container: play-status / inline-size; display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-2); }
+.play-status {
+  container: play-status / inline-size; display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-2);
+  flex: none; align-self: center; width: var(--play-board-w, 100%); max-width: 100%; margin-bottom: var(--stack);
+}
 .play-stats { display: flex; align-items: stretch; gap: var(--space-4); flex: none; }
 .play-stats > .stat { justify-content: space-between; gap: var(--space-1-5); }
 .play-stats .stat__value { font-size: var(--text-xl); }
@@ -119,11 +127,14 @@ button, input { font: inherit; color: inherit; }
   .play-stats { gap: var(--space-3); }
 }
 .board-slot {
-  flex: 1 1 0; min-height: var(--play-board-min); min-width: 0; container-type: size;
+  flex: 1 1 0; min-height: calc(var(--play-board-min) + var(--play-status-h)); min-width: 0; container-type: size;
   display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
-  --board-chrome-y: 0px;
+  --board-chrome-y: var(--play-status-h);
 }
-.screen--play[data-coaching="true"]:not([data-reference="open"]) .board-slot { --board-chrome-y: var(--play-coach-h); }
+/* the space under the board matches the line's space over the status row: the pair sits in the middle */
+.board-slot::after { content: ""; flex: 1 1 0; }
+.screen--play[data-coaching="true"]:not([data-reference="open"]) .board-slot { --board-chrome-y: calc(var(--play-status-h) + var(--play-coach-h)); }
+.screen--play[data-coaching="true"]:not([data-reference="open"]) .board-slot::after { display: none; }
 /* the line over the board (the hint line, or the coach in slot:coach) lives in the spare height above it, shown whole
    or not at all: a column-wrapping flex box whose items wrap out of its clip when they don't fit */
 .play-line {
@@ -148,10 +159,10 @@ button, input { font: inherit; color: inherit; }
   .screen--play { flex-flow: column wrap; align-content: center; column-gap: var(--space-6); container-type: size; }
   .screen--play > * { width: var(--side-w); }
   .screen--play > .board-slot { order: -1; flex: none; width: auto; height: 100%; min-height: 0; container-type: normal; justify-content: center; }
-  .screen--play:not([data-coaching="true"]) > .board-slot::after { content: ""; flex: 1 1 0; }
   .screen--play .play-line { width: 0; min-width: 100%; }
   .screen--play .board { --fit-w: min(100cqw - var(--side-w) - var(--space-6), var(--board-max)); --fit-h: min(100cqh - var(--board-chrome-y), var(--board-max)); }
-  .screen--play > .play-status { flex-wrap: wrap; row-gap: var(--space-2); margin-bottom: auto; }
+  .screen--play .play-status { flex-wrap: wrap; row-gap: var(--space-2); }
+  .screen--play > .screen-header { margin-bottom: auto; }
   .screen--play > .play-reference { max-height: none; }
   /* a narrow column: the tools keep their icon above the label */
   .screen--play > .play-actions > .btn { flex-basis: 0; flex-direction: column; gap: var(--space-1); }
@@ -161,10 +172,10 @@ button, input { font: inherit; color: inherit; }
   .screen--play[data-reference="open"] { flex-flow: column wrap; align-content: center; column-gap: var(--space-6); container-type: size; }
   .screen--play[data-reference="open"] > * { width: var(--side-w); }
   .screen--play[data-reference="open"] > .board-slot { order: -1; flex: none; width: auto; height: 100%; min-height: 0; container-type: normal; justify-content: center; }
-  .screen--play[data-reference="open"]:not([data-coaching="true"]) > .board-slot::after { content: ""; flex: 1 1 0; }
   .screen--play[data-reference="open"] .play-line { width: 0; min-width: 100%; }
   .screen--play[data-reference="open"] .board { --fit-w: min(100cqw - var(--side-w) - var(--space-6), var(--board-max)); --fit-h: min(100cqh - var(--board-chrome-y), var(--board-max)); }
-  .screen--play[data-reference="open"] > .play-status { flex-wrap: wrap; row-gap: var(--space-2); margin-bottom: auto; }
+  .screen--play[data-reference="open"] .play-status { flex-wrap: wrap; row-gap: var(--space-2); }
+  .screen--play[data-reference="open"] > .screen-header { margin-bottom: auto; }
   .screen--play[data-reference="open"] > .play-reference { max-height: none; }
 }
 
@@ -259,6 +270,19 @@ button, input { font: inherit; color: inherit; }
   height: min(var(--board-rows) * var(--cell-size) + (var(--board-rows) - 1) * var(--cell-gap) + 2 * var(--board-pad), var(--fit-h));
   grid-template-rows: repeat(var(--board-rows), var(--cell-size));
   overflow: hidden auto; overscroll-behavior: contain; scrollbar-width: none; touch-action: pan-y;
+}
+/* where there is more to scroll, that edge fades out, so the board clearly goes on (play-view sets data-more-*) */
+.board[data-scroll="true"][data-more-below="true"] {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--scroll-fade)), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--scroll-fade)), transparent);
+}
+.board[data-scroll="true"][data-more-above="true"] {
+  -webkit-mask-image: linear-gradient(to top, #000 calc(100% - var(--scroll-fade)), transparent);
+  mask-image: linear-gradient(to top, #000 calc(100% - var(--scroll-fade)), transparent);
+}
+.board[data-scroll="true"][data-more-above="true"][data-more-below="true"] {
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--scroll-fade), #000 calc(100% - var(--scroll-fade)), transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 var(--scroll-fade), #000 calc(100% - var(--scroll-fade)), transparent);
 }
 /* its window ends half-way through a row, so it reads as a board that goes on */
 @supports (height: round(down, 10px, 1px)) {

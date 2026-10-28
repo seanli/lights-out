@@ -111,7 +111,8 @@ const playView: ModuleDef = {
     const hintWord = h('span', { class: 'play-hint-word' });
     const hintChip = h('span', { class: 'chip', 'data-state': 'hint', role: 'listitem', hidden: true }, hintCost, hintWord);
     const tiersEl = h('div', { class: 'play-tiers', role: 'list' }, ...tiers.map((t) => t.el), hintChip);
-    // one status row, the same with Patterns open or closed: Moves and Par on the left, the tiers on the right
+    // one status row, the same with Patterns open or closed: Moves and Par on the left, the tiers on the right (it sits
+    // inside the board area, right above the board)
     const status = h('div', { class: 'play-status' }, stats, tiersEl);
 
     const board = h('div', { class: 'board', 'data-board': '', 'data-status': 'playing', role: 'group', 'aria-label': copy.board });
@@ -119,7 +120,8 @@ const playView: ModuleDef = {
     // the line over the board: the hint line, or the tutorial's coach line (slot:coach); shown whole or not at all
     const hintLine = h('p', { class: 'tutorial-line', 'data-tone': 'hint', role: 'status', hidden: true }, copy.hintLine);
     const line = h('div', { class: 'play-line', 'data-hint': 'false' }, hintLine, view.region('slot:coach'));
-    const slot = h('div', { class: 'board-slot' }, line, board);
+    // the status row travels with the board: the pair sits together, centred in the space between the header and the bar
+    const slot = h('div', { class: 'board-slot' }, line, status, board);
 
     // the tools: always icon + label (the shared .bar); Hint is the wider one
     const label = (...kids: (Node | string)[]) => h('span', { class: 'play-act__label' }, ...kids);
@@ -135,7 +137,7 @@ const playView: ModuleDef = {
     const root = view.region('screen:play');
     root.classList.add('screen--play');
     root.dataset.reference = 'closed';
-    root.append(header, status, slot, reference, actions);
+    root.append(header, slot, reference, actions);
 
     // ---------- the grid: rebuilt only when the board's shape changes ----------
     let shape: Shape | null = null;
@@ -255,6 +257,14 @@ const playView: ModuleDef = {
 
     // the slot (board size / cols, gutter included: DECISIONS #40) decides aim mode; measured, never on a tap
     let aimBelow = 0;
+    // a board that scrolls (the Tower) says which way there is more: its top or bottom edge fades out (data-more-*)
+    const edges = () => {
+      const above = tall && board.scrollTop > 2;
+      const below = tall && board.scrollHeight - board.scrollTop - board.clientHeight > 2;
+      setAttr(board, 'data-more-above', above ? 'true' : null);
+      setAttr(board, 'data-more-below', below ? 'true' : null);
+    };
+    board.addEventListener('scroll', edges, { passive: true });
     const measureSlot = () => {
       const r = board.getBoundingClientRect();
       if (shape && !tall && !r.width) return; // hidden: measured again when it shows
@@ -262,6 +272,9 @@ const playView: ModuleDef = {
       // a scrolling board keeps its slots big (it fits its width) and needs its swipes: never aim there
       aim = !!shape && !tall && Math.min(r.width / shape.cols, r.height / shape.rows) < aimBelow - 0.5;
       setAttr(board, 'data-aim', aim ? 'true' : null);
+      edges();
+      // the status row lines up with the board's edges (narrower when Patterns shrinks the board)
+      if (r.width) slot.style.setProperty('--play-board-w', `${Math.round(r.width)}px`);
     };
     const resizes = typeof ResizeObserver === 'function' ? new ResizeObserver(() => measureSlot()) : null;
     resizes?.observe(board);
@@ -451,6 +464,7 @@ const playView: ModuleDef = {
         else cell.setAttribute('data-flip', '');
       }
       if (load && tall) board.scrollTop = 0; // a new level starts at the top of the Tower
+      if (load) edges();
       if (load) startIntro(lit);
       else if (cancelIntro || board.classList.contains('board--intro')) endIntro(); // the first press ends the intro
       const solved = b.status === 'solved';

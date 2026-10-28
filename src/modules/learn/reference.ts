@@ -2,8 +2,8 @@
 // Built once; every board change only patches attributes and a few lines of text (well under 1 ms).
 // Never marks the main board: the panel teaches the method, the paid Hint stays the only on-board help.
 // One structure for every board: line 1 the status (with the guide link at its right), line 2 the rule (whole or hidden),
-// then the live strips. Classic 5×5: your bottom row over the matched row's top taps, the matched row's echo as the rule,
-// and the 7-row table (tall screens). Other full rectangles: the size's rule (from the maths) and the same pair of strips,
+// then the live strips: only what is relevant now, on every board (the full 7-row table lives in lesson 4).
+// Classic 5×5: your bottom row over the matched row's top taps, the matched row's echo as the rule. Other full rectangles: the size's rule (from the maths) and the same pair of strips,
 // the top one empty until bottom-row time. Shaped rooms: chase advice by row, then a small picture of the board with the
 // top-edge fix ringed. Rooms link to their board guide; classic links to all lessons.
 import { BOTTOM, blank, chaseShapeSuggest, rectRule, rectTaps, rectTopSets, type Fixer, type RectRule, type TableEntry } from './method';
@@ -196,10 +196,8 @@ export function createReference(ctx: Ctx, solver: SolverService, table: readonly
   live.setAttribute('data-reference-bottom', '');
   const classicTop = strip('top', []);
   classicTop.setAttribute('data-empty', 'true');
-  const classicBox = h('div', { class: 'reference__pair' }, caption(copy.yourRow), live, caption(copy.top), classicTop);
-  const rows = table.map((e) =>
-    h('div', { class: 'reference__row', 'data-pattern-row': '', 'data-pattern': e.bottom.join(','), 'data-match': 'false' },
-      strip('bottom', e.bottom), h('span', { class: 'learn-table__arrow', 'aria-hidden': 'true' }, '→'), strip('top', e.top)));
+  // the one row that matters now: [data-pattern] names the table row your bottom row matches ([data-match])
+  const classicBox = h('div', { class: 'reference__pair', 'data-pattern-row': '', 'data-match': 'false' }, caption(copy.yourRow), live, caption(copy.top), classicTop);
   // the matching row's one line: "Echo of B"
   const ruleOf = table.map((e) => fmt(copy.echo, { name: labels.echo(e.top) }));
   // full rectangles: the same pair, as wide as the board (rebuilt per shape); the top strip waits empty until bottom-row time
@@ -233,14 +231,8 @@ export function createReference(ctx: Ctx, solver: SolverService, table: readonly
     if (levelId == null) return 'classic';
     return ctx.read('levels')?.list.find((l) => l.id === levelId)?.pack ?? 'classic';
   };
-  const tableEl = h('div', { class: 'reference__table', role: 'table' },
-    h('div', { class: 'reference__head', role: 'row' },
-      h('span', { class: 'caption', role: 'columnheader' }, copy.bottom), h('span', { 'aria-hidden': 'true' }), h('span', { class: 'caption', role: 'columnheader' }, copy.top),
-      // repeated over the second column of rows when the panel is wide
-      h('span', { class: 'caption reference__head2', 'aria-hidden': 'true' }, copy.bottom), h('span', { class: 'reference__head2', 'aria-hidden': 'true' }),
-      h('span', { class: 'caption reference__head2', 'aria-hidden': 'true' }, copy.top)),
-    ...rows);
-  const body = h('div', { class: 'reference__body' }, classicBox, rectBox, shapeBox, tableEl);
+  // only what's relevant now (your row and what to tap), as on every other board; the full table lives in lesson 4
+  const body = h('div', { class: 'reference__body' }, classicBox, rectBox, shapeBox);
   const ruleBox = h('div', { class: 'reference__fit', hidden: true }, rule);
   const root = h('div', { class: 'reference', 'data-reference': '', 'data-reference-kind': 'classic' },
     h('div', { class: 'reference__line' }, status, lessonsBtn, guideBtn),
@@ -250,17 +242,11 @@ export function createReference(ctx: Ctx, solver: SolverService, table: readonly
   slot.replaceChildren(root);
   const liveCells = [...live.children] as HTMLElement[];
 
-  // ---- scrolling: keep the matching row in view, and fade the body's bottom edge while more is below ----
-  let matched = -1;
-  const reveal = () => {
-    if (matched < 0) return;
-    const target = rows[matched]!.firstElementChild as HTMLElement | null; // rows are display: contents
-    target?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
-  };
+  // ---- scrolling: fade the body's bottom edge while more is below (a short phone's panel can be shorter than its strips) ----
   const fade = () => setAttr(body, 'data-overflow', String(body.scrollHeight - body.scrollTop - body.clientHeight > 2));
   body.addEventListener('scroll', fade, { passive: true });
-  // fires when the panel opens (display: none → a size) and on every resize: re-check the fade, re-show the match
-  const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(() => { fade(); reveal(); }) : null;
+  // fires when the panel opens (display: none → a size) and on every resize
+  const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(() => fade()) : null;
   observer?.observe(body);
 
   const update = (board: BoardState | undefined) => {
@@ -273,7 +259,8 @@ export function createReference(ctx: Ctx, solver: SolverService, table: readonly
     const classic = kind === 'classic';
     for (let c = 0; c < SIZE; c++) setAttr(liveCells[c]!, 'data-lit', String(classic && !!board?.cells[BOTTOM + c]));
     const match = classic ? a.match : -1;
-    rows.forEach((r, k) => setAttr(r, 'data-match', String(k === match)));
+    setAttr(classicBox, 'data-match', String(match >= 0));
+    setAttr(classicBox, 'data-pattern', match >= 0 ? table[match]!.bottom.join(',') : null);
     setAttr(root, 'data-matched', String(match >= 0 || !!a.rect || !!a.shaped));
     // classic: the matched row's top taps under your row
     paintTaps(classicTop, match >= 0 ? table[match]!.top : []);
@@ -329,10 +316,6 @@ export function createReference(ctx: Ctx, solver: SolverService, table: readonly
     rule.hidden = !line;
     ruleBox.hidden = !line;
     setText(rule, line);
-    if (match !== matched) {
-      matched = match;
-      reveal();
-    }
   };
   ctx.watch('board', update);
   update(ctx.read('board'));

@@ -2,7 +2,7 @@
 
 The play screen, rendered into `view.region('screen:play')`. Owns no slice; reads `board` (incl. `shape`), `hints`, `tutorial`, `levels` (chapters, packs), `progress` (`pendingHints`, `scoring`).
 
-- One anatomy (layout: `components.css`, "play screen"): `header.screen-header`, `.play-status`, `.board-slot` (`.play-line` over the `.board`), `.play-reference`, `.play-actions` (the shared `.bar.bar--icons`). Opening Patterns only shows the panel above the tools; the board snaps to its new size (no FLIP, nothing else moves). Side by side (landscape phones; tablets while open) the same blocks wrap into two columns.
+- One anatomy (layout: `components.css`, "play screen"): `header.screen-header`, `.board-slot` (`.play-line`, then `.play-status` right above the `.board`; the status row takes the board's measured width, `--play-board-w`, and the pair is centred in the area), `.play-reference`, `.play-actions` (the shared `.bar.bar--icons`). Opening Patterns only shows the panel above the tools; the pair moves up into the spare space first and the board shrinks only when it must (no FLIP). Side by side (landscape phones; tablets while open) the same blocks wrap into two columns.
 - Any board: `shape` absent = 5×5. The grid is rebuilt only when the shape changes; `.board` gets `data-n` (max side), `data-cols`, `data-rows`. Real cells are `button[data-cell][data-index]`; gaps are `[data-gap]` (aria-hidden, never focusable, no part in sweep/flip/focus).
 - Presses by measured board (`src/lib/aim.ts`): normally on `pointerdown` → `board:press {index}` (trailing click swallowed);
   a tall board (rows ≥ 2 × cols, the Tower) gets `data-scroll="true"`, fits its width, scrolls, presses on release unless the finger moved,

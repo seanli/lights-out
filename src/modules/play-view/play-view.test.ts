@@ -253,7 +253,9 @@ describe('play-view', () => {
       const blocks = () => [...screen().children].filter((el) => !el.matches('.play-reference')).map((el) => el.className);
       const tools = () => [...q('.play-actions').querySelectorAll('.play-act__label')].map((l) => l.textContent);
       const before = { blocks: blocks(), tools: tools(), tiers: q('.play-tiers').hidden };
-      expect(before.blocks).toEqual(['screen-header', 'play-status', 'board-slot', 'bar bar--icons play-actions']);
+      expect(before.blocks).toEqual(['screen-header', 'board-slot', 'bar bar--icons play-actions']);
+      // the status row travels with the board, right above it
+      expect(q('.play-status').nextElementSibling).toBe(q('[data-board]'));
       expect(before.tools).toEqual(['Undo', 'Restart', 'Hint · −1★']);
       q(SEL.action('reference')).click();
       expect(screen().dataset.reference).toBe('open');

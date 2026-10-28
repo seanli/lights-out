@@ -420,10 +420,11 @@ describe('learn: in-game pattern reference', () => {
   const panel = (t: ReturnType<typeof boot>) => t.view!.region('slot:reference');
   const statusOf = (t: ReturnType<typeof boot>) => panel(t).querySelector<HTMLElement>('[data-reference-status]')!;
 
-  test('with no board: the static table and the chase line, status chase', () => {
+  test('with no board: only the live row (no table: the panel shows what is relevant now) and the chase line', () => {
     const t = boot();
     expect(panel(t).querySelectorAll('[data-reference]')).toHaveLength(1);
-    expect(panel(t).querySelectorAll('[data-pattern-row]')).toHaveLength(7);
+    expect(panel(t).querySelectorAll('[data-pattern-row]')).toHaveLength(1);
+    expect(panel(t).querySelector('[data-pattern-row]')!.getAttribute('data-match')).toBe('false');
     expect(statusOf(t).dataset.referenceStatus).toBe('chase');
   });
 
@@ -478,28 +479,23 @@ describe('learn: in-game pattern reference', () => {
     expect(statusOf(t).textContent!.length).toBeGreaterThan(10);
   });
 
-  test('the matching row gets its echo and rule as one line, and is scrolled into view', () => {
-    const calls: string[] = [];
-    const proto = HTMLElement.prototype as unknown as { scrollIntoView: (o?: unknown) => void };
-    const original = proto.scrollIntoView;
-    proto.scrollIntoView = function (this: HTMLElement) { calls.push(this.closest('[data-pattern-row]')?.getAttribute('data-pattern') ?? ''); };
-    try {
+  test('the matching row gets its echo and rule as one line, its taps lettered under your row', () => {
+    {
       const cells = lit([0, 1, 2].map((c) => BOTTOM + c));
       const t = boot({ state: { board: boardState(cells) } });
       const rule = panel(t).querySelector<HTMLElement>('[data-reference-rule]')!;
       expect(rule.hidden).toBe(false);
       expect(rule.textContent).toBe('Echo of B');
       expect([...panel(t).querySelectorAll<HTMLElement>('[data-match="true"] [data-letter]')].map((e) => e.dataset.letter)).toEqual(['B']);
-      expect(calls).toEqual(['0,1,2']);
+      expect(panel(t).querySelector('[data-pattern-row]')!.getAttribute('data-pattern')).toBe('0,1,2');
       t.kernel.seed('board', boardState(lit([BOTTOM + 1, BOTTOM + 3])));
       t.emit('learn:set_assist', { on: false });
       expect(rule.textContent).toBe('Echo of A + D');
-      expect(calls).toEqual(['0,1,2', '1,3']);
+      expect([...panel(t).querySelectorAll<HTMLElement>('[data-match="true"] [data-letter]')].map((e) => e.dataset.letter)).toEqual(['A', 'D']);
       t.kernel.seed('board', boardState(pressAll(solver, blank(), [12])));
       t.emit('learn:set_assist', { on: false });
       expect(rule.hidden).toBe(true);
-    } finally {
-      proto.scrollIntoView = original;
+      expect(panel(t).querySelector('[data-pattern-row]')!.hasAttribute('data-pattern')).toBe(false);
     }
   });
 

@@ -8,7 +8,8 @@
 // Play screen (play-view):
 //   [data-board]                     the grid; data-status="playing|solved", data-cols, data-rows
 //     data-scroll="true"             the board is taller than the screen (the Tower): it scrolls, a swipe never presses,
-//                                    a press lands on release
+//                                    a press lands on release; data-more-above / data-more-below="true" where there is
+//                                    more to scroll (that edge fades)
 //     data-aim="true"                touch slots are under the tap minimum (10×10, 8×8 on narrow phones): press-and-hold
 //                                    shows [data-aim-bubble] magnifying the target; slide to adjust; lift to press
 //   [data-boss="true"]               on the play header when the level is a boss (skull shown)
@@ -27,7 +28,8 @@
 //   [data-reference]                 root inside the slot
 //   [data-reference-bottom] [data-mini-cell][data-index][data-lit]   live copy of the board's bottom row (classic and every
 //                                    full rectangle; real grid indexes)
-//   [data-pattern-row][data-pattern="0,1,2"][data-match="true|false"]   the 7 bottom-row → top-row rows
+//   [data-pattern-row][data-match="true|false"][data-pattern="0,1,2"]   classic: the live row → its top taps (data-pattern
+//                                    names the matched table row; the full table lives in lesson 4, not the panel)
 //   [data-reference-status="chase|match|nomatch|clear"]   which advice is showing
 //   [data-reference-kind="classic|rect|shaped"]  [data-reference-rule]  the one-line rule beside the match
 //   [data-action="learn"] inside it  → learn:open {} (full lessons; Back returns to the level)

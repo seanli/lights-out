@@ -203,6 +203,7 @@
   --cell-gap-tall: 6px;
   --board-pad-tall: 8px;
   --cell-max-tall: 64px;
+  --scroll-fade: 48px;                  /* how far a scrolling board's edge fades where there is more */
   --ring-offset: 5px;
   --ring-offset-tight: 3px;
   --focus-offset: 3px;

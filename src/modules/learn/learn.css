@@ -307,30 +307,18 @@
 .reference .learn-row > .cell { border-radius: var(--glyph-radius); }
 .reference .learn-row > .cell[data-letter]::after { font-size: max(var(--text-2xs), calc(var(--strip-cell) * .6)); }
 .reference .learn-row--top > .cell[data-suggest="true"]::after { inset: 28%; box-shadow: none; }
-/* classic: the seven bottom rows and their top taps, the matching one ringed */
-.reference__table {
-  --strip-cell: calc(var(--tap-min) / 2 - var(--space-1));
-  display: grid; grid-template-columns: auto auto auto; justify-content: start; align-items: center;
-  column-gap: var(--space-2); row-gap: var(--space-1);
-}
-.reference:not([data-reference-kind="classic"]) .reference__table { display: none; }
-.reference__head, .reference__row { display: contents; }
-.reference__head > .caption { text-align: center; }
-.reference__head2 { display: none; }
-/* a revealed row clears the fade below */
-.reference__row > .learn-row { scroll-margin-block: var(--space-2) var(--space-6); }
-.reference__row[data-match="true"] > .learn-row { box-shadow: 0 0 0 var(--ring-w) var(--c-pointer), 0 0 var(--pulse-spread) var(--c-pointer-glow); }
 /* shaped rooms: the board's picture, the end lights lit, the top-edge fix ringed with the tap pointer (dashed) */
 .reference .learn-row--shape { --strip-cell: var(--icon-sm); gap: var(--space-half); padding: var(--space-1); }
 /* up to 740px tall: line 1 and the strips (the pair says what to tap; the table and the rule wait for a taller screen) */
+/* short phones: the sentence one size down, and the Tap strip only once there is something to tap */
+@media (max-height: 640px) {
+  .reference__status { font-size: var(--text-sm); }
+  .reference__pair:has(> .learn-row--top[data-empty]) > :nth-child(n + 3) { display: none; }
+}
 @media (max-height: 740px) {
   .reference { --strip-max: calc(var(--tap-min) / 2 - var(--space-half)); }
   .reference .learn-row--shape { --strip-cell: var(--glyph-cell); }
-  .reference__fit, .reference__table { display: none; }
-}
-@container (min-width: 470px) {
-  .reference__table { grid-template-columns: repeat(2, auto auto auto); column-gap: var(--space-3); }
-  .reference__head2 { display: block; }
+  .reference__fit { display: none; }
 }
 
 /* Browsers without container queries (iOS Safari before 16): viewport-based sizes. */
