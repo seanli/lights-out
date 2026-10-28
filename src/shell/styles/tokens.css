@@ -90,8 +90,6 @@
 
   /* shadows keep the same layer structure on/off so the glow can fade */
   --shadow-tile-off: 0 0 0 var(--c-glow-none), 0 0 0 1px var(--c-edge-none), inset 0 3px 6px var(--c-tile-off-shade), inset 0 -1px 0 var(--c-sheen);
-  /* afterglow: a filament cooling (same 4 layers as off/on so it interpolates) */
-  --shadow-afterglow: 0 0 10px var(--c-afterglow-out), 0 0 0 1px var(--c-edge-none), inset 0 0 18px var(--c-afterglow), inset 0 -1px 0 var(--c-sheen);
   --shadow-raised: inset 0 1px 0 var(--c-sheen), 0 0 0 1px var(--c-line);
   --shadow-outline: inset 0 0 0 1px var(--c-line);
   --shadow-recessed: inset 0 2px 6px var(--c-tile-off-shade);
@@ -273,12 +271,15 @@
   }
 }
 
-/* tile shadows whose glow scales with the cell: declared on .cell too so var(--glow-blur) resolves per board */
+/* tile glows scale with the cell: declared on .cell too so var(--glow-blur) resolves per board.
+   --glow-* are the flip/sweep layers (::after): painted once, only their opacity animates. */
 :root, .cell {
   --shadow-tile-on: 0 0 var(--glow-blur) var(--c-glow), 0 0 0 1px var(--c-tile-on-edge), inset 0 -4px 8px var(--c-tile-on-shade), inset 0 2px 1px var(--c-tile-on-sheen);
-  --shadow-bloom: 0 0 calc(var(--glow-blur) * 1.6) var(--c-glow-strong), 0 0 0 1px var(--c-tile-on-edge), inset 0 -4px 8px var(--c-tile-on-shade), inset 0 2px 1px var(--c-tile-on-sheen);
+  --glow-bloom: 0 0 calc(var(--glow-blur) * 1.6) var(--c-glow-strong);
+  --glow-afterglow: inset 0 0 18px var(--c-afterglow), 0 0 10px var(--c-afterglow-out);
   /* win sweep: a warm wave through a dark board, not a relit one */
-  --shadow-sweep: 0 0 calc(var(--glow-blur) * .8) var(--c-glow), 0 0 0 1px var(--c-tile-on-edge), inset 0 3px 6px var(--c-tile-off-shade), inset 0 -1px 0 var(--c-sheen);
+  --glow-sweep: 0 0 calc(var(--glow-blur) * .8) var(--c-glow), 0 0 0 1px var(--c-tile-on-edge);
+  --wash-sweep: rgb(var(--rgb-tile-on) / var(--sweep-wash));
 }
 
 html,

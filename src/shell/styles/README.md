@@ -31,5 +31,6 @@ Fonts are bundled woff2 (Fraunces 600, Manrope 500/700, Latin only, 45 KB). ≤ 
 If a slot holds only the board, set `--board-chrome-y: 0px` on it. The slot must be a grid/flex child with `min-height: 0` (as in `.screen--play`).
 In short landscape (`max-height: 540px`), the slot uses `display: contents`, `.screen--play` becomes the container, and the board fills the left column.
 Views set nothing else for size. `data-lit` is never delayed: the paint follows in `--dur-flip` (90ms), neighbours `--flip-stagger` (24ms) later.
+Cheap motion: bloom, afterglow and the win wash are a `.cell::after` layer whose blur is painted once; only its `opacity` animates. No blur radius or shadow is ever animated.
 Shell: info/warn notices are hidden on the play screen (errors show everywhere); home's scroll position is restored when it comes back.
 Solve: set `data-status="solved"` and add `.board--sweep` at the same time. The 800ms sweep runs, then the cells dim. Remove the class before the next level.

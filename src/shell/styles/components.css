@@ -105,21 +105,31 @@ button, input { font: inherit; color: inherit; }
 .cell {
   position: relative; padding: 0; border: 0; cursor: pointer;
   border-radius: var(--cell-radius);
-  /* the lit paint is a layer whose opacity is --lit (0/1, animatable); --flip-delay staggers the neighbours */
+  /* the lit paint is a layer whose opacity is --lit (0/1, animatable); --flip-delay staggers the neighbours.
+     The glow (box-shadow) never animates: it swaps once, after the same delay. */
   background: radial-gradient(circle at 50% 40%, rgb(var(--rgb-tile-on-core) / var(--lit, 0)) 0%, rgb(var(--rgb-tile-on) / var(--lit, 0)) 52%, rgb(var(--rgb-tile-on-rim) / var(--lit, 0)) 100%), var(--grad-tile-off);
   box-shadow: var(--shadow-tile-off);
   touch-action: manipulation; user-select: none; -webkit-user-select: none;
-  transition: --lit var(--dur-flip) var(--ease-out) var(--flip-delay, 0ms), box-shadow var(--dur-glow) var(--ease-out) var(--flip-delay, 0ms),
-    transform var(--dur-press) var(--ease-out), opacity var(--dur-sheet) var(--ease-out), filter var(--dur-press) var(--ease-out);
+  transition: --lit var(--dur-flip) var(--ease-out) var(--flip-delay, 0ms), box-shadow 0ms linear var(--flip-delay, 0ms),
+    transform var(--dur-press) var(--ease-out), opacity var(--dur-sheet) var(--ease-out);
 }
 .cell[data-lit="true"] { --lit: 1; box-shadow: var(--shadow-tile-on); }
-/* a flip (data-flip, set per changed cell): on = bloom, off = a filament cooling */
-.cell[data-lit="true"][data-flip] { animation: lo-bloom var(--dur-bloom) var(--ease-glow) var(--flip-delay, 0ms); }
-.cell[data-lit="false"][data-flip] { animation: lo-afterglow var(--dur-afterglow) var(--ease-out) var(--flip-delay, 0ms); }
-@keyframes lo-bloom { from { box-shadow: var(--shadow-bloom); } }
-@keyframes lo-afterglow { from { box-shadow: var(--shadow-afterglow); } }
+/* A flip (data-flip, set per changed cell): on = bloom, off = a filament cooling; the win sweep is a warm wash.
+   All three are a layer over the cell (::after) whose blur is painted once and whose OPACITY animates (compositor).
+   The cell runs an empty animation of the same length, so its animationend clears data-flip (play-view). */
+:where(.cell[data-flip], .board--sweep .cell):not([data-hint="true"], [data-pointer="true"])::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0;
+}
+.cell[data-lit="true"][data-flip] { animation: lo-flip-on var(--dur-bloom) linear var(--flip-delay, 0ms); }
+.cell[data-lit="false"][data-flip] { animation: lo-flip-off var(--dur-afterglow) linear var(--flip-delay, 0ms); }
+.cell[data-lit="true"][data-flip]:not([data-hint="true"], [data-pointer="true"])::after { box-shadow: var(--glow-bloom); animation: lo-bloom var(--dur-bloom) var(--ease-glow) var(--flip-delay, 0ms); }
+.cell[data-lit="false"][data-flip]:not([data-hint="true"], [data-pointer="true"])::after { box-shadow: var(--glow-afterglow); animation: lo-afterglow var(--dur-afterglow) var(--ease-out) var(--flip-delay, 0ms); }
+@keyframes lo-flip-on {}
+@keyframes lo-flip-off {}
+@keyframes lo-bloom { from { opacity: 1; } to { opacity: 0; } }
+@keyframes lo-afterglow { from { opacity: 1; } to { opacity: 0; } }
 .cell:active { transform: scale(var(--press-scale)); }
-.cell[data-lit="true"]:active { filter: brightness(var(--press-brightness)); }
+.cell[data-lit="true"]:active { filter: brightness(var(--press-brightness)); } /* one repaint, not animated */
 .cell:focus-visible { outline-offset: var(--focus-offset-tight); }
 .cell[data-hint="true"]::before, .cell[data-pointer="true"]::before {
   content: ""; position: absolute; inset: calc(-1 * var(--ring-offset)); pointer-events: none;
@@ -142,16 +152,21 @@ button, input { font: inherit; color: inherit; }
   from { transform: scale(1); opacity: .9; }
   70%, to { transform: scale(var(--pulse-scale)); opacity: 0; }
 }
-.board[data-status="solved"] .cell { pointer-events: none; cursor: default; opacity: var(--solved-dim); transition-delay: var(--flip-delay, 0ms), var(--flip-delay, 0ms), 0ms, var(--dur-sweep), 0ms; }
-/* win: a warm wave passes through the dark board (a ghost of the light, not a relit board) */
-.board--sweep .cell, .board--sweep .cell[data-flip] { animation: lo-sweep var(--dur-sweep-cell) var(--ease-out) backwards; animation-delay: calc(var(--i, 0) * var(--sweep-step)); }
-@keyframes lo-sweep {
-  0%, 100% { --lit: 0; box-shadow: var(--shadow-tile-off); }
-  30%, 50% { --lit: var(--sweep-wash); box-shadow: var(--shadow-sweep); }
+.board[data-status="solved"] .cell { pointer-events: none; cursor: default; opacity: var(--solved-dim); transition-delay: var(--flip-delay, 0ms), var(--flip-delay, 0ms), 0ms, var(--dur-sweep); }
+/* win: a warm wave passes through the dark board (a ghost of the light, not a relit board); opacity only */
+.board--sweep .cell[data-lit]:not([data-hint="true"], [data-pointer="true"])::after {
+  background: var(--wash-sweep); box-shadow: var(--glow-sweep);
+  animation: lo-sweep var(--dur-sweep-cell) var(--ease-out) calc(var(--i, 0) * var(--sweep-step)) backwards;
 }
-/* level intro: the room's lights come on, nearest corner first (--i = row + col); taps work throughout */
-.board--intro .cell[data-lit="true"] { animation: lo-power-on var(--dur-power-on) var(--ease-out) calc(var(--i, 0) * var(--power-step)) backwards; }
-@keyframes lo-power-on { from { --lit: 0; box-shadow: var(--shadow-tile-off); } }
+@keyframes lo-sweep { 0%, 100% { opacity: 0; } 30%, 50% { opacity: 1; } }
+/* level intro: the room's lights come on, nearest corner first (--i = row + col); taps work throughout.
+   The paint fades in; the glow arrives in one step at the end (a blur is never animated). */
+.board--intro .cell[data-lit="true"] {
+  animation: lo-power-on var(--dur-power-on) var(--ease-out) calc(var(--i, 0) * var(--power-step)) backwards,
+    lo-glow-on var(--dur-power-on) step-end calc(var(--i, 0) * var(--power-step)) backwards;
+}
+@keyframes lo-power-on { from { --lit: 0; } }
+@keyframes lo-glow-on { from { box-shadow: var(--shadow-tile-off); } }
 
 /* ---------- stat ---------- */
 .stat { display: flex; flex-direction: column; gap: var(--space-1-5); }

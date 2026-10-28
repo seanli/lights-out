@@ -36,9 +36,10 @@ body.g { height: auto; }
 .cell.g-active { transform: scale(var(--press-scale)); }
 .g-focus { outline: var(--ring-w) solid var(--c-focus); outline-offset: var(--focus-offset); }
 .cell.g-focus { outline-offset: var(--focus-offset-tight); }
-.g-freeze .cell { animation-play-state: paused; animation-delay: calc(var(--i, 0) * var(--sweep-step) - 260ms); }
+.g-freeze .cell::after { animation-play-state: paused !important; animation-delay: calc(var(--i, 0) * var(--sweep-step) - 260ms) !important; }
 /* a tap frozen ~40ms in: the pressed cell blooms, the staggered neighbours are mid-flip */
-.g-tap .cell[data-flip] { animation-play-state: paused; animation-delay: calc(var(--flip-delay, 0ms) - 40ms); }
+.g-tap .cell[data-flip], .g-tap .cell[data-flip]::after { animation-play-state: paused !important; animation-delay: calc(var(--flip-delay, 0ms) - 40ms) !important; }
+.g-tap .cell[data-flip] { transition: none; }
 .g-mid-bump { animation-play-state: paused; animation-delay: -30ms; }
 .g-boards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: var(--space-4); }
 /* ?play: only the play screen, full viewport */
