@@ -36,3 +36,7 @@
 | 32 | Room level ids are fixed numeric ranges (idBase + index, e.g. 4×4 = 1001–1012); the save shape stays v1 | lead default | Saves are keyed by level id; numeric ranges need no migration and never collide with classic 1–50 |
 | 33 | A press never reaches across a gap; gaps are not buttons | lead default | Same rule everywhere: "a tap flips the light and its neighbours" — a gap has no light |
 | 34 | Patterns panel and Learn stay about classic 5×5; on other boards the panel shows only chase advice | lead default | The bottom-row table has 63–127 rows on 6×6/7×7 and doesn't apply to shaped boards |
+| 35 | Polish direction (design-lead spec): a dark room, a warm board, nothing else asking for attention; same-frame tap with bloom/afterglow and a 24ms neighbour ripple; quiet chrome (moves, the star tier you're on, tools under the thumb); progress as a house lighting up | lead default | Owner asked for "The Good Sudoku quality" |
+| 36 | Header "Up to ★★★" removed; a "−1★ hint" chip joins the tier row | lead default | It duplicated the tier chip and collided at 320px |
+| 37 | Win sweep is a warm wash through a dark board (timing unchanged); the sheet opens at 640ms instead of 800 so its slide overlaps the sweep's tail (changes #11's number) | lead default | The old sweep looked like a new puzzle lighting up; the win felt long at ~1.9s |
+| 38 | Haptics live in the sound module (vibrate where supported, silent on iOS), on the same on/off switch | lead default | One module owns device feedback; no contract change |
