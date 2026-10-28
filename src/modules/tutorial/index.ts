@@ -140,6 +140,7 @@ const tutorial: ModuleDef = {
         line = document.createElement('p');
         line.className = 'tutorial-line';
         line.dataset.tutorial = '';
+        line.dataset.tone = 'coach'; // full-contrast: the most important sentence a new player reads
         line.setAttribute('aria-live', 'polite');
       }
       if (line.parentNode !== slot) slot.replaceChildren(line);

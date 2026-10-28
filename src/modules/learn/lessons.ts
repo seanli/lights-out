@@ -19,8 +19,17 @@ export interface MiniSpec {
 export type Step =
   | { kind: 'show'; boards: MiniSpec[] }
   | { kind: 'demo'; from: number[]; play: number[] | 'chase' | 'method' }
-  | { kind: 'table' }
-  | { kind: 'practice' };
+  | { kind: 'practice' }
+  /** pick a top-row light A–E, watch it tap and chase down to its echo */
+  | { kind: 'echo' }
+  /** two echoes stacked: lights in both cancel */
+  | { kind: 'stack'; pairs: [number, number][] }
+  /** the seven bottom rows grouped under five one-line rules */
+  | { kind: 'rules' }
+  /** how an echo is made: the chase's taps row by row, from the row rule */
+  | { kind: 'derive' }
+  /** whose echo is this? a short spaced-repetition quiz */
+  | { kind: 'drill' };
 
 export type Assist = 'chase' | 'method' | null;
 
@@ -32,6 +41,8 @@ export interface Lesson {
   pool?: number[];
   /** show moves vs par while practising */
   showPar?: boolean;
+  /** an extra lesson behind a quiet "Go deeper" link on the last step */
+  deeper?: string;
 }
 
 const range = (from: number, to: number) => Array.from({ length: to - from }, (_, k) => from + k);
@@ -39,6 +50,8 @@ const range = (from: number, to: number) => Array.from({ length: to - from }, (_
 const CHASE_ME = [6, 8, 12, 17];
 /** a board the chase alone can't finish */
 const STUBBORN = [1, 8, 12, 16, 24];
+/** a board whose chase leaves B's echo (ABC··): built from B plus taps below the top row */
+const ECHO_B = [1, 12, 18];
 /** a board whose chase-method answer is long but whose shortest answer is 5 taps */
 const LONG_WAY = [0, 4, 12, 20, 24];
 
@@ -73,12 +86,19 @@ export const LESSONS: Record<string, Lesson> = {
   },
   'bottom-row': {
     assist: 'method',
+    deeper: 'echo-more',
     steps: [
       { kind: 'show', boards: [{ from: STUBBORN, chased: true }] },
-      { kind: 'table' },
-      { kind: 'demo', from: STUBBORN, play: 'method' },
+      { kind: 'echo' },
+      { kind: 'demo', from: ECHO_B, play: 'method' },
+      { kind: 'stack', pairs: [[0, 3], [0, 1]] },
       { kind: 'practice' },
     ],
+  },
+  /** not in the lesson list: opened from "Go deeper" at the end of lesson 4 */
+  'echo-more': {
+    assist: null,
+    steps: [{ kind: 'rules' }, { kind: 'derive' }, { kind: 'drill' }],
   },
   shortest: {
     assist: null,
@@ -90,3 +110,18 @@ export const LESSONS: Record<string, Lesson> = {
     ],
   },
 };
+
+/**
+ * The bottom-row table grouped under five rules, for remembering it. A presentation over the solver's
+ * table: learn.test.ts checks that every rule's taps clear its rows and that the rules cover the table.
+ * Columns 0–4 are A–E; every rule mirrors left ↔ right.
+ */
+export interface Rule { key: string; rows: { bottom: number[]; top: number[] }[] }
+export const RULES: Rule[] = [
+  { key: 'three', rows: [{ bottom: [0, 1, 2], top: [1] }, { bottom: [2, 3, 4], top: [3] }] },
+  { key: 'allButMiddle', rows: [{ bottom: [0, 1, 3, 4], top: [2] }] },
+  { key: 'pairLoner', rows: [{ bottom: [1, 2, 4], top: [0] }, { bottom: [0, 2, 3], top: [4] }] },
+  { key: 'corners', rows: [{ bottom: [0, 4], top: [0, 1] }] },
+  { key: 'gap', rows: [{ bottom: [1, 3], top: [0, 3] }] },
+];
+export const ruleFor = (bottom: readonly number[]): Rule | undefined => RULES.find((r) => r.rows.some((x) => x.bottom.join() === bottom.join()));

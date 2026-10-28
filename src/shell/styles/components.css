@@ -36,6 +36,10 @@ button, input { font: inherit; color: inherit; }
 }
 .screen { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--space-3); }
 .screen--scroll { overflow-y: auto; overscroll-behavior: contain; }
+/* screen change (the shell sets data-enter on the incoming screen, never during play): fade in from the room */
+.screen[data-enter] { animation: lo-screen-in var(--dur-screen) var(--ease-out) both; }
+.screen[data-enter="back"] { --enter-x: calc(-1 * var(--enter-shift)); }
+@keyframes lo-screen-in { from { opacity: 0; translate: var(--enter-x, var(--enter-shift)) var(--space-1-5); } }
 .screen-header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; min-height: var(--tap-min); gap: var(--space-2); }
 .screen-header > :first-child { justify-self: start; }
 .screen-header__title { text-align: center; display: flex; flex-direction: column; align-items: center; gap: var(--space-1); min-width: 0; }
@@ -84,20 +88,38 @@ button, input { font: inherit; color: inherit; }
 .board {
   --board-size: min(100cqw, 100cqh - var(--board-chrome-y), var(--board-max));
   width: var(--board-size); max-width: 100%; aspect-ratio: 1;
-  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); grid-template-rows: repeat(5, minmax(0, 1fr));
+  display: grid; grid-template-columns: repeat(var(--board-n, 5), minmax(0, 1fr)); grid-template-rows: repeat(var(--board-n, 5), minmax(0, 1fr));
   gap: var(--cell-gap); padding: var(--board-pad);
   background: var(--c-board); border-radius: var(--radius-lg); box-shadow: var(--shadow-board);
 }
+/* per side (4–7): tighter gaps on big boards; corner radius and glow scale with the cell so 7×7 doesn't smear */
+.board[data-n="4"] { --board-n: 4; }
+.board[data-n="6"] { --board-n: 6; --cell-gap: var(--cell-gap-6); --board-pad: var(--board-pad-6); }
+.board[data-n="7"] { --board-n: 7; --cell-gap: var(--cell-gap-7); --board-pad: var(--board-pad-7); --ring-offset: var(--ring-offset-tight); }
+.board[data-n] {
+  --cell-size: calc((var(--board-size) - 2 * var(--board-pad) - (var(--board-n, 5) - 1) * var(--cell-gap)) / var(--board-n, 5));
+  --cell-radius: calc(var(--cell-size) * .2); --glow-blur: calc(var(--cell-size) * .35);
+}
+/* a gap in a shaped board keeps its grid slot and nothing else */
+.board > [data-gap] { visibility: hidden; pointer-events: none; }
 .cell {
   position: relative; padding: 0; border: 0; cursor: pointer;
   border-radius: var(--cell-radius);
-  background: var(--grad-tile-off); box-shadow: var(--shadow-tile-off);
+  /* the lit paint is a layer whose opacity is --lit (0/1, animatable); --flip-delay staggers the neighbours */
+  background: radial-gradient(circle at 50% 40%, rgb(var(--rgb-tile-on-core) / var(--lit, 0)) 0%, rgb(var(--rgb-tile-on) / var(--lit, 0)) 52%, rgb(var(--rgb-tile-on-rim) / var(--lit, 0)) 100%), var(--grad-tile-off);
+  box-shadow: var(--shadow-tile-off);
   touch-action: manipulation; user-select: none; -webkit-user-select: none;
-  /* background swaps instantly; only the glow (box-shadow) fades */
-  transition: box-shadow var(--dur-glow) var(--ease-out), transform var(--dur-press) var(--ease-out), opacity var(--dur-sheet) var(--ease-out);
+  transition: --lit var(--dur-flip) var(--ease-out) var(--flip-delay, 0ms), box-shadow var(--dur-glow) var(--ease-out) var(--flip-delay, 0ms),
+    transform var(--dur-press) var(--ease-out), opacity var(--dur-sheet) var(--ease-out), filter var(--dur-press) var(--ease-out);
 }
-.cell[data-lit="true"] { background: var(--grad-tile-on); box-shadow: var(--shadow-tile-on); }
+.cell[data-lit="true"] { --lit: 1; box-shadow: var(--shadow-tile-on); }
+/* a flip (data-flip, set per changed cell): on = bloom, off = a filament cooling */
+.cell[data-lit="true"][data-flip] { animation: lo-bloom var(--dur-bloom) var(--ease-glow) var(--flip-delay, 0ms); }
+.cell[data-lit="false"][data-flip] { animation: lo-afterglow var(--dur-afterglow) var(--ease-out) var(--flip-delay, 0ms); }
+@keyframes lo-bloom { from { box-shadow: var(--shadow-bloom); } }
+@keyframes lo-afterglow { from { box-shadow: var(--shadow-afterglow); } }
 .cell:active { transform: scale(var(--press-scale)); }
+.cell[data-lit="true"]:active { filter: brightness(var(--press-brightness)); }
 .cell:focus-visible { outline-offset: var(--focus-offset-tight); }
 .cell[data-hint="true"]::before, .cell[data-pointer="true"]::before {
   content: ""; position: absolute; inset: calc(-1 * var(--ring-offset)); pointer-events: none;
@@ -120,17 +142,22 @@ button, input { font: inherit; color: inherit; }
   from { transform: scale(1); opacity: .9; }
   70%, to { transform: scale(var(--pulse-scale)); opacity: 0; }
 }
-.board[data-status="solved"] .cell { pointer-events: none; cursor: default; opacity: var(--solved-dim); transition-delay: 0ms, 0ms, var(--dur-sweep); }
-.board--sweep .cell { animation: lo-sweep var(--dur-sweep-cell) var(--ease-out) backwards; animation-delay: calc(var(--i, 0) * var(--sweep-step)); }
-/* each cell flashes the real lit paint (background flips discretely, glow interpolates) */
+.board[data-status="solved"] .cell { pointer-events: none; cursor: default; opacity: var(--solved-dim); transition-delay: var(--flip-delay, 0ms), var(--flip-delay, 0ms), 0ms, var(--dur-sweep), 0ms; }
+/* win: a warm wave passes through the dark board (a ghost of the light, not a relit board) */
+.board--sweep .cell, .board--sweep .cell[data-flip] { animation: lo-sweep var(--dur-sweep-cell) var(--ease-out) backwards; animation-delay: calc(var(--i, 0) * var(--sweep-step)); }
 @keyframes lo-sweep {
-  0%, 100% { background: var(--grad-tile-off); box-shadow: var(--shadow-tile-off); }
-  30%, 50% { background: var(--grad-tile-on); box-shadow: var(--shadow-tile-on); }
+  0%, 100% { --lit: 0; box-shadow: var(--shadow-tile-off); }
+  30%, 50% { --lit: var(--sweep-wash); box-shadow: var(--shadow-sweep); }
 }
+/* level intro: the room's lights come on, nearest corner first (--i = row + col); taps work throughout */
+.board--intro .cell[data-lit="true"] { animation: lo-power-on var(--dur-power-on) var(--ease-out) calc(var(--i, 0) * var(--power-step)) backwards; }
+@keyframes lo-power-on { from { --lit: 0; box-shadow: var(--shadow-tile-off); } }
 
 /* ---------- stat ---------- */
 .stat { display: flex; flex-direction: column; gap: var(--space-1-5); }
-.stat__value { font: var(--fw-display) var(--text-2xl) / var(--leading-num) var(--font-display); font-variant-numeric: tabular-nums; color: var(--c-text); }
+.stat__value { font: var(--fw-display) var(--text-2xl) / var(--leading-num) var(--font-display); font-variant-numeric: lining-nums tabular-nums; color: var(--c-text); }
+.stat__value--bump { animation: lo-bump var(--dur-bump) var(--ease-spring); }
+@keyframes lo-bump { from { scale: var(--bump-scale); } }
 .stat--end { align-items: flex-end; text-align: right; }
 .stat--muted .stat__value { color: var(--c-text-dim); }
 
@@ -145,6 +172,7 @@ button, input { font: inherit; color: inherit; }
 .chip__of { color: var(--c-text-faint); font-weight: var(--fw-medium); }
 .chip[data-state="now"] { color: var(--c-text); background: var(--c-surface-2); box-shadow: inset 0 0 0 var(--hairline) var(--c-line-strong); }
 .chip[data-state="lost"] { opacity: var(--lost-opacity); text-decoration: line-through; }
+.chip[data-state="hint"] { color: var(--c-hint); background: var(--c-hint-bg); box-shadow: inset 0 0 0 var(--hairline) var(--c-hint-edge); }
 
 /* ---------- stars ---------- */
 .stars { --star-size: var(--star-sm); display: inline-flex; align-items: center; gap: var(--space-half); vertical-align: middle; }
@@ -179,23 +207,19 @@ button, input { font: inherit; color: inherit; }
 .level-tile .stars { --star-size: var(--star-xs); gap: var(--hairline); }
 .level-tile__tag { font: var(--fw-bold) var(--text-2xs) / var(--leading-tight) var(--font-ui); letter-spacing: var(--tracking-eyebrow); text-transform: uppercase; opacity: var(--dim-opacity); }
 .level-tile[data-current="true"] { background: var(--grad-tile-on); color: var(--c-accent-ink); box-shadow: var(--shadow-current); }
+/* solved = warm dark (3★ glows a little): the more you solve, the warmer the grid. Locked = a dark socket. */
+.level-tile:is([data-solved="true"], [data-stars="1"], [data-stars="2"], [data-stars="3"]):not([data-current="true"]) { background: var(--c-tile-solved); box-shadow: var(--shadow-solved); }
+.level-tile[data-stars="3"]:not([data-current="true"]) { box-shadow: var(--shadow-solved-3); }
 .level-tile[data-locked="true"] { cursor: not-allowed; font-size: var(--text-md); color: var(--c-text-faint); background: var(--c-board); box-shadow: var(--shadow-recessed); }
-.level-tile[data-locked="true"]::before, .chapter[data-locked="true"]::after {
-  content: ""; width: var(--icon-sm); height: var(--icon-sm); background-color: currentColor; opacity: var(--dim-opacity);
-  -webkit-mask: var(--shape-lock) center / contain no-repeat; mask: var(--shape-lock) center / contain no-repeat;
-}
 .level-tile[data-locked="true"]:active { transform: none; }
 @media (hover: hover) { .level-tile:not([data-locked="true"]):not([data-current="true"]):hover { background-color: var(--c-surface-3); } }
 
 .chapter { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); }
 .chapter__meta { font-size: var(--text-sm); color: var(--c-text-dim); }
-.chapter[data-locked="true"] {
-  align-items: center; justify-content: flex-start; padding: var(--space-3) var(--space-4);
-  border: var(--hairline) dashed var(--c-line); border-radius: var(--radius-md); color: var(--c-text-faint);
-}
+/* a chapter ahead: one quiet row */
+.chapter[data-locked="true"] { align-items: center; justify-content: flex-start; padding: var(--space-3) 0; border-top: var(--hairline) solid var(--c-line); color: var(--c-text-faint); }
 .chapter[data-locked="true"] .chapter__body { flex: 1; display: flex; flex-direction: column; gap: var(--space-1); }
 .chapter[data-locked="true"] .chapter__meta, .chapter[data-locked="true"] .eyebrow { color: var(--c-text-faint); }
-.chapter[data-locked="true"]::after { width: var(--icon); height: var(--icon); }
 
 .glyph { display: grid; grid-template-columns: repeat(3, var(--glyph-cell)); gap: var(--glyph-gap); flex: none; }
 .glyph > i { width: var(--glyph-cell); height: var(--glyph-cell); border-radius: var(--glyph-radius); background: var(--c-tile-off-hi); }
@@ -240,7 +264,9 @@ button, input { font: inherit; color: inherit; }
   font: var(--fw-medium) var(--text-sm) / var(--leading-snug) var(--font-ui); color: var(--c-text-dim); text-align: center; text-wrap: balance;
 }
 .tutorial-line:empty { visibility: hidden; }
-.tutorial-line[data-tone="coach"] { color: var(--c-text); }
+.tutorial-line[data-tone="coach"] { color: var(--c-text); font-size: var(--text-md); }
+/* first-run focus: while coaching, only the board, the ring and one sentence (visibility keeps the layout still) */
+[data-coaching="true"] .play-tiers, [data-coaching="true"] [data-action="hint"] { visibility: hidden; }
 .tutorial-line[data-tone="hint"] { color: var(--c-hint); }
 .tutorial-line[data-tone="hint"]::before { content: ""; width: var(--dot); height: var(--dot); flex: none; border-radius: var(--radius-pill); background: var(--c-hint); box-shadow: 0 0 0 var(--space-half) var(--c-hint-glow); }
 

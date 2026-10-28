@@ -20,7 +20,8 @@
 .lesson-tile__summary { font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--c-text-dim); }
 .lesson-tile__done { width: var(--icon); height: var(--icon); flex: none; color: var(--c-hint); }
 .lesson-tile__done .icon { display: block; }
-.lesson-tile[data-completed="true"] { box-shadow: inset 0 var(--hairline) 0 var(--c-sheen), 0 0 0 var(--hairline) var(--c-line-strong); }
+.lesson-tile[data-completed="true"] { background: var(--c-tile-solved, var(--c-surface-2)); box-shadow: var(--shadow-solved, inset 0 var(--hairline) 0 var(--c-sheen), 0 0 0 var(--hairline) var(--c-line-strong)); }
+@media (hover: hover) { .lesson-tile[data-completed="true"]:hover { background-color: var(--c-surface-3); } }
 
 /* ---------- mini boards ---------- */
 .board--mini {
@@ -61,15 +62,17 @@
 .learn-text { font-size: var(--text-base); line-height: var(--leading-body); text-align: center; text-wrap: pretty; }
 .learn-stage {
   flex: 1; min-height: 0; container-type: size;
-  display: flex; align-items: center; justify-content: center;
+  /* anchored under the text, so a short stage never leaves a gap between the words and the picture */
+  display: flex; align-items: flex-start; justify-content: center; padding-top: var(--space-4);
 }
 /* single board: the largest square that fits the stage */
 .learn-stage > .board--mini { width: min(100cqw, 100cqh, var(--board-max)); height: auto; aspect-ratio: 1; }
 .learn-stage--practice > .board--mini { min-width: var(--learn-practice-min); min-height: var(--learn-practice-min); }
 .learn-stage--practice { min-height: var(--learn-practice-min); }
 .learn-figs { display: flex; justify-content: center; gap: var(--space-4); width: 100%; height: 100%; }
-.learn-fig { margin: 0; flex: 1; min-width: 0; max-width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); }
-.learn-fig > .board--mini { width: min(100%, calc(100cqh - var(--line-h) - var(--space-2)), var(--board-max)); aspect-ratio: 1; }
+.learn-fig { margin: 0; flex: 1; min-width: 0; max-width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: var(--space-2); }
+.learn-fig > .board--mini { width: min(100%, calc(100cqh - var(--line-h) - var(--space-2) - var(--space-4)), var(--board-max)); aspect-ratio: 1; }
+.learn-stage > .board--mini { width: min(100cqw, calc(100cqh - var(--space-4)), var(--board-max)); }
 .learn-caption { font-size: var(--text-sm); color: var(--c-text-dim); text-align: center; min-height: var(--line-h); }
 .learn-under { display: flex; flex-direction: column; gap: var(--space-2); }
 .learn-controls { display: flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: var(--tap-min); }
@@ -78,19 +81,8 @@
 .learn-nav { display: grid; grid-template-columns: 1fr 1.6fr; gap: var(--space-2); }
 .learn-nav .btn { min-height: var(--btn-h-compact); }
 
-/* ---------- the bottom-row table ---------- */
-.learn-table {
-  /* 7 rows + a caption line must fit the stage height; 10 cells + arrow must fit its width */
-  --strip-cell: min(
-    var(--tap-min),
-    calc((100cqh - var(--line-h) - var(--space-1) - 6 * var(--space-1-5)) / 7 - 2 * var(--space-1)),
-    calc((100cqw - 12 * var(--space-1) - 2 * var(--space-3) - var(--space-4)) / 10)
-  );
-  width: 100%; max-width: var(--app-max);
-  display: grid; grid-template-columns: auto auto auto; justify-content: center; align-content: center; column-gap: var(--space-3); row-gap: var(--space-1-5);
-}
-.learn-table__head, .learn-table__row { display: contents; }
-.learn-table__head .caption { text-align: center; padding-bottom: var(--space-1); }
+/* ---------- strips: one row of five (echo steps, rules, drill, the in-game table) ---------- */
+.learn-screen { --strip-cell: min(var(--tap-min), calc((100cqw - 2 * var(--space-4)) / 7)); }
 .learn-table__arrow { align-self: center; color: var(--c-text-faint); }
 .learn-row { display: grid; grid-template-columns: repeat(5, var(--strip-cell)); gap: var(--space-1); padding: var(--space-1); border-radius: var(--radius-sm); background: var(--c-board); box-shadow: var(--shadow-board); }
 .learn-row > .cell { width: var(--strip-cell); height: var(--strip-cell); border-radius: var(--radius-xs); cursor: default; }
@@ -98,6 +90,55 @@
   content: ""; position: absolute; inset: 25%; border-radius: var(--radius-pill); background: var(--c-hint); box-shadow: 0 0 0 var(--space-half) var(--c-hint-glow);
 }
 .learn-row > .cell[data-suggest="true"] { box-shadow: inset 0 0 0 var(--ring-w) var(--c-hint); }
+/* a spot two echoes both light: they cancel, so it is dark with a struck ring */
+.learn-row > .cell[data-cancel="true"] { box-shadow: inset 0 0 0 var(--ring-w) var(--c-warn); }
+.learn-row > .cell[data-cancel="true"]::after {
+  content: ""; position: absolute; inset: 22%; border-radius: var(--radius-pill);
+  background: linear-gradient(135deg, transparent 44%, var(--c-warn) 44% 56%, transparent 56%);
+}
+.learn-cancel-key { display: inline-block; width: var(--icon-sm); height: var(--icon-sm); margin-right: var(--space-1-5); vertical-align: -2px; border-radius: var(--radius-xs); box-shadow: inset 0 0 0 var(--ring-w) var(--c-warn); }
+
+/* A–E picker */
+.learn-picker { display: flex; justify-content: center; gap: var(--space-1-5); }
+.learn-pick { min-width: var(--tap-min); min-height: var(--tap-min); padding: 0; font-size: var(--text-md); }
+
+/* two echoes stacked */
+.learn-stack { width: 100%; display: flex; flex-direction: column; align-items: center; gap: var(--space-4); }
+.learn-stack__group { display: grid; gap: var(--space-1-5); }
+.learn-stack__line { display: grid; grid-template-columns: minmax(var(--space-6), auto) auto; align-items: center; column-gap: var(--space-3); }
+.learn-stack__line > .caption { text-align: right; }
+.learn-stack__sum { padding-top: var(--space-1-5); border-top: var(--hairline) solid var(--c-line-strong); }
+.learn-stack .learn-row { --strip-cell: min(var(--tap-min), calc((100cqh - 8 * var(--space-1-5) - 2 * var(--space-4) - var(--line-h)) / 6 - 2 * var(--space-1))); }
+
+/* the five rules */
+.learn-rules { width: 100%; display: flex; flex-direction: column; gap: var(--space-2); overflow-y: auto; max-height: 100%; }
+.learn-rule { display: grid; gap: var(--space-1-5); padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); background: var(--c-surface); box-shadow: var(--shadow-outline); }
+.learn-rule__text { font-size: var(--text-sm); line-height: var(--leading-snug); }
+.learn-rule__row { display: flex; align-items: center; gap: var(--space-2); }
+.learn-rules .learn-row { --strip-cell: var(--icon); }
+
+/* how an echo forms */
+.learn-derive { width: 100%; display: flex; flex-direction: column; align-items: center; gap: var(--space-2); overflow-y: auto; max-height: 100%; }
+.learn-derive__rows { display: grid; gap: var(--space-1); }
+.learn-derive__row { display: grid; grid-template-columns: minmax(var(--space-6), auto) auto; align-items: center; column-gap: var(--space-3); animation: lo-learn-row-in var(--dur-sheet) var(--ease-out) backwards; animation-delay: calc(var(--i, 0) * var(--star-step)); }
+.learn-derive__row > .caption { text-align: right; }
+.learn-derive__echo { padding-top: var(--space-1); border-top: var(--hairline) solid var(--c-line-strong); }
+.learn-derive .learn-row { --strip-cell: var(--icon); }
+.learn-derive .learn-caption { max-width: 34ch; }
+.learn-derive__tip { color: var(--c-text); }
+@keyframes lo-learn-row-in { from { opacity: 0; translate: 0 calc(-1 * var(--space-1)); } }
+
+/* drill: a top row to tap above the bottom row to cancel */
+.learn-drill { width: 100%; display: flex; justify-content: center; }
+.learn-drill__card { display: flex; flex-direction: column; align-items: center; gap: var(--space-1); }
+.learn-drill__gap { color: var(--c-text-faint); line-height: 1; }
+.learn-row--pick > .cell { cursor: pointer; touch-action: manipulation; }
+.learn-row--pick > .cell:disabled { cursor: default; }
+.learn-drill[data-drill="right"] .learn-row--bottom > .cell { opacity: var(--solved-dim); }
+
+/* quiet text link ("Go deeper", "All lessons"): 44px hit height, no outline */
+.learn-link, .reference__lessons { box-shadow: none; color: var(--c-text-dim); font-size: var(--text-sm); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--c-line-strong); }
+.learn-link { align-self: center; min-height: var(--tap-min); padding-inline: var(--space-3); }
 
 /* ---------- wide screens: lesson text left, board right ---------- */
 @media (min-width: 720px) and (min-height: 600px) {
@@ -140,10 +181,17 @@
 .reference__status { min-height: var(--line-h); font: var(--fw-bold) var(--text-sm) / var(--leading-snug) var(--font-ui); color: var(--c-text); text-wrap: balance; }
 .reference__status[data-tone="hint"] { color: var(--c-hint); }
 .reference__status[data-tone="warn"] { color: var(--c-warn); }
-.reference__chase { font-size: var(--text-xs); line-height: var(--leading-snug); color: var(--c-text-dim); }
+.reference__rule { font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--c-hint); }
+/* more below: fade the bottom edge (data-overflow from a ResizeObserver + scroll) */
+.reference[data-overflow="true"] {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--space-6)), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--space-6)), transparent);
+}
+/* other boards: advice only (no live row, no table) */
+.reference:not([data-reference-kind="classic"]) :is(.reference__you, .reference__table, .reference__rule) { display: none; }
 .reference__you { display: flex; align-items: center; gap: var(--space-2); }
 .reference__you > .caption { flex: none; }
-.reference__lessons { flex: none; min-height: var(--tap-min); padding-inline: var(--space-3); font-size: var(--text-sm); white-space: nowrap; }
+.reference__lessons { flex: none; min-height: var(--tap-min); padding-inline: var(--space-2); margin-right: calc(-1 * var(--space-2)); white-space: nowrap; }
 .reference__table {
   display: grid; grid-template-columns: auto auto auto; justify-content: center; align-items: center;
   column-gap: var(--space-2); row-gap: var(--space-1);
@@ -159,7 +207,6 @@
 @media (max-height: 740px) {
   .reference { --strip-cell: var(--icon-sm); }
   .reference__table { row-gap: var(--space-half); }
-  .reference__lessons { min-height: var(--btn-h-compact); }
 }
 @container (min-width: 470px) {
   .reference__table { grid-template-columns: repeat(2, auto auto auto); justify-content: space-evenly; }

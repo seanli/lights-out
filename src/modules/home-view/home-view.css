@@ -1,30 +1,100 @@
 /* home-view layout only. Components (.btn, .chip, .level-grid, .chapter, .glyph, .stars, .sheet) come
    from the design system; everything here uses tokens. Listed in requests.md as candidates for components.css. */
-.home { gap: var(--space-4); padding-bottom: var(--space-2); }
+.home {
+  gap: var(--space-4); padding-bottom: var(--space-2);
+  /* solved tiles are warm: the more you solve, the warmer the grid (design system may define --c-tile-solved) */
+  --home-solved: var(--c-tile-solved, color-mix(in srgb, var(--c-accent) 6%, var(--c-room-warm)));
+  --home-solved-edge: inset 0 0 0 var(--hairline) color-mix(in srgb, var(--c-tile-on) 10%, transparent);
+  --home-solved-glow: 0 0 var(--space-4) color-mix(in srgb, var(--c-glow) 24%, transparent);
+}
 /* the scroll box would clip the tiles' outline and the current tile's glow at the gutters: give them room */
 .screen.home { margin-inline: calc(-1 * var(--space-2)); padding-inline: var(--space-2); }
-.home__top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding-top: var(--space-3); }
+/* a scrolling column: nothing in it may shrink to fit */
+.screen.home > * { flex-shrink: 0; }
+.home__top { display: flex; flex-wrap: nowrap; align-items: center; justify-content: space-between; gap: var(--space-3); padding-top: var(--space-3); }
 .home__logo { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
-.home__logo .display { white-space: nowrap; }
+.home__logo .display { white-space: nowrap; font-size: clamp(24px, 7.5vw, var(--text-xl)); }
+.home__tools { display: flex; align-items: center; gap: var(--space-2); flex: none; }
+/* sound is a quiet tool, not a selected primary */
+.home__top [data-action="sound"][aria-pressed] { color: var(--c-text-dim); background: var(--c-surface); box-shadow: var(--shadow-outline); }
 .home__hero { display: flex; flex-direction: column; gap: var(--space-3); margin-block: var(--space-2) var(--space-3); }
+.home__link {
+  align-self: center; min-height: var(--tap-min); margin-top: calc(-1 * var(--space-2)); padding-inline: var(--space-3);
+  box-shadow: none; color: var(--c-text-dim); font-size: var(--text-sm); text-decoration: underline; text-underline-offset: 3px;
+}
 .home__error { color: var(--c-error); font-size: var(--text-sm); }
 .home__chapters { display: flex; flex-direction: column; gap: var(--space-5); }
 .home__chapter { display: flex; flex-direction: column; gap: var(--space-3); }
-.home__footer { margin-top: auto; display: flex; flex-direction: column; gap: var(--space-3); padding-top: var(--space-2); }
-.home__legend {
-  display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); flex-wrap: wrap;
-  padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); background: var(--c-surface); box-shadow: var(--shadow-outline);
-  font-size: var(--text-sm); color: var(--c-text-dim);
+
+/* level tiles: locked ones are dark sockets, solved ones warm */
+.home .level-tile[data-locked="true"]::before { content: none; }
+.home .level-tile[data-stars]:not([data-stars="0"]):not([data-current="true"]) { background: var(--home-solved); box-shadow: var(--home-solved-edge), var(--shadow-raised); }
+.home .level-tile[data-stars="3"]:not([data-current="true"]) { box-shadow: var(--home-solved-edge), var(--shadow-raised), var(--home-solved-glow); }
+/* a level a solve just unlocked: its light comes on once */
+.home .level-tile[data-power-on] { animation: lo-home-power-on calc(var(--dur-sweep) * .56) var(--ease-out) both; }
+@keyframes lo-home-power-on {
+  0% { box-shadow: var(--shadow-recessed); background: var(--c-board); color: var(--c-text-faint); }
+  45% { box-shadow: 0 0 var(--space-8) var(--c-glow), 0 0 0 var(--hairline) var(--c-tile-on-edge); }
 }
-.home__legend-item { display: inline-flex; align-items: center; gap: var(--space-1-5); white-space: nowrap; }
-.home__sep { width: var(--hairline); height: var(--icon-sm); background: var(--c-line); }
+
+/* chapters ahead: one quiet row */
+.home__ahead.chapter[data-locked="true"] {
+  flex-direction: column; align-items: flex-start; gap: var(--space-1);
+  padding: var(--space-3) 0 0; border: 0; border-top: var(--hairline) solid var(--c-line); border-radius: 0;
+}
+.home__ahead.chapter[data-locked="true"]::after { content: none; }
+
+/* the star legend: one quiet line under the first chapter */
+.home__legend {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--space-1) var(--space-2);
+  font-size: var(--text-xs); color: var(--c-text-faint);
+}
+.home__legend-item { display: inline-flex; align-items: center; gap: var(--space-1); white-space: nowrap; }
+.home__sep { color: var(--c-text-faint); }
+
+/* the Variety door */
+.home__variety {
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-3); width: 100%;
+  min-height: var(--tap-min); padding: var(--space-4); border: 0; border-radius: var(--radius-md); cursor: pointer; text-align: left;
+  color: var(--c-text); background: var(--c-surface); box-shadow: var(--shadow-raised);
+  touch-action: manipulation; transition: transform var(--dur-press) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+}
+.home__variety:active { transform: scale(var(--press-scale-btn)); }
+@media (hover: hover) { .home__variety:not([data-locked="true"]):hover { background-color: var(--c-surface-3); } }
+.home__variety-glyphs { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.home__variety-glyphs .room-glyph { --glyph-box: var(--space-8); }
+.home__variety-body { display: flex; flex-direction: column; gap: var(--space-1); }
+.home__variety-title { font: var(--fw-display) var(--text-lg) / var(--leading-snug) var(--font-display); }
+.home__variety-sub { font-size: var(--text-sm); color: var(--c-text-dim); }
+.home__variety[data-locked="true"] {
+  justify-content: center; cursor: default; padding: var(--space-2) 0 0; background: none; border-radius: 0;
+  box-shadow: none; border-top: var(--hairline) solid var(--c-line);
+}
+.home__variety[data-locked="true"] .chapter__meta { color: var(--c-text-faint); }
+.home__variety[data-locked="true"]:active { transform: none; }
+/* room glyph (the variety module draws the same one): the room's shape, gaps empty, lit as it is solved */
+.home .room-glyph {
+  display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: calc(var(--glyph-box) / 22);
+  width: var(--glyph-box); aspect-ratio: 1; flex: none;
+}
+.home .room-glyph > i { aspect-ratio: 1; border-radius: 28%; background: var(--c-line-strong); }
+.home .room-glyph > i[data-lit="true"] { background: var(--c-tile-on); box-shadow: 0 0 var(--space-1-5) var(--c-glow); }
+.home .room-glyph > i[data-gap] { visibility: hidden; }
+
+.home__footer { margin-top: auto; display: flex; flex-direction: column; gap: var(--space-2); padding-top: var(--space-2); }
 .home__footer > [data-action="learn"] { min-height: var(--btn-h-compact); }
-.home__settings { display: flex; gap: var(--space-2); }
-.home__settings > .btn { flex: 1; min-height: var(--btn-h-compact); padding-inline: var(--space-3); font-size: var(--text-sm); }
+.home__reset { align-self: center; min-height: var(--tap-min); box-shadow: none; color: var(--c-text-faint); font-size: var(--text-sm); }
 .home__icon { display: inline-flex; }
 /* destructive confirm on the reset sheet (no destructive variant in the design system yet) */
 .home__danger { color: var(--c-error); background: var(--c-tone-bg-error); box-shadow: inset 0 0 0 var(--hairline) var(--c-error); }
 @media (hover: hover) { .home__danger { --btn-hover: var(--c-tone-bg-error); } }
+
+@media (max-width: 359px) {
+  .home__top .chip__of { display: none; }
+  .home__variety-glyphs { gap: var(--space-2); }
+  .home__variety-glyphs .room-glyph { --glyph-box: 28px; }
+}
+@media (prefers-reduced-motion: reduce) { .home .level-tile[data-power-on] { animation: none; } }
 
 /* short landscape (phone on its side): a chapter of 20 is two rows of ten instead of four stretched rows */
 @media (orientation: landscape) and (max-height: 540px) {

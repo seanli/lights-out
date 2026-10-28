@@ -1,7 +1,8 @@
-// home-view: the level path. Renders view.region('screen:home') and the reset confirmation sheet.
-// Reads levels, progress, storage, sound, learn and nav; emits commands only. Never imports a module.
+// home-view: the classic level path and the doors to Variety and Learn. Renders view.region('screen:home') and the
+// reset confirmation sheet. Reads levels, progress, storage, sound, learn, variety and nav; emits commands only.
 import * as v from 'valibot';
-import type { LevelsState, ModuleDef, ProgressState } from '../../contracts';
+import type { LevelsState, ModuleDef, Pack, ProgressState } from '../../contracts';
+import { cellIndexes, gridSize } from '../../lib/shape';
 import { fmt, h, setAttr, setText } from '../../lib/dom';
 import './home-view.css';
 
@@ -25,17 +26,45 @@ const Copy = v.object({
   tileLocked: Text,
   starLegend: v.object({ three: Text, two: Text, one: Text, hint: Text }),
   learn: Text,
+  learnNew: Text,
   soundOn: Text,
   soundOff: Text,
+  sound: Text,
   reset: Text,
   resetTitle: Text,
   resetBody: Text,
   resetConfirm: Text,
   resetCancel: Text,
+  variety: Text,
+  varietyLocked: Text,
+  varietySub: Text,
+  varietyLabel: Text,
 });
 type CopyT = v.InferOutput<typeof Copy>;
 
 const MAX_STARS = 3;
+/** the first-visit "New here? Learn the patterns" link shows until this level is solved */
+const LEARN_LINK_UNTIL = 3;
+
+/** levels on the classic path (ids 1..n); Variety room levels share the list but not the path */
+export function classicCount(levels: LevelsState | undefined): number {
+  if (levels?.status !== 'ready') return 0;
+  return levels.packs?.find((p) => p.kind === 'classic')?.count ?? levels.list.filter((l) => (l.pack ?? 'classic') === 'classic').length;
+}
+
+/** a room's shape as dots, gaps empty; solved/count of its cells light up from the centre out */
+function roomGlyph(pack: Pack, solved: number): HTMLElement {
+  const { cols, rows } = pack.shape;
+  const g = h('span', { class: 'room-glyph', 'aria-hidden': 'true', style: `--cols:${cols}` });
+  const real = cellIndexes(pack.shape);
+  const cx = (cols - 1) / 2, cy = (rows - 1) / 2;
+  const order = [...real].sort((a, b) =>
+    Math.hypot((a % cols) - cx, Math.floor(a / cols) - cy) - Math.hypot((b % cols) - cx, Math.floor(b / cols) - cy) || a - b);
+  const lit = new Set(order.slice(0, Math.round((real.length * Math.min(solved, pack.count)) / Math.max(1, pack.count))));
+  const isReal = new Set(real);
+  for (let i = 0; i < gridSize(pack.shape); i++) g.append(h('i', isReal.has(i) ? { 'data-lit': String(lit.has(i)) } : { 'data-gap': '' }));
+  return g;
+}
 
 /** the level Continue starts: lowest unlocked unsolved; if every unlocked level is solved, the last played */
 export function suggestLevel(count: number, progress: ProgressState | undefined): { levelId: number; fresh: boolean } {
@@ -73,8 +102,8 @@ interface ChapterView { from: number; to: number; open: HTMLElement; locked: HTM
 const homeView: ModuleDef = {
   manifest: {
     name: 'home-view',
-    emits: ['levels:start', 'sound:set', 'learn:open', 'nav:open_sheet', 'nav:close_sheet', 'progress:clear'],
-    listens: [],
+    emits: ['levels:start', 'sound:set', 'learn:open', 'variety:open', 'nav:open_sheet', 'nav:close_sheet', 'progress:clear'],
+    listens: ['progress:level_completed'],
     owns: [],
     uses: ['view'],
     data: { copy: Copy },
@@ -98,25 +127,34 @@ const homeView: ModuleDef = {
     const cont = h('button', { type: 'button', class: 'btn btn--primary btn--block', 'data-action': 'continue' },
       contLabel, h('span', { class: 'btn__meta', 'aria-hidden': 'true' }, '·'), contLevel);
     const caption = h('p', { class: 'muted home__caption', 'data-home-caption': '' });
+    const learnLink = h('button', { type: 'button', class: 'btn btn--ghost home__link', 'data-action': 'learn', hidden: true }, copy.learnNew);
     const levelsError = h('p', { class: 'home__error', role: 'alert', hidden: true }, copy.levelsError);
     const chaptersHost = h('div', { class: 'home__chapters' });
+    const legend = h('p', { class: 'home__legend', 'data-star-legend': '' });
+
+    // the Variety door: a card with the rooms' shapes once it is open, a quiet row before that
+    const varietyGlyphs = h('span', { class: 'home__variety-glyphs' });
+    const varietyBody = h('span', { class: 'home__variety-body' },
+      h('strong', { class: 'home__variety-title' }, copy.variety),
+      h('span', { class: 'home__variety-sub' }, copy.varietySub));
+    const variety = h('button', { type: 'button', class: 'home__variety', 'data-action': 'variety', hidden: true }, varietyGlyphs, varietyBody);
+    const varietyLocked = h('span', { class: 'chapter__meta' }, copy.varietyLocked);
 
     const learn = h('button', { type: 'button', class: 'btn btn--secondary btn--block', 'data-action': 'learn', hidden: true },
       svg(ICON_LEARN), copy.learn);
-    const legend = h('div', { class: 'home__legend', 'data-star-legend': '' });
     const soundIcon = h('span', { class: 'home__icon' });
-    const soundLabel = h('span');
-    const sound = h('button', { type: 'button', class: 'btn btn--ghost', 'data-action': 'sound', hidden: true }, soundIcon, soundLabel);
-    const reset = h('button', { type: 'button', class: 'btn btn--ghost', 'data-action': 'reset', hidden: true }, copy.reset);
+    const sound = h('button', { type: 'button', class: 'btn btn--icon', 'data-action': 'sound', 'aria-label': copy.sound, hidden: true }, soundIcon);
+    const reset = h('button', { type: 'button', class: 'btn btn--ghost home__reset', 'data-action': 'reset', hidden: true }, copy.reset);
 
     region.replaceChildren(
       h('header', { class: 'home__top' },
         h('div', { class: 'home__logo' }, glyph, h('h1', { class: 'display' }, copy.title)),
-        total),
-      h('section', { class: 'home__hero' }, cont, caption),
+        h('div', { class: 'home__tools' }, sound, total)),
+      h('section', { class: 'home__hero' }, cont, caption, learnLink),
       levelsError,
       chaptersHost,
-      h('footer', { class: 'home__footer' }, learn, legend, h('div', { class: 'home__settings' }, sound, reset)),
+      variety,
+      h('footer', { class: 'home__footer' }, learn, reset),
     );
 
     // ---- reset confirmation sheet (the viewer can't show confirm(), so this sheet is the confirmation) ----
@@ -151,7 +189,7 @@ const homeView: ModuleDef = {
       builtFor = { list: levels.list, chapters: levels.chapters };
       tiles = [];
       chapters = [];
-      const count = levels.list.length;
+      const count = classicCount(levels);
       const groups = levels.chapters.length ? levels.chapters : [{ id: 'all', name: '', from: 1, to: count }];
       const out: HTMLElement[] = [];
       groups.forEach((ch, i) => {
@@ -165,14 +203,11 @@ const homeView: ModuleDef = {
         }
         const open = h('section', { class: 'home__chapter', 'data-chapter': ch.id },
           h('div', { class: 'chapter' }, h('span', { class: 'eyebrow' }, eyebrow), h('span', { class: 'chapter__meta' }, range)),
-          grid);
-        const dim = h('div', { class: 'glyph glyph--dim', 'aria-hidden': 'true' });
-        for (let k = 0; k < 9; k++) dim.append(h('i'));
-        const locked = h('div', { class: 'chapter', 'data-locked': 'true', 'data-chapter': ch.id, hidden: true },
-          dim,
-          h('div', { class: 'chapter__body' },
-            h('span', { class: 'eyebrow' }, eyebrow),
-            h('span', { class: 'chapter__meta' }, fmt(copy.chapterLocked, { level: ch.from }))));
+          grid, i === 0 ? legend : null);
+        // a chapter ahead is one quiet row, not a card
+        const locked = h('div', { class: 'chapter home__ahead', 'data-locked': 'true', 'data-chapter': ch.id, hidden: true },
+          h('span', { class: 'eyebrow' }, eyebrow),
+          h('span', { class: 'chapter__meta' }, fmt(copy.chapterLocked, { level: ch.from })));
         chapters.push({ from: ch.from, to: ch.to, open, locked });
         out.push(open, locked);
       });
@@ -203,7 +238,7 @@ const homeView: ModuleDef = {
       const storage = ctx.read('storage');
       const snd = ctx.read('sound');
       const ready = levels?.status === 'ready';
-      const count = ready ? levels.list.length : 0;
+      const count = ready ? classicCount(levels) : 0;
 
       levelsError.hidden = levels?.status !== 'error';
       cont.hidden = levels?.status === 'error';
@@ -235,7 +270,8 @@ const homeView: ModuleDef = {
       const saved = storage?.status === 'ok';
       const parts: string[] = [];
       if (progress && ready) parts.push(solved === count ? copy.allSolved : fmt(copy.solvedCount, { solved, total: count }));
-      if (progress && saved && solved !== count) parts.push(copy.savedNote);
+      // reassurance for a first visit only
+      if (progress && saved && solved === 0) parts.push(copy.savedNote);
       setText(caption, parts.join(' · '));
       caption.hidden = parts.length === 0;
 
@@ -251,6 +287,10 @@ const homeView: ModuleDef = {
         ch.locked.hidden = !locked;
       }
 
+      paintVariety(levels, progress);
+      // first visit: a quiet way into Learn until the first few levels are behind the player
+      learnLink.hidden = ctx.read('learn') === undefined || !!results[String(LEARN_LINK_UNTIL)];
+
       // footer
       const scoring = progress?.scoring;
       legend.hidden = !scoring;
@@ -258,7 +298,7 @@ const homeView: ModuleDef = {
       sound.hidden = !snd;
       if (snd) {
         setAttr(sound, 'aria-pressed', String(snd.enabled));
-        setText(soundLabel, snd.enabled ? copy.soundOn : copy.soundOff);
+        setAttr(sound, 'title', snd.enabled ? copy.soundOn : copy.soundOff);
         const want = snd.enabled ? 'on' : 'off';
         if (soundIcon.dataset.state !== want) {
           soundIcon.dataset.state = want;
@@ -271,7 +311,52 @@ const homeView: ModuleDef = {
         lastCurrent = suggested;
         revealCurrent();
       }
+      powerOn();
     }
+
+    let varietyKey = '';
+    function paintVariety(levels: LevelsState | undefined, progress: ProgressState | undefined) {
+      const rooms = levels?.status === 'ready' ? (levels.packs ?? []).filter((p) => p.kind !== 'classic') : [];
+      // shown only when the variety module is running (it owns the variety slice) and there are rooms
+      variety.hidden = ctx.read('variety') === undefined || rooms.length === 0;
+      if (variety.hidden) return;
+      const open = !progress || progress.varietyOpen === true;
+      const solvedIn = (p: Pack) => progress?.packs?.[p.id]?.solved ?? 0;
+      const key = `${open}|${rooms.map((p) => `${p.id}:${solvedIn(p)}`).join(',')}`;
+      if (key === varietyKey) return;
+      varietyKey = key;
+      setAttr(variety, 'data-locked', String(!open));
+      setAttr(variety, 'aria-disabled', open ? null : 'true');
+      const solved = rooms.reduce((n, p) => n + solvedIn(p), 0);
+      const count = rooms.reduce((n, p) => n + p.count, 0);
+      setAttr(variety, 'aria-label', open ? fmt(copy.varietyLabel, { solved, count }) : copy.varietyLocked);
+      if (open) {
+        varietyGlyphs.replaceChildren(...rooms.map((p) => roomGlyph(p, solvedIn(p))));
+        variety.replaceChildren(varietyGlyphs, varietyBody);
+      } else variety.replaceChildren(varietyLocked);
+    }
+
+    /** a level unlocked by a solve lights up once when home next shows it */
+    let unlockedId: number | null = null;
+    function powerOn() {
+      // the nav slice decides, not region.hidden: the shell may un-hide home after this watcher; the animation starts on display
+      if (unlockedId === null) return;
+      const nav = ctx.read('nav');
+      if (nav && (nav.screen !== 'home' || nav.sheet)) return;
+      const el = tiles[unlockedId]?.el;
+      unlockedId = null;
+      if (!el || el.dataset.locked === 'true') return;
+      el.removeAttribute('data-power-on');
+      void el.offsetWidth; // restart the animation if it ran before
+      el.setAttribute('data-power-on', '');
+    }
+    region.addEventListener('animationend', (e) => {
+      const el = e.target as HTMLElement;
+      if (el.hasAttribute?.('data-power-on')) el.removeAttribute('data-power-on');
+    });
+    ctx.on('progress:level_completed', ({ unlocked, pack }) => {
+      if (unlocked !== null && (pack ?? 'classic') === 'classic') unlockedId = unlocked;
+    });
 
     let legendKey = '';
     function paintLegend(s: NonNullable<ProgressState['scoring']>) {
@@ -283,7 +368,7 @@ const homeView: ModuleDef = {
       const three = s.threeStarsWithin > 0 ? fmt(L.two, { within: s.threeStarsWithin }) : L.three; // "par +N" when par itself has slack
       const items = [item(3, three), item(2, fmt(L.two, { within: s.twoStarsWithin })), item(1, L.one), item(0, fmt(L.hint, { cost: s.hintCost }))];
       for (const it of items) it.querySelectorAll('.star[data-state="off"]').forEach((x) => x.remove());
-      legend.replaceChildren(...items.flatMap((it, i) => (i ? [h('span', { class: 'home__sep', 'aria-hidden': 'true' }), it] : [it])));
+      legend.replaceChildren(...items.flatMap((it, i) => (i ? [h('span', { class: 'home__sep', 'aria-hidden': 'true' }, '·'), it] : [it])));
     }
 
     /** keep the current tile on screen when home appears; no smooth scroll, no move if it is already visible */
@@ -318,6 +403,7 @@ const homeView: ModuleDef = {
       switch (action.dataset.action) {
         case 'continue': ctx.emit('levels:start', { levelId: suggested }); break;
         case 'learn': ctx.emit('learn:open', {}); break;
+        case 'variety': if (action.getAttribute('aria-disabled') !== 'true') ctx.emit('variety:open', {}); break;
         case 'sound': {
           const snd = ctx.read('sound');
           if (snd) ctx.emit('sound:set', { enabled: !snd.enabled });
@@ -327,16 +413,16 @@ const homeView: ModuleDef = {
       }
     });
 
-    for (const slice of ['levels', 'progress', 'storage', 'sound'] as const) ctx.watch(slice, update);
+    for (const slice of ['levels', 'progress', 'storage', 'sound', 'variety'] as const) ctx.watch(slice, update);
     // the Learn entry shows only when a learn module is running (it owns the learn slice)
-    const showLearn = () => { learn.hidden = ctx.read('learn') === undefined; };
+    const showLearn = () => { learn.hidden = ctx.read('learn') === undefined; update(); };
     ctx.watch('learn', showLearn);
     let lastNav: string | null = null;
     ctx.watch('nav', (nav) => {
       const key = `${nav?.screen}/${nav?.sheet}`;
       if (key === lastNav) return;
       lastNav = key;
-      if (nav?.screen === 'home' && !nav.sheet) revealCurrent();
+      if (nav?.screen === 'home' && !nav.sheet) { revealCurrent(); powerOn(); }
       // the shell focuses the first button (the destructive one); move focus to the safe choice
       if (nav?.sheet === 'confirm_reset') {
         if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => cancelBtn.focus({ preventScroll: true }));
@@ -344,7 +430,6 @@ const homeView: ModuleDef = {
       }
     });
     showLearn();
-    update();
 
     return {
       start: update,

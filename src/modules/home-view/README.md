@@ -1,14 +1,18 @@
 # home-view
 
-The level path. Renders `view.region('screen:home')` and the reset confirmation `sheet:confirm_reset`. Uses `view`; owns no slice.
+The classic level path and the doors to Variety and Learn. Renders `view.region('screen:home')` and `sheet:confirm_reset`. Uses `view`; owns no slice.
 
-- Reads `levels`, `progress`, `storage`, `sound`, `learn`, `nav` via `ctx.watch`. The path DOM is rebuilt only when the levels list changes; tiles update in place.
-- Header: logo glyph, "Lights Out", star total chip (sum of best stars / count×3; hidden without progress).
-- `[data-action="continue"]` → `levels:start` for the lowest unlocked unsolved level (all solved → last played; nothing solved → "Start · Level 1"). Caption drops "saved on this device" unless storage is `ok`.
-- Chapters from `levels.chapters`: header + `.level-grid` of `[data-level-tile]` (stars/locked/current). Locked tiles stay focusable with a "locked" label and do nothing. A chapter whose first level is locked shows the dashed `.chapter[data-locked]` card.
-- Footer: Learn (`learn:open {}`, shown only when a `learn` slice exists), star legend from `progress.scoring`, sound toggle (`sound:set`, aria-pressed; hidden without a sound slice), reset → `nav:open_sheet {confirm_reset}`.
-- Reset sheet: confirm → `progress:clear` + `nav:close_sheet`; cancel/Escape → `nav:close_sheet`. Focus starts on cancel.
-- When home shows, the current tile is scrolled to centre only if it is off-screen (no smooth scroll).
+- Reads `levels`, `progress`, `storage`, `sound`, `learn`, `variety`, `nav`. Counts, stars and Continue are about the classic pack only
+  (`packs` → classic count; `levels.list` also holds the rooms). The path DOM is rebuilt only when the list changes; tiles update in place.
+- Header: logo, "Lights Out", a quiet sound icon (`sound:set`, aria-pressed) and the star total chip ("/ 150" hidden below 360px).
+- `[data-action="continue"]` → `levels:start` for the lowest unlocked unsolved level. Caption says "saved on this device" only at 0 solved.
+  Until level 3 is solved a "New here? Learn the patterns" link sits under it.
+- Chapters: `.level-grid` of `[data-level-tile]`. Locked tiles are dark sockets (no padlock), solved tiles warm, 3★ glows.
+  A tile unlocked by a classic solve (`progress:level_completed.unlocked`) powers on once when home next shows. Chapters ahead are one quiet row.
+  The star legend is one line under chapter 1.
+- Variety entry `[data-action="variety"]` (only with a `variety` slice and rooms): locked → quiet row "Variety opens after chapter 1"
+  (aria-disabled, inert); open → a card with each room's shape glyph → `variety:open {}`.
+- Footer: Learn (`learn:open {}`), Reset as a quiet text button → `nav:open_sheet {confirm_reset}`; confirm → `progress:clear`.
 - Copy: `copy.json → home-view`. Layout CSS in `home-view.css` (tokens only).
 
 Delete it and the game opens on an empty home screen; everything else still boots.
