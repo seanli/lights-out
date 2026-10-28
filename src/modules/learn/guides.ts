@@ -6,7 +6,7 @@
 //   hex, cube, wired, stuck (the twist rooms, by pack kind): how a tap spreads there, the one idea, practice
 // Example boards come from a fixed-order search, so they always fit the shape; learn.test.ts proves each.
 import type { Cells, Pack, Shape, SolverService } from '../../contracts';
-import { cellIndexes, emptyCells, gridOf, isCell, isPressable, isStuck, pressTargets, touching } from '../../lib/shape';
+import { cellIndexes, emptyCells, gridOf, isCell, isPressable, pressTargets, touching } from '../../lib/shape';
 import { cellFace, cubeSide, FACES } from '../../lib/cube';
 import { WIRINGS } from '../../lib/puzzle';
 import type { Lesson, Phase, Step } from './lessons';

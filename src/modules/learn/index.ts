@@ -6,7 +6,7 @@ import { CELL_COUNT, CLASSIC_SHAPE, MAX_CELLS, type Cells, type LearnState, type
 import { cellIndexes, isCell, isPressable, isStuck, shapeKey } from '../../lib/shape';
 import { LESSONS, type Lesson } from './lessons';
 import { bottomRowTable, chaseShape, chaseSuggest, createFixer, fixSuggest, isClear, makeBoard, methodSuggest, quietPatterns, touches, type Fixer, type TableEntry } from './method';
-import { GUIDE_PREFIX, GUIDE_STEPS, TWISTS, buildGuide, guideId, guideKind, spotOrder, type GuideKind } from './guides';
+import { GUIDE_PREFIX, GUIDE_STEPS, buildGuide, guideId, guideKind, spotOrder, type GuideKind } from './guides';
 import { emptySave, type DrillSave } from './drill';
 import { createReference } from './reference';
 import { createLearnView } from './view';
