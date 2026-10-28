@@ -157,23 +157,63 @@
     "levels": [1, 2]
   },
   "sound": {
-    "volume": 0.4,
-    "lowpassHz": 2400,
-    "lowpassQ": 0.5,
-    "tap": { "ms": 70, "gain": 0.5, "glide": 0.04, "glideMs": 50, "detuneCents": 12, "pan": 0.3 },
+    "$comment": "Wall switch: a plastic rocker, close-miked and dry. Every decayMs is the time to fall 60 dB; frequencies in Hz; gains are relative within one sound, and each finished sound is scaled to its own peakDb.",
+    "volume": 1,
+    "seed": 7,
+    "takes": 6,
+    "vary": { "filter": 0.05, "pitch": 0.04, "db": 1.5 },
+    "pan": 0.2,
+    "ceilingHz": 7000,
+    "on": {
+      "peakDb": -10,
+      "snap": { "hp": 2300, "lp": 5600, "attackMs": 0.1, "decayMs": 3.5, "gain": 1, "modes": [{ "hz": 3300, "decayMs": 7, "gain": 0.32 }, { "hz": 4500, "decayMs": 5, "gain": 0.18 }] },
+      "body": { "hz": 215, "decayMs": 40, "drop": 0.1, "gain": 0.5 },
+      "box": { "hz": 820, "decayMs": 15, "gain": 0.26 },
+      "thud": { "lp": 950, "decayMs": 9, "gain": 0.2 },
+      "latch": { "chance": 0.75, "minMs": 12, "maxMs": 22, "hp": 2900, "lp": 6200, "decayMs": 2.5, "gain": 0.22 }
+    },
+    "off": {
+      "peakDb": -11,
+      "snap": { "hp": 1500, "lp": 3800, "attackMs": 0.12, "decayMs": 4, "gain": 1, "modes": [{ "hz": 2500, "decayMs": 7, "gain": 0.3 }, { "hz": 3400, "decayMs": 5, "gain": 0.14 }] },
+      "body": { "hz": 165, "decayMs": 45, "drop": 0.1, "gain": 0.68 },
+      "box": { "hz": 620, "decayMs": 16, "gain": 0.3 },
+      "thud": { "lp": 750, "decayMs": 10, "gain": 0.3 },
+      "latch": { "chance": 0.6, "minMs": 14, "maxMs": 25, "hp": 2100, "lp": 4600, "decayMs": 2.5, "gain": 0.14 }
+    },
+    "neighbours": { "atMs": [24, 26.5, 29.5], "gain": 0.13, "hp": 2500, "lp": 5600, "decayMs": 1.6, "box": { "hz": 900, "decayMs": 6, "gain": 0.5 } },
+    "relay": {
+      "snap": { "hp": 1500, "lp": 3600, "attackMs": 0.2, "decayMs": 3, "gain": 1, "modes": [{ "hz": 2400, "decayMs": 6, "gain": 0.25 }] },
+      "body": { "hz": 150, "decayMs": 26, "drop": 0.08, "gain": 0.6 },
+      "box": { "hz": 600, "decayMs": 12, "gain": 0.25 }
+    },
     "win": {
-      "steps": [12, 16, 19, 24],
-      "stepMs": 90,
-      "ms": 350,
-      "gain": 0.35
+      "relays": 9, "startMs": 70, "spanMs": 470, "curve": 0.85, "jitterMs": 10, "relayGain": [0.8, 0.4], "rise": 0.08, "pan": 0.35,
+      "chord": [146.83, 220, 293.66, 369.99, 440],
+      "voiceGain": [1, 0.7, 0.6, 0.42, 0.3],
+      "partials": [{ "ratio": 1, "gain": 1 }, { "ratio": 2, "gain": 0.22 }, { "ratio": 3, "gain": 0.07 }],
+      "detuneCents": 3,
+      "swellAtMs": 300, "attackMs": 420, "decayMs": 1500, "lp": 1600, "swellGain": 0.45, "peakDb": -12
     },
-    "restart": {
-      "steps": [7, 0],
-      "stepMs": 60,
-      "ms": 160,
-      "gain": 0.2
+    "bossWin": {
+      "$comment": "a boss: the same win with more relays and a fuller chord (a low root and a ninth); same length, same peak",
+      "relays": 12, "spanMs": 520,
+      "chord": [73.42, 146.83, 220, 293.66, 369.99, 440, 659.26],
+      "voiceGain": [0.55, 1, 0.7, 0.6, 0.42, 0.3, 0.16],
+      "swellGain": 0.5
     },
-    "stars": { "startMs": 280, "stepMs": 140, "ms": 260, "gain": 0.18 },
+    "stars": {
+      "startMs": 280, "stepMs": 140,
+      "hz": [1174.7, 1480, 1760],
+      "partials": [{ "ratio": 1, "gain": 1, "decayMs": 260 }, { "ratio": 2.32, "gain": 0.3, "decayMs": 110 }, { "ratio": 4.25, "gain": 0.1, "decayMs": 50 }],
+      "tick": 0.25, "tickHp": 2400, "tickLp": 6000, "attackMs": 0.4, "peakDb": -17
+    },
+    "hint": {
+      "hz": [1760],
+      "partials": [{ "ratio": 1, "gain": 1, "decayMs": 170 }, { "ratio": 2.32, "gain": 0.35, "decayMs": 70 }, { "ratio": 4.25, "gain": 0.12, "decayMs": 35 }],
+      "tick": 0.45, "tickHp": 2400, "tickLp": 6000, "attackMs": 0.08, "peakDb": -15
+    },
+    "undo": { "revMs": 30, "lp": 2600, "peakDb": -14 },
+    "restart": { "flicks": [{ "click": "off", "atMs": 0, "db": 0 }, { "click": "on", "atMs": 72, "db": -3 }], "peakDb": -11 },
     "haptics": {
       "tap": 8,
       "hint": 6,
