@@ -311,11 +311,12 @@ describe('Variety rooms', () => {
     expect(t.state('progress').varietyOpen).toBe(true);
   });
 
-  test('a room level never becomes the classic Continue level', () => {
+  test('the last level follows any board, so Continue can return to a room', () => {
     const { t } = rooms();
     t.emit('levels:started', { levelId: 7, par: 3, count: 50, pack: 'classic', index: 7, next: 8 });
-    t.emit('levels:started', { levelId: 1003, par: 3, count: 12, pack: '4x4', index: 3, next: 1004 });
     expect(t.state('progress').save.lastLevel).toBe(7);
+    t.emit('levels:started', { levelId: 1003, par: 3, count: 12, pack: '4x4', index: 3, next: 1004 });
+    expect(t.state('progress').save.lastLevel).toBe(1003);
   });
 
   test('an existing v1 save loads unchanged and gains room results in the same shape', () => {

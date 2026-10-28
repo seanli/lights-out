@@ -151,9 +151,8 @@ const progress: ModuleDef = {
       if (cur && JSON.stringify(cur) !== JSON.stringify(derive(cur.save))) writeSlice(cur.save);
     });
 
-    ctx.on('levels:started', ({ levelId, pack }) => {
-      // lastLevel is the classic path's Continue; a Variety room level doesn't move it
-      if (pack !== undefined && pack !== 'classic') return;
+    ctx.on('levels:started', ({ levelId }) => {
+      // lastLevel is what Continue follows: the board last played, rooms included (decision 42)
       const save = current();
       if (save.lastLevel !== levelId) commit({ ...save, lastLevel: levelId });
     });
