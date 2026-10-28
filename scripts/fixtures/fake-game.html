@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fake Lights Out</title>
+<!--
+  A minimal stand-in for the real game, used only to validate scripts/probe.mjs and scripts/look.mjs.
+  It renders the hooks in src/contracts/dom.ts and mimics the shell: screens and sheets use [hidden],
+  a closed sheet is hidden 320ms later, a solve plays a 0.8s sweep before the sheet opens.
+  Add #bad to the URL to make it misbehave (network request, console error, small buttons, slow taps).
+-->
+<style>
+  :root { color-scheme: dark; --bg: #0d1015; --ink: #e9e6df; --dim: #8a8f98; --off: #1b2029; --on: #ffd27a; --line: #2a303b; }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.4 system-ui, sans-serif; }
+  .app { min-height: 100dvh; display: flex; flex-direction: column; }
+  .notices { position: fixed; top: 8px; left: 8px; right: 8px; z-index: 5; display: grid; gap: 6px; pointer-events: none; }
+  .notice { background: #3a2b10; border: 1px solid #6b4e1a; border-radius: 10px; padding: 8px 12px; font-size: 14px; }
+  .screen { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 16px; gap: 14px; }
+  h1 { margin: 8px 0 0; font-size: 28px; letter-spacing: .02em; }
+  button { font: inherit; color: inherit; background: var(--off); border: 1px solid var(--line); border-radius: 12px; min-width: 44px; min-height: 44px; padding: 0 14px; cursor: pointer; touch-action: manipulation; }
+  .primary { background: var(--on); color: #1a1406; border: 0; font-weight: 600; padding: 0 28px; }
+  .tiles { display: grid; grid-template-columns: repeat(5, 52px); gap: 8px; }
+  .tile { width: 52px; height: 52px; padding: 0; display: grid; place-items: center; font-size: 15px; }
+  .tile[data-locked="true"] { opacity: .35; }
+  .tile[data-current="true"] { border-color: var(--on); }
+  .tile[data-stars="3"] { background: #3a3220; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  .hud { width: 100%; max-width: 440px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .stat { color: var(--dim); font-size: 14px; }
+  .stat b { color: var(--ink); font-size: 18px; }
+  [data-tutorial] { color: var(--dim); font-size: 14px; min-height: 20px; text-align: center; }
+  [data-board] { --size: min(calc(100vw - 32px), calc(100dvh - 230px), 440px); width: var(--size); height: var(--size); display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+  [data-cell] { width: 100%; height: 100%; padding: 0; border-radius: 14px; background: var(--off); transition: background-color .12s, box-shadow .12s; }
+  [data-cell][data-lit="true"] { background: var(--on); box-shadow: 0 0 18px #ffd27a88; }
+  [data-cell][data-hint="true"] { outline: 3px solid #7ad0ff; outline-offset: 2px; }
+  [data-cell][data-pointer="true"] { outline: 3px dashed #fff; outline-offset: 2px; }
+  [data-board][data-status="solved"] [data-cell] { animation: sweep .8s ease-out; }
+  @keyframes sweep { 0% { background: #fff5d6; } 100% { background: var(--off); } }
+  @media (orientation: landscape) and (max-height: 500px) {
+    [data-screen="play"]:not([hidden]) { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto 1fr; align-items: start; column-gap: 24px; }
+    [data-screen="play"] [data-board] { --size: min(calc(100dvh - 32px), 440px); grid-row: 1 / span 3; }
+    [data-screen="play"] .hud { flex-direction: column; align-items: flex-start; }
+  }
+  .sheet-backdrop { position: fixed; inset: 0; background: #0008; z-index: 3; }
+  .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 4; background: #161b23; border-radius: 20px 20px 0 0; padding: 20px 16px calc(20px + env(safe-area-inset-bottom)); display: grid; gap: 10px; justify-items: center; transform: translateY(100%); transition: transform .3s ease-out; }
+  .sheet[data-open="true"] { transform: none; }
+  .stars { font-size: 28px; color: var(--on); letter-spacing: 4px; }
+  [data-console] { position: fixed; right: 8px; bottom: 8px; z-index: 6; font: 11px ui-monospace, monospace; background: #000c; border: 1px solid #333; border-radius: 8px; padding: 6px 8px; max-width: 60vw; color: #9f9; }
+  .bad button { min-width: 0; min-height: 0; height: 30px; }
+</style>
+</head>
+<body>
+<div id="app" class="app"></div>
+<script>
+(() => {
+  // [board mask, minimal solution mask] per level; bit i = cell i (row-major), 1 = lit.
+  const LEVELS = [[17580032,524288],[8966,260],[13185024,393216],[28868643,17825793],[2585888,74752],[13933600,6423552],[29832452,8394880],[9417084,265224],[21954704,663824],[29614151,3932162],[30004224,6979584],[21387170,682048],[19339333,12584995],[15960508,4227177],[165570,17581120],[6581935,1217033],[28564319,9568837],[23700126,8716371],[20602560,10750736],[15065504,26522624],[33346297,9453973],[7321780,4464016],[11988893,1327476],[6987557,2150933],[14204628,5264165],[21256478,25699139],[15005090,7471914],[8207731,2122091],[3711769,2258088],[30489763,6965401],[16128885,6491286],[32334049,8476132],[22524727,6043700],[14424023,5272977],[1456102,48979],[26802247,6831881],[31372216,4822599],[4081993,27269996],[1083190,10425923],[18174266,13639619],[22837789,9775596],[20895056,7168362],[17647713,1678716],[26024614,12924849],[21832654,19252078],[25248741,3128146],[3112834,3363326],[6473670,5628875],[26302067,3094365],[29872953,2996185]];
+  const debug = /(^|[#&?])debug\b/.test(location.hash);
+  const bad = /(^|[#&?])bad\b/.test(location.hash);
+  const pop = (m) => { let n = 0; while (m) { m &= m - 1; n++; } return n; };
+  const toCells = (m) => Array.from({ length: 25 }, (_, i) => ((m >> i) & 1) === 1);
+  const toMask = (c) => c.reduce((m, on, i) => (on ? m | (1 << i) : m), 0);
+  const pressMask = (i) => { const r = (i / 5) | 0, c = i % 5; let m = 1 << i; if (r) m |= 1 << (i - 5); if (r < 4) m |= 1 << (i + 5); if (c) m |= 1 << (i - 1); if (c < 4) m |= 1 << (i + 1); return m; };
+  // brute force over the first row ("light chasing"): fine for a fixture
+  function solve(mask) {
+    let best = null;
+    for (let first = 0; first < 32; first++) {
+      let b = mask, x = 0;
+      for (let c = 0; c < 5; c++) if ((first >> c) & 1) { b ^= pressMask(c); x |= 1 << c; }
+      for (let i = 5; i < 25; i++) if ((b >> (i - 5)) & 1) { b ^= pressMask(i); x |= 1 << i; }
+      if (b === 0 && (best === null || pop(x) < pop(best))) best = x;
+    }
+    return best === null ? null : [...Array(25).keys()].filter((i) => (best >> i) & 1);
+  }
+  const list = LEVELS.map(([b, s], k) => ({ id: k + 1, cells: toCells(b), par: pop(s) }));
+
+  // ---- storage (may throw in a sandboxed frame) ----
+  let storageOk = true;
+  const mem = {};
+  try { localStorage.setItem('lights-out:v1:probe', '1'); localStorage.removeItem('lights-out:v1:probe'); } catch { storageOk = false; }
+  const load = () => { try { return JSON.parse(storageOk ? localStorage.getItem('lights-out:v1:progress') : mem.p) || null; } catch { return null; } };
+  const save = () => { const v = JSON.stringify(state.progress.save); if (storageOk) try { localStorage.setItem('lights-out:v1:progress', v); } catch {} else mem.p = v; };
+
+  const saved = load();
+  const state = {
+    nav: { screen: 'home', sheet: null },
+    levels: { status: 'ready', list, chapters: [{ id: 'first-light', name: 'First light', from: 1, to: 50 }] },
+    board: { status: 'empty', levelId: null, start: toCells(0), cells: toCells(0), par: 0, moves: 0, history: [] },
+    progress: { status: 'ready', save: saved || { version: 1, results: {}, pendingHints: {}, lastLevel: 1 }, unlockedUpTo: 1 },
+    hints: { status: 'idle', levelId: null, cell: null },
+    tutorial: { status: 'idle', levelId: null, step: 0, target: null, copyKey: null },
+    storage: { status: storageOk ? 'ok' : 'memory' },
+  };
+  const unlocked = () => Math.min(50, 1 + Object.keys(state.progress.save.results).map(Number).reduce((a, b) => Math.max(a, b), 0));
+  state.progress.unlockedUpTo = unlocked();
+  const events = [];
+
+  // ---- DOM ----
+  const h = (tag, attrs = {}, ...kids) => { const n = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) k === 'class' ? (n.className = v) : k.startsWith('on') ? n.addEventListener(k.slice(2), v) : n.setAttribute(k, v); n.append(...kids); return n; };
+  const app = document.getElementById('app');
+  if (bad) app.classList.add('bad');
+  const notices = h('div', { class: 'notices', 'aria-live': 'polite' });
+  const home = h('section', { class: 'screen', 'data-screen': 'home' });
+  const play = h('section', { class: 'screen', 'data-screen': 'play', hidden: '' });
+  const backdrop = h('div', { class: 'sheet-backdrop', hidden: '' });
+  const sheet = h('div', { class: 'sheet', 'data-sheet': 'solved', role: 'dialog', 'aria-modal': 'true', hidden: '' });
+  app.append(notices, h('main', { class: 'screens' }, home, play), backdrop, sheet);
+  const notice = (id, text, tone = 'info') => notices.append(h('div', { class: 'notice', 'data-notice': id, 'data-tone': tone, role: 'status' }, text));
+  if (!storageOk) notice('storage', "This browser isn't saving progress, so it will be lost when you close the page.", 'warn');
+
+  // home
+  const tiles = h('div', { class: 'tiles' });
+  for (const l of list) tiles.append(h('button', { class: 'tile', 'data-level-tile': '', 'data-level': l.id, onclick: () => emit('levels:start', { levelId: l.id }) }, String(l.id)));
+  home.append(h('h1', {}, 'Lights Out'),
+    h('button', { class: 'primary', 'data-action': 'continue', onclick: () => emit('levels:start', { levelId: Math.min(state.progress.unlockedUpTo, 50) }) }, 'Continue'),
+    tiles,
+    h('div', { class: 'row' }, h('button', { 'data-action': 'sound', 'aria-pressed': 'true' }, 'Sound'), h('button', { 'data-action': 'reset' }, 'Reset progress')));
+
+  // play
+  const label = h('span', { 'data-level-label': '' });
+  const movesEl = h('b', { 'data-moves': '' }, '0');
+  const parEl = h('b', { 'data-par': '' }, '0');
+  const board = h('div', { 'data-board': '', 'data-status': 'playing', role: 'grid' });
+  const cells = [];
+  for (let i = 0; i < 25; i++) {
+    const c = h('button', { 'data-cell': '', 'data-index': i, 'data-lit': 'false', 'aria-label': `Light ${((i / 5) | 0) + 1}, ${(i % 5) + 1}` });
+    c.addEventListener('pointerdown', (e) => { e.preventDefault(); if (bad) { const t = performance.now(); while (performance.now() - t < 15); } emit('board:press', { index: i }); });
+    c.addEventListener('click', (e) => { if (e.detail === 0) emit('board:press', { index: i }); });
+    cells.push(c); board.append(c);
+  }
+  const tut = h('p', { 'data-tutorial': '' });
+  play.append(
+    h('div', { class: 'hud' }, h('button', { 'data-action': 'back', 'aria-label': 'Back to levels', onclick: () => emit('nav:go', { screen: 'home' }) }, '‹'), label,
+      h('span', { class: 'stat' }, 'Moves ', movesEl, ' · Par ', parEl)),
+    tut, board,
+    h('div', { class: 'row' },
+      h('button', { 'data-action': 'undo', onclick: () => emit('board:undo', {}) }, 'Undo'),
+      h('button', { 'data-action': 'restart', onclick: () => emit('board:restart', {}) }, 'Restart'),
+      h('button', { 'data-action': 'hint', onclick: () => emit('hints:request', {}) }, 'Hint −1★')));
+
+  // solved sheet
+  const starsEl = h('div', { class: 'stars', 'data-stars-earned': '3' });
+  const resultEl = h('p', { 'data-result': '' });
+  sheet.append(h('strong', {}, 'Lights out.'), starsEl, resultEl,
+    h('div', { class: 'row' },
+      h('button', { class: 'primary', 'data-action': 'next', onclick: () => emit('levels:start', { levelId: Math.min(50, state.board.levelId + 1) }) }, 'Next level'),
+      h('button', { 'data-action': 'replay', onclick: () => emit('levels:start', { levelId: state.board.levelId }) }, 'Replay'),
+      h('button', { 'data-action': 'levels', onclick: () => emit('nav:go', { screen: 'home' }) }, 'Levels')));
+
+  const consoleEl = debug ? h('div', { 'data-console': '' }) : null;
+  if (consoleEl) app.append(consoleEl);
+
+  // ---- logic ----
+  let sheetTimer = 0, openSheet = null;
+  function showSheet(id) {
+    if (id === openSheet) return;
+    const was = openSheet; openSheet = id;
+    backdrop.hidden = !id;
+    if (was && !id) { sheet.dataset.open = 'false'; setTimeout(() => { if (sheet.dataset.open === 'false') sheet.hidden = true; }, 320); }
+    if (id) { sheet.hidden = false; sheet.dataset.open = 'false'; requestAnimationFrame(() => requestAnimationFrame(() => { if (openSheet === id) sheet.dataset.open = 'true'; })); }
+  }
+  function setNav(screen, sheetId = null) { state.nav = { screen, sheet: sheetId }; home.hidden = screen !== 'home'; play.hidden = screen !== 'play'; showSheet(sheetId); }
+  function tutorialTarget() {
+    const b = state.board;
+    if (![1, 2].includes(b.levelId) || b.status !== 'playing') return null;
+    const s = solve(toMask(b.cells)); return s && s.length ? s[0] : null;
+  }
+  function renderBoard() {
+    const b = state.board;
+    const t = tutorialTarget();
+    state.tutorial = t === null ? { ...state.tutorial, status: b.status === 'solved' && [1, 2].includes(b.levelId) ? 'done' : state.tutorial.status, target: null }
+      : { status: 'active', levelId: b.levelId, step: b.moves, target: t, copyKey: String(b.levelId) };
+    for (let i = 0; i < 25; i++) {
+      const c = cells[i];
+      const lit = b.cells[i] ? 'true' : 'false';
+      if (c.dataset.lit !== lit) c.dataset.lit = lit;
+      if (state.hints.cell === i) c.dataset.hint = 'true'; else delete c.dataset.hint;
+      if (t === i) c.dataset.pointer = 'true'; else delete c.dataset.pointer;
+    }
+    board.dataset.status = b.status === 'solved' ? 'solved' : 'playing';
+    movesEl.textContent = String(b.moves);
+    parEl.textContent = String(b.par);
+    label.textContent = `Level ${b.levelId}`;
+    tut.textContent = t === null ? '' : b.levelId === 1 ? 'Tap the glowing light. It switches itself and its neighbours.' : 'Each tap flips a plus shape. Turn every light off.';
+  }
+  function renderHome() {
+    const p = state.progress;
+    for (const t of tiles.children) {
+      const n = Number(t.dataset.level);
+      t.dataset.stars = String(p.save.results[n]?.stars ?? 0);
+      t.dataset.locked = String(n > p.unlockedUpTo);
+      t.dataset.current = String(n === Math.min(p.unlockedUpTo, 50));
+    }
+  }
+  function renderConsole() { if (consoleEl) consoleEl.textContent = `debug · ${events.length} events · ${events.at(-1)?.type ?? ''}`; }
+
+  function emit(type, payload = {}) {
+    events.push({ type, payload, at: performance.now() });
+    const b = state.board;
+    switch (type) {
+      case 'levels:start': {
+        const l = list[payload.levelId - 1];
+        if (!l || payload.levelId > state.progress.unlockedUpTo) { events.push({ type: 'levels:refused', payload: { levelId: payload.levelId, reason: l ? 'locked' : 'unknown' } }); break; }
+        clearTimeout(sheetTimer);
+        state.board = { status: 'playing', levelId: l.id, start: l.cells, cells: l.cells, par: l.par, moves: 0, history: [] };
+        state.hints = { status: 'idle', levelId: null, cell: null };
+        state.progress.save.lastLevel = l.id; save();
+        setNav('play'); renderBoard(); break;
+      }
+      case 'board:press': {
+        if (b.status !== 'playing') break;
+        const m = toMask(b.cells) ^ pressMask(payload.index);
+        state.board = { ...b, cells: toCells(m), moves: b.moves + 1, history: [...b.history, payload.index] };
+        if (state.hints.cell === payload.index) state.hints = { status: 'idle', levelId: null, cell: null };
+        if (m === 0) solved();
+        renderBoard(); break;
+      }
+      case 'board:undo': {
+        if (b.status !== 'playing' || !b.history.length) break;
+        const i = b.history.at(-1);
+        state.board = { ...b, cells: toCells(toMask(b.cells) ^ pressMask(i)), moves: b.moves - 1, history: b.history.slice(0, -1) };
+        state.hints = { status: 'idle', levelId: null, cell: null };
+        renderBoard(); break;
+      }
+      case 'board:restart': {
+        if (b.status !== 'playing') break;
+        state.board = { ...b, cells: b.start, moves: 0, history: [] };
+        state.hints = { status: 'idle', levelId: null, cell: null };
+        renderBoard(); break;
+      }
+      case 'hints:request': {
+        if (b.status !== 'playing' || state.hints.status === 'showing') break;
+        const s = solve(toMask(b.cells));
+        if (!s || !s.length) break;
+        state.hints = { status: 'showing', levelId: b.levelId, cell: s[Math.floor(Math.random() * s.length)] };
+        const ph = state.progress.save.pendingHints; ph[b.levelId] = (ph[b.levelId] || 0) + 1; save();
+        renderBoard(); break;
+      }
+      case 'nav:go': setNav(payload.screen); renderHome(); break;
+      case 'nav:close_sheet': setNav(state.nav.screen); break;
+    }
+    renderConsole();
+  }
+  function solved() {
+    const b = state.board, p = state.progress.save;
+    const over = b.moves - b.par;
+    let stars = over <= 0 ? 3 : over <= 3 ? 2 : 1;
+    stars = Math.max(1, stars - (p.pendingHints[b.levelId] || 0));
+    delete p.pendingHints[b.levelId];
+    const prev = p.results[b.levelId];
+    p.results[b.levelId] = { stars: Math.max(stars, prev?.stars ?? 0), bestMoves: Math.min(b.moves, prev?.bestMoves ?? 1e9), solvedAt: Date.now() };
+    state.board = { ...state.board, status: 'solved' };
+    state.progress.unlockedUpTo = unlocked();
+    save(); renderHome();
+    starsEl.dataset.starsEarned = String(stars);
+    starsEl.textContent = '★'.repeat(stars) + '☆'.repeat(3 - stars);
+    resultEl.textContent = `${b.moves} moves · par ${b.par}`;
+    sheetTimer = setTimeout(() => setNav('play', 'solved'), 800);
+  }
+
+  renderHome();
+  if (debug) window.__lightsOut = { debug: { state: () => structuredClone(state), emit, events: () => events.slice() } };
+  if (bad) { fetch('https://example.invalid/font.woff2').catch(() => {}); console.error('fake: deliberate error'); }
+  requestAnimationFrame(() => requestAnimationFrame(() => performance.mark('lo:interactive')));
+})();
+</script>
+</body>
+</html>
