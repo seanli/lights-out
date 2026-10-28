@@ -1,8 +1,8 @@
 // progress: stars, best moves, unlocks and pending hint costs, saved on every change.
 // Works in memory when no storage service exists. Never deletes data it can't read: it keeps a backup.
 import * as v from 'valibot';
-import type { ModuleDef, ProgressSave, ProgressState, Scoring } from '../../contracts';
-import { freshSave, mergeSaves, readSave, starsFor, unlockedFrom } from './save';
+import type { ModuleDef, Pack, ProgressSave, ProgressState, Scoring } from '../../contracts';
+import { freshSave, mergeSaves, packProgress, readSave, starsFor, unlockedFrom } from './save';
 
 const int = v.pipe(v.number(), v.integer());
 
@@ -13,6 +13,8 @@ const RulesSchema = v.pipe(
     hintCost: v.pipe(int, v.minValue(0)),
     minStars: v.pipe(int, v.minValue(1), v.maxValue(3)),
     saveKey: v.pipe(v.string(), v.minLength(1)),
+    /** the Variety menu opens once this classic level is solved */
+    varietyAfter: v.pipe(int, v.minValue(1)),
   }),
   v.check((r) => r.twoStarsWithin >= r.threeStarsWithin, 'twoStarsWithin must be at least threeStarsWithin'),
 );
@@ -51,15 +53,30 @@ const progress: ModuleDef = {
     /** true when a damaged save couldn't be backed up: then it is never overwritten this visit */
     let holdWrites = false;
 
+    /** levels on the classic path (ids 1..count); Variety room levels are not counted */
     const levelCount = (): number | undefined => {
       const lv = ctx.read('levels');
-      return lv?.status === 'ready' && lv.list.length > 0 ? lv.list.length : undefined;
+      if (lv?.status !== 'ready') return undefined;
+      const n = lv.packs?.find((p) => p.kind === 'classic')?.count ?? lv.list.filter((l) => (l.pack ?? 'classic') === 'classic').length;
+      return n > 0 ? n : undefined;
+    };
+    const roomPacks = (): Pack[] => {
+      const lv = ctx.read('levels');
+      return lv?.status === 'ready' ? (lv.packs ?? []).filter((p) => p.kind !== 'classic') : [];
     };
     const current = (): ProgressSave => ctx.read('progress')?.save ?? freshSave();
     const solvedCount = (save: ProgressSave) => Object.keys(save.results).length;
 
+    const derive = (save: ProgressSave): ProgressState => ({
+      status: 'ready',
+      save,
+      unlockedUpTo: unlockedFrom(save, levelCount()),
+      scoring,
+      packs: packProgress(save, roomPacks()),
+      varietyOpen: save.results[String(rules.varietyAfter)] !== undefined,
+    });
     const writeSlice = (save: ProgressSave) => {
-      const next: ProgressState = { status: 'ready', save, unlockedUpTo: unlockedFrom(save, levelCount()), scoring };
+      const next = derive(save);
       ctx.write('progress', next);
       return next;
     };
@@ -131,10 +148,12 @@ const progress: ModuleDef = {
 
     ctx.on('levels:generated', () => {
       const cur = ctx.read('progress');
-      if (cur && cur.unlockedUpTo !== unlockedFrom(cur.save, levelCount())) writeSlice(cur.save);
+      if (cur && JSON.stringify(cur) !== JSON.stringify(derive(cur.save))) writeSlice(cur.save);
     });
 
-    ctx.on('levels:started', ({ levelId }) => {
+    ctx.on('levels:started', ({ levelId, pack }) => {
+      // lastLevel is the classic path's Continue; a Variety room level doesn't move it
+      if (pack !== undefined && pack !== 'classic') return;
       const save = current();
       if (save.lastLevel !== levelId) commit({ ...save, lastLevel: levelId });
     });
@@ -156,16 +175,25 @@ const progress: ModuleDef = {
         ? { stars: prev.stars > stars ? prev.stars : stars, bestMoves: Math.min(prev.bestMoves, moves), solvedAt: prev.solvedAt }
         : { stars, bestMoves: moves, solvedAt: now() };
       const { [k]: _spent, ...pendingHints } = save.pendingHints;
+      const before = derive(save);
       const after = commit({ ...save, results: { ...save.results, [k]: result }, pendingHints });
       const count = levelCount();
-      const raised = after.unlockedUpTo > unlockedFrom(save, count);
+      const room = roomPacks().find((p) => levelId >= p.first && levelId < p.first + p.count);
+      if (room) {
+        const was = before.packs?.[room.id]?.unlockedUpTo ?? 1, now = after.packs?.[room.id]?.unlockedUpTo ?? 1;
+        // the newly startable level, never the one just solved (the last level of a room unlocks nothing)
+        const unlocked = now > was && room.first + now - 1 > levelId ? room.first + now - 1 : null;
+        ctx.emit('progress:level_completed', { levelId, stars, moves, par, hintsUsed, improved, unlocked, allSolved: false, pack: room.id, firstSolve: !prev });
+        return;
+      }
+      const raised = after.unlockedUpTo > before.unlockedUpTo;
       const unlocked = raised && (count === undefined || levelId + 1 <= count) ? levelId + 1 : null;
       let allSolved = false;
       if (count !== undefined) {
         allSolved = true;
         for (let id = 1; id <= count; id++) if (!after.save.results[String(id)]) { allSolved = false; break; }
       }
-      ctx.emit('progress:level_completed', { levelId, stars, moves, par, hintsUsed, improved, unlocked, allSolved, firstSolve: !prev });
+      ctx.emit('progress:level_completed', { levelId, stars, moves, par, hintsUsed, improved, unlocked, allSolved, pack: 'classic', firstSolve: !prev });
     });
 
     ctx.on('progress:clear', () => {
@@ -187,11 +215,13 @@ const progress: ModuleDef = {
       commands: {
         stars() {
           const st = ctx.read('progress')!;
-          const results = Object.values(st.save.results);
-          const total = results.reduce((n, r) => n + r.stars, 0);
           const count = levelCount();
+          const results = Object.entries(st.save.results).filter(([k]) => !count || Number(k) <= count).map(([, r]) => r);
+          const total = results.reduce((n, r) => n + r.stars, 0);
           const pending = Object.entries(st.save.pendingHints).map(([id, n]) => `${id}×${n}`).join(', ') || 'none';
-          return `${results.length}${count ? ` of ${count}` : ''} solved · ${total}★${count ? ` of ${count * 3}` : ''} · unlocked up to ${st.unlockedUpTo} · last level ${st.save.lastLevel || '—'} · pending hints: ${pending}`;
+          const rooms = Object.entries(st.packs ?? {}).map(([id, p]) => `${id} ${p.solved} solved ${p.stars}★ up to ${p.unlockedUpTo}`).join(', ');
+          return `${results.length}${count ? ` of ${count}` : ''} solved · ${total}★${count ? ` of ${count * 3}` : ''} · unlocked up to ${st.unlockedUpTo} · last level ${st.save.lastLevel || '—'} · pending hints: ${pending}`
+            + ` · Variety ${st.varietyOpen ? `open${rooms ? `: ${rooms}` : ''}` : `opens after level ${rules.varietyAfter}`}`;
         },
         unlock(args) {
           const count = levelCount();

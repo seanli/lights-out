@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import type { Cells } from '../../contracts';
 import { bootModule } from '../../../test/fake-ctx';
 import { refPress, refSolve } from '../../../test/ref-solver';
+import { parseShape, pressTargets } from '../../lib/shape';
 import board from './index';
 
 const off = (): Cells => new Array(25).fill(false);
@@ -231,6 +232,76 @@ describe('board', () => {
       const t = playing();
       expect(String(t.instance!.commands!.win!([]))).toMatch(/no solver/);
       expect(t.state('board').moves).toBe(0);
+    });
+  });
+
+  describe('shaped boards', () => {
+    const ring = parseShape(['XXXXXXX', 'XXXXXXX', 'XX...XX', 'XX...XX', 'XX...XX', 'XXXXXXX', 'XXXXXXX']);
+    const four = { cols: 4, rows: 4, mask: null };
+    const grid = (n: number, ...idx: number[]): Cells => { const c = new Array(n).fill(false); for (const i of idx) c[i] = true; return c; };
+
+    test('loads a shaped board and stores its shape; the classic board stores none', () => {
+      const t = bootModule(board);
+      const cells = grid(49, 0, 8);
+      t.emit('board:load', { levelId: 5001, cells, par: 1, shape: ring });
+      expect(t.state('board')).toMatchObject({ status: 'playing', levelId: 5001, cells, shape: ring });
+      expect(t.seen('board:loaded')).toEqual({ levelId: 5001, cells, par: 1, shape: ring });
+      t.emit('board:load', { levelId: 3, cells: lit(0), par: 1, shape: { cols: 5, rows: 5, mask: null } });
+      expect('shape' in t.state('board')).toBe(false);
+      expect(t.seen('board:loaded')).toEqual({ levelId: 3, cells: lit(0), par: 1 });
+    });
+
+    test.each([
+      ['wrong length for the shape', grid(25, 0), ring],
+      ['a lit gap', grid(49, 24), ring],
+      ['a shape that is too big', grid(64, 0), { cols: 8, rows: 8, mask: null }],
+      ['a mask of the wrong length', grid(16, 0), { cols: 4, rows: 4, mask: [true, false] }],
+    ])('refuses a bad shaped board (%s)', (_, cells, shape) => {
+      const t = bootModule(board);
+      t.emit('board:load', { levelId: 1, cells, par: 1, shape });
+      expect(t.seen('board:refused')).toEqual({ command: 'board:load', reason: 'bad_board' });
+      expect(t.state('board').status).toBe('empty');
+    });
+
+    test('presses follow the shape: never across a gap; gaps and off-grid presses are refused', () => {
+      const t = bootModule(board);
+      t.emit('board:load', { levelId: 5001, cells: grid(49, 0, 1, 2, 3, 4, 5, 6), par: 7, shape: ring });
+      const before = t.state('board').cells;
+      t.emit('board:press', { index: 15 }); // beside the hole: reaches up, down and left only
+      const changed = t.state('board').cells.flatMap((on, i) => (on !== before[i] ? [i] : []));
+      expect(changed).toEqual([...pressTargets(ring, 15)].sort((a, b) => a - b));
+      expect(changed).not.toContain(16);
+      for (const index of [16, 24, 49, -1, 2.5]) {
+        t.emit('board:press', { index });
+        expect(t.seen('board:refused')).toEqual({ command: 'board:press', reason: 'bad_index' });
+      }
+      expect(t.state('board').moves).toBe(1);
+      t.emit('board:undo', {});
+      expect(t.state('board').cells).toEqual(before);
+    });
+
+    test('a 4×4 board plays to a solve; restart keeps the shape', () => {
+      const t = bootModule(board);
+      t.emit('board:load', { levelId: 1001, cells: grid(16, ...pressTargets(four, 5)), par: 1, shape: four });
+      t.emit('board:press', { index: 5 });
+      expect(t.state('board').status).toBe('solved');
+      expect(t.seen('board:solved')).toEqual({ levelId: 1001, moves: 1, par: 1 });
+      t.emit('board:restart', {});
+      expect(t.state('board')).toMatchObject({ status: 'playing', shape: four, moves: 0 });
+      t.emit('board:press', { index: 16 });
+      expect(t.seen('board:refused')).toEqual({ command: 'board:press', reason: 'bad_index' });
+    });
+
+    test('console show and set handle the shape', () => {
+      const t = bootModule(board);
+      t.emit('board:load', { levelId: 5001, cells: grid(49, 0), par: 1, shape: ring });
+      const out = String(t.instance!.commands!.show!([]));
+      expect(out.split('\n')[0]).toContain('7×7');
+      expect(out.split('\n')[3]).toBe('. .       . .');
+      expect(String(t.instance!.commands!.set!(['1'.repeat(25)]))).toMatch(/49 characters/);
+      expect(String(t.instance!.commands!.set!(['1'.repeat(49)]))).toMatch(/gap/);
+      t.instance!.commands!.set!(['1'.padEnd(49, '0')]);
+      expect(t.state('board')).toMatchObject({ levelId: 5001, shape: ring });
     });
   });
 });

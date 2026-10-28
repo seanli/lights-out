@@ -1,6 +1,7 @@
 // Pure helpers for the console: no DOM, no state.
-import { CELL_COUNT, SIZE } from '../../contracts';
-import type { EventRecord } from '../../contracts';
+import { CELL_COUNT, MAX_CELLS, SIZE } from '../../contracts';
+import type { EventRecord, Shape } from '../../contracts';
+import { isCell, shapeOf } from '../../lib/shape';
 
 /** seconds since the console started, short enough for the time column */
 export function fmtTime(at: number, t0: number): string {
@@ -19,19 +20,25 @@ export function isFact(type: string): boolean {
   return /(ed|shown|done)$/.test(verb);
 }
 
+/** a board of any shape (9..49 booleans) */
 export const isCells = (v: unknown): v is boolean[] =>
-  Array.isArray(v) && v.length === CELL_COUNT && v.every((x) => typeof x === 'boolean');
+  Array.isArray(v) && v.length >= 9 && v.length <= MAX_CELLS && v.every((x) => typeof x === 'boolean');
 
 export const litCount = (cells: readonly boolean[]) => cells.reduce((n, c) => n + (c ? 1 : 0), 0);
 
-/** 5 rows of 5 booleans, row-major */
-export function boardRows(cells: readonly boolean[]): boolean[][] {
-  const rows: boolean[][] = [];
-  for (let r = 0; r < SIZE; r++) rows.push(cells.slice(r * SIZE, r * SIZE + SIZE));
+/** rows × cols, row-major; a gap is null (absent shape = classic 5×5) */
+export function boardRows(cells: readonly boolean[], shape?: Shape): (boolean | null)[][] {
+  const s = shapeOf(shape);
+  const rows: (boolean | null)[][] = [];
+  for (let r = 0; r < s.rows; r++) {
+    const row: (boolean | null)[] = [];
+    for (let c = 0; c < s.cols; c++) row.push(isCell(s, r * s.cols + c) ? cells[r * s.cols + c] === true : null);
+    rows.push(row);
+  }
   return rows;
 }
 
-export const cellName = (i: number) => `r${Math.floor(i / SIZE)} c${i % SIZE}`;
+export const cellName = (i: number, cols = SIZE) => `r${Math.floor(i / cols)} c${i % cols}`;
 
 /** keyed: slice summaries name every field; event payloads stay terse */
 function shortValue(k: string, v: unknown, keyed = false): string | null {

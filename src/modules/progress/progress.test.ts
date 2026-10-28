@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import type { LevelsState, ProgressSave, StorageService, Tone, ViewService } from '../../contracts';
+import { CLASSIC_SHAPE, type LevelsState, type Pack, type ProgressSave, type StorageService, type Tone, type ViewService } from '../../contracts';
 import { bootModule, createMemoryStorage } from '../../../test/fake-ctx';
 import progress from './index';
 import { migrate, readSave, starsFor } from './save';
@@ -13,6 +13,20 @@ function levelsSlice(count: number): LevelsState {
   return { status: 'ready', list: Array.from({ length: count }, (_, i) => ({ id: i + 1, cells, par: 3 })), chapters: [] };
 }
 
+/** the classic 50 plus two Variety rooms: 4x4 (ids 1001–1012) and ring (ids 5001–5004) */
+function levelsWithRooms(): LevelsState {
+  const base = levelsSlice(50);
+  const four = { cols: 4, rows: 4, mask: null };
+  const packs: Pack[] = [
+    { id: 'classic', name: 'Classic', kind: 'classic', shape: CLASSIC_SHAPE, first: 1, count: 50 },
+    { id: '4x4', name: 'Small room', kind: 'size', shape: four, first: 1001, count: 12 },
+    { id: 'ring', name: 'Ring', kind: 'shape', shape: four, first: 5001, count: 4 },
+  ];
+  const cells = Array.from({ length: 16 }, (_, i) => i === 5);
+  const rooms = packs.slice(1).flatMap((p) => Array.from({ length: p.count }, (_, i) => ({ id: p.first + i, cells, par: 3, pack: p.id, index: i + 1, shape: four })));
+  return { ...base, list: [...base.list, ...rooms], packs };
+}
+
 function stubView() {
   const notices = new Map<string, { text: string; tone?: Tone }>();
   const view: ViewService = {
@@ -24,10 +38,10 @@ function stubView() {
   return { view, notices };
 }
 
-function boot(opts: { storage?: StorageService; levels?: number | null } = {}) {
+function boot(opts: { storage?: StorageService; levels?: number | null | LevelsState } = {}) {
   const storage = opts.storage ?? createMemoryStorage();
   const { view, notices } = stubView();
-  const levels = opts.levels === null ? undefined : levelsSlice(opts.levels ?? 50);
+  const levels = opts.levels === null ? undefined : typeof opts.levels === 'object' ? opts.levels : levelsSlice(opts.levels ?? 50);
   const t = bootModule(progress, { services: { storage, view }, state: levels ? { levels } : {} });
   const solve = (levelId: number, moves: number, par = 3) => {
     t.emit('board:solved', { levelId, moves, par });
@@ -63,7 +77,7 @@ describe('progress', () => {
 
   test('solving the frontier unlocks the next level once; replays never unlock again', () => {
     const { t, solve } = boot();
-    expect(solve(1, 3)).toEqual({ levelId: 1, stars: 3, moves: 3, par: 3, hintsUsed: 0, improved: true, unlocked: 2, allSolved: false, firstSolve: true });
+    expect(solve(1, 3)).toEqual({ levelId: 1, stars: 3, moves: 3, par: 3, hintsUsed: 0, improved: true, unlocked: 2, allSolved: false, pack: 'classic', firstSolve: true });
     expect(t.state('progress').unlockedUpTo).toBe(2);
     const again = solve(1, 3);
     expect(again.unlocked).toBeNull();
@@ -262,3 +276,66 @@ describe('two tabs', () => {
   });
 });
 
+describe('Variety rooms', () => {
+  const rooms = () => boot({ levels: levelsWithRooms() });
+
+  test('room results never move the classic path, its count or allSolved', () => {
+    const { t, solve } = rooms();
+    expect(solve(1001, 3)).toMatchObject({ levelId: 1001, pack: '4x4', unlocked: 1002, allSolved: false, firstSolve: true });
+    expect(solve(5004, 3)).toMatchObject({ pack: 'ring', unlocked: null });
+    expect(t.state('progress').unlockedUpTo).toBe(1); // not 5005
+    expect(solve(1, 3)).toMatchObject({ pack: 'classic', unlocked: 2 });
+    expect(t.state('progress').unlockedUpTo).toBe(2);
+    t.instance!.commands!.unlock!(['49']);
+    expect(solve(50, 3)).toMatchObject({ allSolved: true, firstSolve: true, unlocked: null });
+    expect(t.state('progress').unlockedUpTo).toBe(50);
+    expect(t.instance!.commands!.stars!([])).toMatch(/^50 of 50 solved · 150★ of 150/);
+  });
+
+  test('per room: unlockedUpTo is the highest solved index + 1 (capped), with solved and stars', () => {
+    const { t, solve } = rooms();
+    expect(t.state('progress').packs).toEqual({ '4x4': { unlockedUpTo: 1, solved: 0, stars: 0 }, ring: { unlockedUpTo: 1, solved: 0, stars: 0 } });
+    solve(1001, 3);
+    solve(1002, 9);
+    expect(t.state('progress').packs!['4x4']).toEqual({ unlockedUpTo: 3, solved: 2, stars: 4 });
+    for (const id of [5001, 5002, 5003, 5004]) solve(id, 3);
+    expect(t.state('progress').packs!.ring).toEqual({ unlockedUpTo: 4, solved: 4, stars: 12 });
+  });
+
+  test('Variety opens when classic level varietyAfter (20) is solved', () => {
+    const { t, solve } = rooms();
+    expect(t.state('progress').varietyOpen).toBe(false);
+    t.instance!.commands!.unlock!(['19']);
+    expect(t.state('progress').varietyOpen).toBe(false);
+    solve(20, 3);
+    expect(t.state('progress').varietyOpen).toBe(true);
+  });
+
+  test('a room level never becomes the classic Continue level', () => {
+    const { t } = rooms();
+    t.emit('levels:started', { levelId: 7, par: 3, count: 50, pack: 'classic', index: 7, next: 8 });
+    t.emit('levels:started', { levelId: 1003, par: 3, count: 12, pack: '4x4', index: 3, next: 1004 });
+    expect(t.state('progress').save.lastLevel).toBe(7);
+  });
+
+  test('an existing v1 save loads unchanged and gains room results in the same shape', () => {
+    const v1: ProgressSave = {
+      version: 1,
+      results: { '1': { stars: 3, bestMoves: 1, solvedAt: 10 }, '2': { stars: 2, bestMoves: 5, solvedAt: 20 }, '20': { stars: 1, bestMoves: 12, solvedAt: 30 } },
+      pendingHints: { '3': 1 },
+      lastLevel: 3,
+    };
+    const storage = createMemoryStorage({ progress: v1 });
+    const { t, solve } = boot({ storage, levels: levelsWithRooms() });
+    expect(t.seen('progress:loaded')).toEqual({ source: 'saved', solved: 3, unlockedUpTo: 21 });
+    expect(t.state('progress').save).toEqual(v1);
+    expect(t.state('progress').varietyOpen).toBe(true);
+    expect(storage.get('progress.backup')).toBeUndefined(); // nothing was migrated or recovered
+    solve(1001, 3);
+    const saved = storage.get('progress') as ProgressSave;
+    expect(saved).toEqual({ ...v1, results: { ...v1.results, '1001': { stars: 3, bestMoves: 3, solvedAt: expect.any(Number) } } });
+    // and an older build (no rooms) reading this save still sees the classic path where it was
+    const old = boot({ storage });
+    expect(old.t.state('progress').unlockedUpTo).toBe(21);
+  });
+});
