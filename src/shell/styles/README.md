@@ -7,9 +7,11 @@ Fonts are bundled woff2 (Fraunces 600, Manrope 500/700, Latin only, 45 KB). ≤ 
 | Class | Variants / parts | States (what drives them) |
 |---|---|---|
 | `.app` | the single column, 480px max (880px in short landscape), safe-area gutters | `height:100%` |
-| `.screen` | `.screen--play` (grid: header, stats, `.board-slot`, actions), `.screen--scroll` | `[hidden]`, `[data-enter="forward"\|"back"]` (shell: 200ms fade in, ±12px) |
-| `.screen-header` | `> button` · `__title` (`.eyebrow` + `strong`) · `__end` (right slot) | |
-| `.btn` | `--primary` `--secondary` `--ghost` `--icon` `--hint` `--block` `--stack` (icon over label), `__meta` | `:hover` `:active` (scale) `:focus-visible` `:disabled` `[aria-disabled="true"]` `[aria-pressed="true"]` |
+| `.screen` | `.screen--play` (grid: header, stats, `.board-slot`, actions), `.screen--scroll` (reaches the screen edges, pads back by `--gutter`, children never shrink) | `[hidden]`, `[data-enter="forward"\|"back"]` (shell: 200ms fade in, ±12px) |
+| `.screen-header` | `> button.btn--icon` · `__title` (`.eyebrow` + `strong`) · `__end` (a row; may be empty, always reserved) | — (see "Shared screen parts") |
+| `.bar` | `> .btn` (equal widths), `.bar__main` (1.5× wide: Hint, Next), `.bar--icons` (icon above a small label) | short screens (`max-height: 640px`): `--bar-h-short`, `.bar--icons` puts the icon beside the label; buttons use `.btn` states |
+| `.btn` | `--primary` `--secondary` `--ghost` `--icon` `--hint` `--danger` `--link` (quiet underlined text, 44px tall) `--block` `--stack` (icon over label), `__meta` | `:hover` `:active` (scale) `:focus-visible` `:disabled` `[aria-disabled="true"]` `[aria-pressed="true"]` |
+| `.menu-list` > `.menu-row` | `__glyph` (a `.room-glyph` or an `.icon`) `__body` > `__title` + `__sub`, `__end` (score or `.menu-row__mark`); rows may sit in `<li>` | `:active` `:hover` `:focus-visible` `[aria-disabled="true"]` (dim glyph, quiet words, inert) |
 | `.board-slot` | size container holding `.play-tiers`, `.board`, `.tutorial-line` | |
 | `.board` | `.board--sweep` (warm wash; `--i` = distance), `.board--intro` (lit cells power on by `--i`); `> [data-gap]` keeps its slot, invisible | `[data-status="playing"\|"solved"]` (solved = dimmed, inert), `[data-n="4".."10"]` (gap, pad, radius, glow scale with the cell), `[data-scroll]`, `[data-aim]` |
 | `.cell` | button per light | `[data-lit]` (fades `--lit` over `--dur-flip` after `--flip-delay`) `[data-flip]` (bloom on / afterglow off; remove on `animationend`) `[data-hint="true"]` `[data-pointer="true"]` `:active` (lit: brighter) `:focus-visible` |
@@ -17,13 +19,13 @@ Fonts are bundled woff2 (Fraunces 600, Manrope 500/700, Latin only, 45 KB). ≤ 
 | `.chip` | `--lg` (star total), `__of`; group in `.play-tiers` | `[data-state="now"\|"lost"\|"hint"]` |
 | `.stars` > `.star` | `.stars--xs/--md/--lg`, `.stars--reveal` (staggered fill-in) | `.star[data-state="on"\|"off"\|"lost"]` |
 | `.level-grid` > `.level-tile` | `__tag` ("Play"), `.stars` inside | `[data-stars="1".."3"]`/`[data-solved="true"]` (warm dark; 3★ glows) `[data-locked="true"]` (dark socket) `[data-current="true"]` (lit) `:active` `:focus-visible` |
-| `.chapter` | `.eyebrow` + `__meta`; ahead: `__body`, `.glyph--dim` | `[data-locked="true"]` (one quiet row, hairline above) |
+| `.chapter` | `.eyebrow` + `__meta` (a section head: eyebrow left, meta right); ahead: `__body`, `.glyph--dim` | `[data-locked="true"]` (one quiet row, hairline above) |
 | `.glyph` | 3×3 logo of `<i>`, `--dim` | `i[data-lit="true"]` |
-| `.sheet` / `.sheet-backdrop` | `__handle` `__title` `__result` (`.dim`) `__note` `__actions` | `[data-open="true"\|"false"]` (slides from translateY(100%)), `[hidden]` |
+| `.sheet` / `.sheet-backdrop` | `--sheet-pad` inside (handle close to the top); `__handle` `__title` `__result` (`.dim`) `__note` `__actions` (stacked, `--space-2` apart) | `[data-open="true"\|"false"]` (slides from translateY(100%)), `[hidden]` |
 | `.notice` | slim banner with a tone dot | `[data-tone="info"\|"warn"\|"error"]` |
 | `.tutorial-line` | one line of coach copy; keeps its height when `:empty` | `[data-tone="coach"\|"hint"]` (coach: `--text-md`, full contrast); `[data-coaching="true"]` ancestor hides tiers + hint |
 | `.console` | `__bar` `__title` `__body` `__section` `__head` `__meta` `__content` `__row` (`--repeat`) `__count` (×12) `__kv` `__chips`/`__chip` `__cmd` `__input` | `[data-collapsed="true"]`, `__head[aria-expanded="false"]` hides the next sibling, `__row[data-tone]`, `__meta[data-tone="warn"]`, `__chip[data-up="false"]` |
-| helpers | `.eyebrow` `.caption` `.display` `.muted` `.num` `.row` `.icon` (inline SVG) | |
+| helpers | `.eyebrow` (11px/700, tracked caps, dim) `.caption` (the same, faint) `.display` `.muted` `.num` `.row` `.icon` (inline SVG) | |
 
 ## Board sizing (no JS)
 A play board (`.board[data-n]`) gets `--board-cols`/`--board-rows` inline and square cells as big as its fit box allows:
@@ -39,3 +41,24 @@ Views set nothing else for size. `data-lit` is never delayed: the paint follows 
 Cheap motion: bloom, afterglow and the win wash are a `.cell::after` layer whose blur is painted once; only its `opacity` animates. No blur radius or shadow is ever animated.
 Shell: info/warn notices are hidden on the play screen (errors show everywhere); home's scroll position is restored when it comes back.
 Solve: set `data-status="solved"` and add `.board--sweep` at the same time. The 800ms sweep runs, then the cells dim. Remove the class before the next level.
+
+## Shared screen parts (use these; don't restyle them in a module)
+Header, on every screen but home (home's logo row is the same `--header-h` tall, so the two line up):
+```html
+<header class="screen-header">
+  <button class="btn btn--icon" data-action="…-back" aria-label="Back"><svg class="icon">…</svg></button>
+  <div class="screen-header__title"><span class="eyebrow">Step 2 of 4</span><strong>Wide room</strong></div>
+  <div class="screen-header__end"><!-- empty, or 44px icon buttons --></div>
+</header>
+```
+Columns `minmax(44px, 1fr) · title · minmax(44px, 1fr)`: the title is truly centred. One line each: write eyebrows to fit 184px
+at 320 wide (about 22 caps, "Step 2 of 4", "Chapter 2 · Boss"); the title steps down to 18px under 360px; a longer text ends in "…".
+Bottom bar: `<nav class="bar"><button class="btn btn--ghost">Previous</button><button class="btn btn--primary bar__main">Next</button></nav>`;
+play's tools: `<div class="bar bar--icons">` with `<button class="btn">` + `<svg class="icon">` + label. Disabled, never hidden.
+Menu row: `<div class="menu-list"><button class="menu-row"><span class="menu-row__glyph">…</span><span class="menu-row__body">`
+`<span class="menu-row__title">Classic</span><span class="menu-row__sub">5×5 · 50 levels</span></span><span class="menu-row__end">…</span></button></div>`.
+
+## Layout rhythm (tokens.css)
+Side padding `--gutter` (16→20px; `.app` pads it once, with the safe areas). Between a screen's blocks `--stack` (12px, `.screen`'s gap);
+between sections of a scrolling screen `--stack-lg` (24px). A section's eyebrow sits `--space-2` above its rows. Inside a card or panel
+`--card-pad`, inside a sheet `--sheet-pad`. Heights: `--header-h`, `--bar-h` / `--bar-h-short`, `--row-h`; every target ≥ `--tap-min`.

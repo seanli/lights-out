@@ -17,7 +17,7 @@ button, input { font: inherit; color: inherit; }
 [hidden] { display: none !important; }
 :focus-visible { outline: var(--ring-w) solid var(--c-focus); outline-offset: var(--focus-offset); }
 .icon { width: var(--icon); height: var(--icon); flex: none; fill: none; stroke: currentColor; stroke-width: var(--icon-stroke); stroke-linecap: round; stroke-linejoin: round; }
-.eyebrow { font: var(--fw-bold) var(--text-xs) / var(--leading-tight) var(--font-ui); letter-spacing: var(--tracking-eyebrow); text-transform: uppercase; color: var(--c-text-dim); }
+.eyebrow { font: var(--fw-bold) var(--text-2xs) / var(--leading-tight) var(--font-ui); letter-spacing: var(--tracking-eyebrow); text-transform: uppercase; color: var(--c-text-dim); }
 .caption { font: var(--fw-bold) var(--text-2xs) / var(--leading-tight) var(--font-ui); letter-spacing: var(--tracking-eyebrow); text-transform: uppercase; color: var(--c-text-faint); }
 .display { font: var(--fw-display) var(--text-xl) / var(--leading-tight) var(--font-display); letter-spacing: var(--tracking-display); text-wrap: balance; }
 .muted { color: var(--c-text-dim); font-size: var(--text-sm); }
@@ -34,17 +34,31 @@ button, input { font: inherit; color: inherit; }
   font-family: var(--font-ui);
   overflow-x: clip;
 }
-.screen { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--space-3); }
-.screen--scroll { overflow-y: auto; overscroll-behavior: contain; }
+.screen { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--stack); }
+/* a scrolling screen reaches the screen's edges (so glows and focus rings at the gutter aren't clipped) and pads its
+   content back in by the gutter; nothing in it shrinks to fit */
+.screen--scroll {
+  overflow-y: auto; overscroll-behavior: contain;
+  margin-inline: calc(-1 * var(--gutter)); padding-inline: var(--gutter); padding-bottom: var(--space-2);
+}
+.screen--scroll > * { flex-shrink: 0; }
 /* screen change (the shell sets data-enter on the incoming screen, never during play): fade in from the room */
 .screen[data-enter] { animation: lo-screen-in var(--dur-screen) var(--ease-out) both; }
 .screen[data-enter="back"] { --enter-x: calc(-1 * var(--enter-shift)); }
 @keyframes lo-screen-in { from { opacity: 0; translate: var(--enter-x, var(--enter-shift)) var(--space-1-5); } }
-.screen-header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; min-height: var(--tap-min); gap: var(--space-2); }
-.screen-header > :first-child { justify-self: start; }
-.screen-header__title { text-align: center; display: flex; flex-direction: column; align-items: center; gap: var(--space-1); min-width: 0; }
-.screen-header__title strong { font: var(--fw-display) var(--text-lg) / var(--leading-tight) var(--font-display); text-wrap: balance; }
-.screen-header__end { justify-self: end; display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-1); text-align: right; }
+/* screen header (every screen but home): back · eyebrow + title · end slot, --header-h tall.
+   Both side columns are at least a tap wide and always equal, so the title sits at the true centre whatever the
+   end slot holds (or doesn't); one line each, a long title stops short of the side columns instead of wrapping. */
+.screen-header {
+  display: grid; grid-template-columns: minmax(var(--tap-min), 1fr) minmax(0, max-content) minmax(var(--tap-min), 1fr);
+  align-items: center; column-gap: var(--space-2); min-height: var(--header-h); flex: none;
+}
+.screen-header > :first-child:not(.screen-header__title) { grid-column: 1; justify-self: start; }
+.screen-header__title { grid-column: 2; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: var(--space-1); text-align: center; }
+.screen-header__title > * { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* the title steps down a little under 360px wide, so a lesson title ("Chase the lights down") still fits at 320 */
+.screen-header__title > strong { font: var(--fw-display) min(var(--text-lg), 5.6vw) / var(--leading-snug) var(--font-display); letter-spacing: var(--tracking-display); }
+.screen-header__end { grid-column: 3; justify-self: end; display: flex; align-items: center; justify-content: flex-end; gap: var(--space-1); }
 
 /* play screen. Portrait: one column, the board-slot takes the leftover height.
    .board-slot is a size container holding tiers + board + tutorial line; the board is the
@@ -75,14 +89,40 @@ button, input { font: inherit; color: inherit; }
 .btn--ghost { background: var(--c-none); box-shadow: var(--shadow-outline); }
 .btn--icon { width: var(--tap-min); min-height: var(--tap-min); height: var(--tap-min); padding: 0; border-radius: var(--radius-pill); background: var(--c-surface); box-shadow: var(--shadow-outline); }
 .btn--hint { color: var(--c-hint); box-shadow: inset 0 var(--hairline) 0 var(--c-sheen), 0 0 0 var(--hairline) var(--c-hint); }
+/* "this deletes things" (the reset confirmation) */
+.btn--danger { color: var(--c-error); background: var(--c-tone-bg-error); box-shadow: inset 0 0 0 var(--hairline) var(--c-error); }
+/* a quiet text link ("Learn the patterns", "Reset progress"): no surface, dim, underlined, still a full tap tall */
+.btn--link {
+  min-height: var(--tap-min); padding-inline: var(--space-2); background: var(--c-none); box-shadow: none;
+  font-size: var(--text-sm); color: var(--c-text-dim);
+  text-decoration: underline; text-underline-offset: var(--underline-offset); text-decoration-color: var(--c-line-strong);
+}
+.btn--link:active { transform: none; color: var(--c-text); }
 .btn[aria-pressed="true"] { background: var(--c-surface-3); color: var(--c-accent-hi); box-shadow: inset 0 0 0 var(--hairline) var(--c-accent); }
 .btn--ghost, .btn--icon { --btn-hover: var(--c-surface-2); }
 .btn--hint { --btn-hover: var(--c-hint-bg); }
+.btn--danger { --btn-hover: var(--c-tone-bg-error); }
+.btn--link { --btn-hover: var(--c-none); }
 @media (hover: hover) {
   .btn:hover:not(:disabled, [aria-disabled="true"]) { background-color: var(--btn-hover, var(--c-surface-3)); }
   .btn--primary:hover:not(:disabled, [aria-disabled="true"]) { filter: brightness(var(--hover-brightness)); }
+  .btn--link:hover:not(:disabled, [aria-disabled="true"]) { color: var(--c-text); text-decoration-color: currentColor; }
 }
 .btn:disabled, .btn[aria-disabled="true"] { opacity: var(--disabled-opacity); cursor: not-allowed; transform: none; }
+
+/* ---------- bottom bar: the play actions, a lesson's Previous / Next ----------
+   One row of buttons --bar-h tall (--bar-h-short on short screens), equal widths, `.bar__main` (Hint, Next) wider.
+   A button that doesn't apply right now is disabled, never hidden, so nothing moves under the thumb. */
+.bar { display: flex; gap: var(--space-2); flex: none; }
+.bar > .btn { flex: 1 1 0; min-width: 0; height: var(--bar-h); min-height: var(--bar-h); padding-inline: var(--space-2); }
+.bar > .bar__main { flex-grow: 1.5; }
+/* tools (play's Undo, Restart, Hint): icon above a small label */
+.bar--icons > .btn { flex-direction: column; gap: var(--space-1); font-size: var(--text-sm); }
+@media (max-height: 640px) {
+  .bar > .btn { height: var(--bar-h-short); min-height: var(--bar-h-short); }
+  /* short screens: the icon beside its label; each button as wide as its content, the spare width shared */
+  .bar--icons > .btn { flex-basis: auto; flex-direction: row; gap: var(--space-1-5); }
+}
 
 /* ---------- board + cells ---------- */
 .board {
@@ -269,6 +309,38 @@ button, input { font: inherit; color: inherit; }
 .chapter[data-locked="true"] .chapter__body { flex: 1; display: flex; flex-direction: column; gap: var(--space-1); }
 .chapter[data-locked="true"] .chapter__meta, .chapter[data-locked="true"] .eyebrow { color: var(--c-text-faint); }
 
+/* ---------- menu row: one full-width row per choice (home's boards and Learn, the Learn list), hairlines between ----------
+   glyph · title + one sub-line · end slot (a score, a done mark). The list draws the hairlines, its rows may be wrapped in <li>. */
+.menu-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; border-block: var(--hairline) solid var(--c-line); }
+.menu-list > * + * { border-top: var(--hairline) solid var(--c-line); }
+.menu-row {
+  display: flex; align-items: center; gap: var(--space-4); width: 100%; min-height: var(--row-h);
+  padding: var(--space-3) var(--space-1); border: 0; border-radius: 0; cursor: pointer; text-align: left;
+  font: inherit; color: var(--c-text); background: var(--c-none);
+  touch-action: manipulation; transition: background-color var(--dur-fast) var(--ease-out);
+}
+.menu-row:active { background-color: var(--c-surface); }
+@media (hover: hover) { .menu-row:not([aria-disabled="true"]):hover { background-color: var(--c-surface); } }
+.menu-row:focus-visible { outline-offset: calc(-1 * var(--ring-w)); border-radius: var(--radius-sm); }
+.menu-row__glyph { display: flex; align-items: center; justify-content: center; width: var(--row-glyph); height: var(--row-glyph); flex: none; color: var(--c-text-dim); }
+/* a room's picture fills the box; a tower's may use the row's height */
+.menu-row__glyph .room-glyph { --glyph-box: var(--row-glyph); --glyph-tall: calc(var(--row-h) - var(--space-3)); }
+.menu-row__body { display: flex; flex-direction: column; gap: var(--space-1); flex: 1; min-width: 0; }
+.menu-row__title { font: var(--fw-display) var(--text-lg) / var(--leading-snug) var(--font-display); }
+.menu-row__sub { font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--c-text-dim); }
+.menu-row__end { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-1); flex: none; font-size: var(--text-sm); color: var(--c-text-dim); font-variant-numeric: tabular-nums; }
+/* a done mark (an .icon) in the end slot */
+.menu-row__mark { color: var(--c-accent); }
+/* not open yet: a dim picture and quiet words, nothing to tap */
+.menu-row[aria-disabled="true"] { cursor: default; }
+.menu-row[aria-disabled="true"]:active { background-color: var(--c-none); }
+.menu-row[aria-disabled="true"] .menu-row__glyph { opacity: var(--lost-opacity); }
+.menu-row[aria-disabled="true"] .menu-row__title { color: var(--c-text-dim); }
+.menu-row[aria-disabled="true"] .menu-row__sub { color: var(--c-text-faint); }
+@media (max-width: 359px) {
+  .menu-row { --row-glyph: var(--row-glyph-narrow); gap: var(--space-3); }
+}
+
 .glyph { display: grid; grid-template-columns: repeat(3, var(--glyph-cell)); gap: var(--glyph-gap); flex: none; }
 .glyph > i { width: var(--glyph-cell); height: var(--glyph-cell); border-radius: var(--glyph-radius); background: var(--c-tile-off-hi); }
 .glyph > i[data-lit="true"] { background: var(--c-tile-on); box-shadow: 0 0 var(--space-2) var(--c-glow); }
@@ -282,7 +354,8 @@ button, input { font: inherit; color: inherit; }
   position: fixed; left: 0; right: 0; bottom: 0; z-index: var(--z-sheet);
   width: 100%; max-width: var(--app-max); max-height: 100%; margin-inline: auto; overflow-y: auto; overscroll-behavior: contain;
   display: flex; flex-direction: column; gap: var(--space-4); text-align: center;
-  padding: var(--space-3) max(var(--space-6), env(safe-area-inset-right, 0px)) calc(var(--space-4) + env(safe-area-inset-bottom, 0px)) max(var(--space-6), env(safe-area-inset-left, 0px));
+  /* --sheet-pad on the sides and below (the safe area when it's bigger); the handle sits close to the top */
+  padding: var(--space-3) max(var(--sheet-pad), env(safe-area-inset-right, 0px)) max(var(--sheet-pad), calc(env(safe-area-inset-bottom, 0px) + var(--space-2))) max(var(--sheet-pad), env(safe-area-inset-left, 0px));
   border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
   background: var(--grad-sheet); box-shadow: var(--shadow-sheet); color: var(--c-text); font-family: var(--font-ui);
   transform: translateY(100%); transition: transform var(--dur-sheet) var(--ease-out);
@@ -293,7 +366,8 @@ button, input { font: inherit; color: inherit; }
 .sheet__result { font-weight: var(--fw-bold); font-variant-numeric: tabular-nums; }
 .sheet__result .dim, .sheet__note { color: var(--c-text-dim); font-weight: var(--fw-medium); }
 .sheet__note { font-size: var(--text-sm); text-wrap: balance; }
-.sheet__actions { display: flex; flex-direction: column; gap: var(--space-2); }
+/* buttons stacked --space-2 apart, each --btn-h (= --bar-h) tall; a little more air above them than between the words */
+.sheet__actions { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-2); }
 
 /* ---------- notice ---------- */
 .notice {
