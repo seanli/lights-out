@@ -3,6 +3,7 @@
 /* header right slot: max-stars indicator + learn button side by side */
 .play-head-end { flex-direction: row; align-items: center; gap: var(--space-2); }
 .play-max { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-1); text-align: right; }
+.play-max .caption { white-space: nowrap; }
 
 /* one line under the board: the hint line, or the tutorial's coach line (slot:coach) */
 .play-line { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: var(--line-h); }

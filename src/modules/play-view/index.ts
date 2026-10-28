@@ -259,7 +259,7 @@ const playView: ModuleDef = {
       const starsFor = (base: number) => Math.min(3, Math.max(scoring.minStars, base - used * scoring.hintCost));
       const max = starsFor(3);
       setStars(maxStars, max);
-      setText(maxCaption, used > 0 ? `${copy.maxStars} · ${copy.hintUsed}` : copy.maxStars);
+      setText(maxCaption, used > 0 ? copy.hintUsed : copy.maxStars); // short: the learn button shares this corner
       setAttr(maxBox, 'aria-label', fmt(copy.maxAria, { stars: max }));
 
       const limits = [b.par + scoring.threeStarsWithin, b.par + scoring.twoStarsWithin, b.par + scoring.twoStarsWithin + 1];
@@ -289,11 +289,21 @@ const playView: ModuleDef = {
       disable(hintBtn, !hints || hints.status === 'showing' || b?.status !== 'playing');
     };
 
+    // slices are frozen and replaced on change, so identical references mean nothing to do
+    let seen: unknown[] = [];
+    let headKey = '';
     const render = () => {
-      const b = ctx.read('board');
-      renderBoard(b);
-      renderMarks(b, ctx.read('hints'), ctx.read('tutorial'));
-      renderHeader(b, ctx.read('levels'), ctx.read('progress'));
+      const b = ctx.read('board'), hints = ctx.read('hints'), tutorial = ctx.read('tutorial');
+      const levels = ctx.read('levels'), progress = ctx.read('progress');
+      const now = [b, hints, tutorial, levels, progress];
+      if (now.every((s, k) => s === seen[k])) return;
+      if (b !== seen[0]) renderBoard(b);
+      renderMarks(b, hints, tutorial);
+      // the header only depends on level, moves and par (moves move the "now" tier chip)
+      const key = `${b?.levelId}|${b?.moves}|${b?.par}`;
+      if (key !== headKey || levels !== seen[3] || progress !== seen[4]) renderHeader(b, levels, progress);
+      headKey = key;
+      seen = now;
     };
     for (const slice of ['board', 'hints', 'tutorial', 'levels', 'progress'] as const) ctx.watch(slice, render);
     render();

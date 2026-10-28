@@ -154,7 +154,8 @@ describe('play-view', () => {
     const { t, q } = boot({ board: board({ moves: 6 }), progress: progress(1) });
     const max = q('.play-max');
     expect(max.querySelectorAll('.star[data-state="on"]')).toHaveLength(2);
-    expect(max.textContent).toBe('Max · Hint used');
+    expect(max.textContent).toBe('Hint used');
+    expect(max.getAttribute('aria-label')).toBe('At most 2 of 3 stars still possible');
     const chips = [...document.querySelectorAll<HTMLElement>('.play-tiers .chip')];
     expect(chips.map((c) => c.firstChild!.textContent)).toEqual(['≤5', '≤8', '9+']);
     expect(chips.map((c) => c.dataset.state)).toEqual(['lost', 'now', undefined]);
