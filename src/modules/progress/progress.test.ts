@@ -223,3 +223,18 @@ describe('progress', () => {
     expect(storage.dump().progress).toEqual({ version: 1, results: {}, pendingHints: {}, lastLevel: 0 });
   });
 });
+
+describe('a save from a newer version', () => {
+  test('is shown where readable, explained, and never overwritten', () => {
+    const newer = { version: 2, results: { '1': { stars: 3, bestMoves: 1, solvedAt: 5 } }, pendingHints: {}, lastLevel: 1, extra: 'v2-only' };
+    const storage = createMemoryStorage({ progress: newer });
+    const { t, notices, solve } = boot({ storage });
+    expect(t.seen('progress:loaded')).toMatchObject({ source: 'newer', solved: 1 });
+    expect(notices.get('progress')?.text).toMatch(/newer version/);
+    solve(2, 3);
+    t.emit('levels:started', { levelId: 3, par: 3, count: 50 });
+    expect(storage.get('progress')).toEqual(newer);
+    expect(t.state('progress').save.results['2']).toBeTruthy();
+  });
+});
+

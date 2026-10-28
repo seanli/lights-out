@@ -29,7 +29,7 @@ export interface Events {
 
   // ---- progress ----
   'progress:clear': Record<string, never>;
-  'progress:loaded': { source: 'saved' | 'new' | 'recovered'; solved: number; unlockedUpTo: number };
+  'progress:loaded': { source: 'saved' | 'new' | 'recovered' | 'newer'; solved: number; unlockedUpTo: number };
   'progress:level_completed': {
     levelId: LevelId; stars: Stars; moves: number; par: number; hintsUsed: number;
     /** true when this solve beat (or set) the best stars or moves */

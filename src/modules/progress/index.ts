@@ -18,6 +18,7 @@ const RulesSchema = v.pipe(
 );
 const CopySchema = v.object({
   recovered: v.string(),
+  newerSave: v.string(),
   partlyRecovered: v.string(),
   saveFailed: v.string(),
 });
@@ -86,6 +87,7 @@ const progress: ModuleDef = {
     function commit(save: ProgressSave): ProgressState {
       const state = writeSlice(save);
       if (!storage) fail('nothing is providing storage, so progress lasts only until the page closes');
+      else if (loaded.source === 'newer') { /* never overwrite a newer build's save; the notice explains */ }
       else if (holdWrites) fail("the old save couldn't be backed up, so it is left untouched");
       else if (!storage.set(saveKey, save)) fail(storage.mode() === 'memory' ? 'this browser is not saving data' : 'the browser refused to save');
       else if (warnedSaveFailed) {
@@ -112,6 +114,10 @@ const progress: ModuleDef = {
       // only a live write could overwrite the original; in memory mode nothing reaches the browser
       holdWrites = !kept && storage?.mode() === 'live';
       if (corruptText && kept) storage?.remove(`${saveKey}.corrupt`);
+    }
+    if (loaded.source === 'newer') {
+      ctx.log.warn(`Progress was saved by a newer version (v${loaded.version}); this page won't overwrite it`);
+      view?.notice('progress', copy.newerSave, 'info');
     }
     if (loaded.source === 'recovered') {
       ctx.log.warn(`The saved progress was unreadable; ${loaded.kept ? `kept ${loaded.kept} level results` : 'started fresh'}`);

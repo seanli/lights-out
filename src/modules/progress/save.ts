@@ -66,13 +66,19 @@ export function salvage(raw: unknown): { save: ProgressSave; kept: number } {
 export type Loaded =
   | { source: 'new'; save: ProgressSave }
   | { source: 'saved'; save: ProgressSave; migrated: boolean }
-  | { source: 'recovered'; save: ProgressSave; kept: number };
+  | { source: 'recovered'; save: ProgressSave; kept: number }
+  /** written by a newer build: readable parts are shown, but the stored value must never be overwritten */
+  | { source: 'newer'; save: ProgressSave; version: number };
 
 /** what a stored value means: nothing, a good save, an old save, or damage */
 export function readSave(raw: unknown, steps: Migrations = MIGRATIONS): Loaded {
   if (raw === undefined) return { source: 'new', save: freshSave() };
   const parsed = v.safeParse(ProgressSaveV1Schema, raw);
   if (parsed.success) return { source: 'saved', save: parsed.output, migrated: false };
+  const version = raw && typeof raw === 'object' ? (raw as { version?: unknown }).version : undefined;
+  if (typeof version === 'number' && version > ProgressSaveV1Schema.entries.version.literal) {
+    return { source: 'newer', save: salvage(raw).save, version };
+  }
   const migrated = migrate(raw, steps);
   if (migrated) return { source: 'saved', save: migrated, migrated: true };
   return { source: 'recovered', ...salvage(raw) };
