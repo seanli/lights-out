@@ -1798,6 +1798,27 @@ describe('learn: the twist guides (Hex, Cube, Wired, Stuck)', () => {
       expect(kindOf(levelShape(pack('stuck')))).toBe('stuck');
       expect(kindOf({ ...ROOM.hex!, stuck: [24] })).toBe('hex');
       expect(kindOf(ROOM.stuck)).toBe('rect');
+      // custom square boards with a twist get the tip, never the bottom-row reading
+      expect(kindOf({ cols: 20, rows: 30, mask: null, stuck: [45, 300] })).toBe('stuck');
+      expect(kindOf({ cols: 20, rows: 30, mask: null, wires: new Array(600).fill(WIRINGS.cross) })).toBe('wired');
+      expect(kindOf({ cols: 20, rows: 30, mask: null })).toBe('rect');
+    });
+
+    test('a 20×30 custom board opens in the panel at once: rect reading by its rows; with stuck switches, the tip', () => {
+      const shape: Shape = { cols: 20, rows: 30, mask: null };
+      const cells = emptyCells(shape).map((_, i) => i === 21 || i === 599);
+      const custom = (s: Shape) => ({ status: 'playing' as const, levelId: CUSTOM_LEVEL_ID, start: cells, cells, par: 9, moves: 0, history: [], shape: s });
+      const t0 = performance.now();
+      const t = boot({ services: { solver: roomSolver }, state: { levels: levelsState(), board: custom(shape) } });
+      const root = t.view!.region('slot:reference').querySelector<HTMLElement>('[data-reference]')!;
+      expect(root.dataset.referenceKind).toBe('rect');
+      expect(root.querySelector('[data-reference-status]')!.textContent).toBe('Row 2: tap under each lit light.');
+      expect(root.querySelector('[data-reference-rule]')!.textContent).not.toBe('');
+      expect(performance.now() - t0).toBeLessThan(1000);
+      t.kernel.seed('board', custom({ ...shape, stuck: [45, 300] }));
+      t.emit('learn:set_assist', { on: false });
+      expect(root.dataset.referenceKind).toBe('stuck');
+      expect(root.querySelector('[data-reference-status]')!.textContent).toBe(tips.stuck);
     });
   });
 });
