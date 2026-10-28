@@ -14,6 +14,15 @@
 //   [data-par]                       text content = par (digits)
 //   [data-level-label]               e.g. "Level 7"
 //   [data-action="back"|"undo"|"restart"|"hint"]
+//   [data-action="reference"]        header book button: toggles the in-game pattern reference; aria-expanded
+//   [data-screen="play"][data-reference="open"|"closed"]   play layout makes room for the panel; the board stays playable
+//
+// In-game pattern reference (learn fills it, play-view places it): view.region('slot:reference')
+//   [data-reference]                 root inside the slot
+//   [data-reference-bottom] [data-mini-cell][data-index][data-lit]   live copy of the board's bottom row
+//   [data-pattern-row][data-pattern="0,1,2"][data-match="true|false"]   the 7 bottom-row → top-row rows
+//   [data-reference-status="chase|match|nomatch|clear"]   which advice is showing
+//   [data-action="learn"] inside it  → learn:open {} (full lessons; Back returns to the level)
 //
 // Home screen (home-view):
 //   [data-action="continue"]         starts the suggested level
@@ -30,7 +39,7 @@
 //   [data-lesson-view="<id>"]  [data-step="N"]   current lesson and step
 //   [data-mini-board] [data-mini-cell][data-index][data-lit] (+ data-suggest="true")   practice board (NOT data-cell: that is the main board only)
 //   [data-action="learn-back"|"learn-next"|"learn-prev"|"learn-practice"|"learn-assist"]
-// Entry points: [data-action="learn"] on the home screen and in the play header → learn:open
+// Entry points: [data-action="learn"] on the home screen and inside the in-game reference → learn:open
 //
 // Tutorial copy line (tutorial):  [data-tutorial]
 // Shell notices:                  [data-notice="<id>"][data-tone="info|warn|error"]
