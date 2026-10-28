@@ -9,12 +9,16 @@ export type Marks = number[] | 'taps' | 'chase-first-row' | 'method' | 'shortest
 export interface MiniSpec {
   /** taps that build the board from dark */
   from: number[];
+  /** instead: a board whose only lights are these cells */
+  lit?: number[];
   /** run a chase on the board before showing it */
   chased?: boolean;
   marks?: Marks;
+  /** lights outlined (the switches that reach a light, lights two taps cancel) */
+  ring?: number[];
   /** which quiet pattern (0-based) when marks is 'quiet'; the board is dark */
   quiet?: number;
-  /** copy key in learn.captions, filled with {n} = number of marks */
+  /** copy key in learn.captions, filled with {n} = number of marks, {lights} = lights lit, {rings} = lights outlined */
   caption?: string;
 }
 
@@ -29,10 +33,11 @@ export type Step =
   /** `bottom`: start from a board whose only lights are these bottom-row columns (instead of `from`);
    *  `lit`: start from a board whose only lights are these cells; `phases`: one per tap of an explicit `play`;
    *  `letters`: the column letters over the board; `end`: the end line (default: "All dark.", or `left` with lights on);
-   *  `orders`: each Replay plays the next of these orders of the same taps; `markAll`: dot every tap still to come */
+   *  `orders`: each Replay plays the next of these orders of the same taps; `markAll`: dot every tap still to come;
+   *  `rings`: per tap, the lights outlined while it is next (a wired board: the switches that reach the light it clears) */
   | {
     kind: 'demo'; from: number[]; bottom?: number[]; lit?: number[]; play: number[] | 'chase' | 'method'; phases?: (Phase | null)[];
-    letters?: boolean; end?: DemoEnd; orders?: number[][]; markAll?: boolean;
+    letters?: boolean; end?: DemoEnd; orders?: number[][]; markAll?: boolean; rings?: number[][];
   }
   /** full rectangles: each bottom light and the top lights that clear it (tap a letter to watch it) */
   | { kind: 'lights'; rows: { bottom: number; top: number[] }[]; pick: number }
@@ -51,8 +56,8 @@ export type Step =
   | { kind: 'drill' };
 
 /** chase: the next chase tap; method: classic chase → table → chase; fix: chase → start-cell fix → chase on any shape;
- *  par: the next tap of a shortest answer */
-export type Assist = 'chase' | 'method' | 'fix' | 'par' | null;
+ *  par: the next tap of a shortest answer; spot: the tap of a shortest answer whose pattern is most lit (guides.ts spotOrder) */
+export type Assist = 'chase' | 'method' | 'fix' | 'par' | 'spot' | null;
 
 export interface Lesson {
   steps: Step[];
@@ -74,8 +79,9 @@ export interface Lesson {
   apart?: boolean;
   /** practice: a wrong tap is met with "tap it again to undo it" (one-tap boards) */
   undoHint?: boolean;
-  /** practice: a coach line that follows the phase (chase, the bottom/top-edge fix, chase again); rect names letters */
-  coach?: 'rect' | 'shape';
+  /** practice: a coach line that follows the phase (chase, the bottom/top-edge fix, chase again); rect names letters;
+   *  edge: the Stuck room's words for the top-edge fix (its board has stuck switches, so no "Stuck:" lead-in) */
+  coach?: 'rect' | 'shape' | 'edge';
 }
 
 const range = (from: number, to: number) => Array.from({ length: to - from }, (_, k) => from + k);

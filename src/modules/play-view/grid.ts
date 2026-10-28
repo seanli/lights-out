@@ -24,6 +24,32 @@ export function cellAt(shape: Shape, x: number, y: number, box: Box): number {
   return isCell(shape, i) ? i : -1;
 }
 
+/**
+ * A honeycomb (odd rows half a light right, rows 0.866 of the pitch apart): the real cell whose centre is nearest the
+ * point, if the point is within half a pitch of it, else -1. So the space between lights is part of the nearest one.
+ */
+export function hexCellAt(shape: Shape, x: number, y: number, box: Pick<Box, 'width' | 'height' | 'padX' | 'padY'>): number {
+  const pitch = (box.width - 2 * box.padX) / (shape.cols + 0.5);
+  if (!(pitch > 0)) return -1;
+  const rowH = pitch * 0.866;
+  const r0 = Math.floor((y - box.padY) / rowH);
+  let best = -1, bestD = Infinity;
+  for (let r = r0 - 1; r <= r0 + 1; r++) {
+    if (r < 0 || r >= shape.rows) continue;
+    const cy = box.padY + (r + 0.5) * rowH;
+    const shift = r & 1 ? pitch / 2 : 0;
+    const c0 = Math.floor((x - box.padX - shift) / pitch);
+    for (let c = c0 - 1; c <= c0 + 1; c++) {
+      if (c < 0 || c >= shape.cols) continue;
+      const i = r * shape.cols + c;
+      if (!isCell(shape, i)) continue;
+      const d = Math.hypot(x - (box.padX + shift + (c + 0.5) * pitch), y - cy);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+  }
+  return bestD <= pitch * 0.5 ? best : -1;
+}
+
 /** the next real cell from i in a direction, skipping gaps; i itself when nothing lies that way */
 export function stepFrom(shape: Shape, i: number, dr: number, dc: number): number {
   let r = Math.floor(i / shape.cols) + dr, c = (i % shape.cols) + dc;

@@ -3,10 +3,10 @@
 // on that room's own shape. Owns the `learn` slice.
 import * as v from 'valibot';
 import { CELL_COUNT, CLASSIC_SHAPE, MAX_CELLS, type Cells, type LearnState, type ModuleDef, type Pack } from '../../contracts';
-import { isCell, shapeKey } from '../../lib/shape';
+import { cellIndexes, isCell, isPressable, isStuck, shapeKey } from '../../lib/shape';
 import { LESSONS, type Lesson } from './lessons';
 import { bottomRowTable, chaseShape, chaseSuggest, createFixer, fixSuggest, isClear, makeBoard, methodSuggest, quietPatterns, touches, type Fixer, type TableEntry } from './method';
-import { GUIDE_PREFIX, GUIDE_STEPS, buildGuide, guideId, guideKind, type GuideKind } from './guides';
+import { GUIDE_PREFIX, GUIDE_STEPS, TWISTS, buildGuide, guideId, guideKind, spotOrder, type GuideKind } from './guides';
 import { emptySave, type DrillSave } from './drill';
 import { createReference } from './reference';
 import { createLearnView } from './view';
@@ -31,6 +31,8 @@ const RulesSchema = v.object({
   }),
 });
 export type LearnRules = v.InferOutput<typeof RulesSchema>;
+/** a guide with no range in rules.json → learn.practicePresses (requests.md: the twist rooms' ranges belong there) */
+const GUIDE_PRESSES: [number, number] = [3, 4];
 
 const text = v.pipe(v.string(), v.minLength(1));
 const CopySchema = v.looseObject({
@@ -41,8 +43,8 @@ const CopySchema = v.looseObject({
   /** how a demo ends when it doesn't end dark ({n} = lights left) */
   demoEnd: v.object({ left: text, stuck: text, stuckShape: text, cancelled: text }),
   demoPhase: v.object({ chase: text, top: text, edge: text, chase2: text, spot: text }),
-  /** a guide's practice line by phase: chasing, only the bottom (end) lights left, after the top taps */
-  coach: v.object({ chase: text, bottom: text, bottoms: text, again: text, shapeFix: text }),
+  /** a guide's practice line by phase: chasing, only the bottom (end) lights left, after the top taps; edgeFix: the Stuck room's */
+  coach: v.object({ chase: text, bottom: text, bottoms: text, again: text, shapeFix: text, edgeFix: text }),
   captions: v.record(v.string(), text), cellOn: text, cellOff: text,
   /** "A and B", "A, B and C" */
   and: text, comma: text,
@@ -60,6 +62,8 @@ const CopySchema = v.looseObject({
     }),
     /** the rule line per full rectangle: the rule its maths follows (method.ts → RECT_RULES), else ownTaps */
     rect: v.object({ chaseClears: text, straightAbove: text, threeAbove: text, twoAside: text, aboveTwoAside: text, ownTaps: text }),
+    /** the one-line tip on a board with no bottom row to read: a honeycomb, a cube, wired or stuck switches */
+    tips: v.object({ hex: text, cube: text, wired: text, stuck: text }),
   }),
   lessons: v.record(v.string(), v.object({ title: text, summary: text, steps: v.array(text) })),
   /** the Learn list's two groups */
@@ -118,11 +122,9 @@ const learn: ModuleDef = {
       if (c.steps.length !== LESSONS[id]!.steps.length) throw new Error(`copy.json → learn.lessons.${id}.steps needs ${LESSONS[id]!.steps.length} sentences, not ${c.steps.length}`);
       if (hasPractice(id) && !rules.practicePresses[id]) throw new Error(`rules.json → learn.practicePresses has no range for "${id}"`);
     }
-    // every guide ends in practice, so it needs a range too
-    for (const room of Object.keys(copy.guides)) {
-      if (!rules.practicePresses[guideId(room)]) throw new Error(`rules.json → learn.practicePresses has no range for "${guideId(room)}"`);
-    }
+    // every guide ends in practice: its range comes from rules.json, else the shaped rooms' default (GUIDE_PRESSES)
     const guideIds = Object.keys(copy.guides).map(guideId);
+    const pressesFor = (id: string) => rules.practicePresses[id] ?? GUIDE_PRESSES;
 
     const read = (): LearnState => ctx.read('learn')!;
     const write = (next: LearnState) => ctx.write('learn', next);
@@ -151,10 +153,11 @@ const learn: ModuleDef = {
       const pack = packById(id.slice(GUIDE_PREFIX.length));
       const c = pack && pack.kind !== 'classic' ? copy.guides[pack.id] : undefined;
       if (!pack || !c) return undefined;
-      const key = shapeKey(pack.shape);
+      // a stuck or wired room's pack is a plain grid: its kind tells its guide apart
+      const key = `${pack.kind}|${shapeKey(pack.shape)}`;
       if (!kinds.has(key)) {
         try {
-          kinds.set(key, guideKind(solver, pack.shape));
+          kinds.set(key, guideKind(solver, pack));
         } catch (err) {
           kinds.set(key, null);
           ctx.log.error(`Couldn't work out the guide for the ${pack.id} board`, err);
@@ -172,7 +175,7 @@ const learn: ModuleDef = {
     const guideOf = (id: string) => {
       const pack = guidePack(id);
       if (!pack) return undefined;
-      const key = `${pack.id}|${shapeKey(pack.shape)}`;
+      const key = `${pack.id}|${pack.kind}|${shapeKey(pack.shape)}`;
       if (!built.has(key)) {
         try {
           built.set(key, buildGuide(solver, pack));
@@ -226,14 +229,16 @@ const learn: ModuleDef = {
       }
       if (mode === 'chase') return chaseSuggest(cells) ?? methodSuggest(solver, table, cells);
       if (mode === 'par') return (lesson.shape ? solver.solve(cells, lesson.shape) : solver.solve(cells))?.[0] ?? null;
+      if (mode === 'spot') return lesson.shape ? spotOrder(solver, lesson.shape, cells)?.[0] ?? null : null;
       return methodSuggest(solver, table, cells);
     };
 
     const newPractice = (s: LearnState): LearnState => {
       const id = s.lessonId!;
       const lesson = lessonOf(id)!;
-      const [min, max] = rules.practicePresses[id]!;
-      const pool = lesson.pool ?? [...Array(CELL_COUNT).keys()];
+      const [min, max] = pressesFor(id);
+      // never a stuck switch: its press does nothing
+      const pool = lesson.pool ?? (lesson.shape ? cellIndexes(lesson.shape).filter((i) => isPressable(lesson.shape!, i)) : [...Array(CELL_COUNT).keys()]);
       // lesson 2: shapes that don't touch, so every lit light belongs to one whole shape
       const apart = lesson.apart ? (taps: readonly number[]) => taps.every((a, k) => taps.slice(k + 1).every((b) => !touches(lesson.shape ?? CLASSIC_SHAPE, a, b))) : undefined;
       const make = () => makeBoard(solver, (n) => rng.int(n), min + rng.int(max - min + 1), pool, lesson.shape, apart);
@@ -329,6 +334,8 @@ const learn: ModuleDef = {
         ctx.log.warn('Refused a practice press on a cell that does not exist', { index });
         return ctx.emit('learn:refused', { command: 'learn:press', reason: 'bad_index' });
       }
+      // a stuck switch can't be pressed (the view shakes it, as the play board does); no tap is counted
+      if (shape && isStuck(shape, index)) return ctx.emit('learn:refused', { command: 'learn:press', reason: 'stuck' });
       const cells = shape ? solver.press(pr.cells, index, shape) : solver.press(pr.cells, index);
       const solved = isClear(cells);
       const moves = pr.moves + 1;

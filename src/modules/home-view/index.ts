@@ -5,7 +5,9 @@
 // screen (the variety module).
 import * as v from 'valibot';
 import type { Env, LevelsState, ModuleDef, Pack, ProgressState } from '../../contracts';
+import { cubeSide } from '../../lib/cube';
 import { roomGlyph } from '../../lib/glyph';
+import { cellIndexes } from '../../lib/shape';
 import { fmt, h, setAttr, setText } from '../../lib/dom';
 import './home-view.css';
 
@@ -22,7 +24,13 @@ const Copy = v.object({
   levelsError: Text,
   starTotal: Text,
   /** the menu's section eyebrows, by Pack.group */
-  groups: v.object({ boards: Text, shapes: Text, extreme: Text }),
+  groups: v.object({ boards: Text, twists: Text, extreme: Text, custom: Text }),
+  /** a honeycomb's and a cube's line ("37 lights · 30 levels", "3×3×3 · 30 levels") */
+  boardLights: Text,
+  boardCube: Text,
+  /** the Custom row */
+  custom: Text,
+  customSub: Text,
   boardSize: Text,
   /** a rectangle with a note after its size, e.g. "5×16 · scrolls · 30 levels" */
   boardSizeNote: Text,
@@ -59,10 +67,10 @@ type Results = ProgressState['save']['results'];
 export interface Tally { open: boolean; unlocked: number; solved: number; stars: number }
 
 /** the menu's sections, top to bottom */
-export const GROUPS = ['boards', 'shapes', 'extreme'] as const;
+export const GROUPS = ['boards', 'twists', 'extreme'] as const;
 export type Group = (typeof GROUPS)[number];
-/** a pack's section (Pack.group; packs from before groups: shapes by kind, everything else under Boards) */
-export const groupOf = (p: Pack): Group => p.group ?? (p.kind === 'shape' ? 'shapes' : 'boards');
+/** a pack's section (Pack.group; packs from before groups sit under Boards) */
+export const groupOf = (p: Pack): Group => p.group ?? 'boards';
 
 /** "Version 0.7.0 · 28 Oct 2026" from the env service; just the version when the build id isn't a date; '' without one */
 export function versionLine(env: Pick<Env, 'version' | 'buildId'> | undefined, copy: CopyT): string {
@@ -134,7 +142,7 @@ interface Row { pack: Pack; el: HTMLButtonElement; glyph: HTMLElement; meta: HTM
 const homeView: ModuleDef = {
   manifest: {
     name: 'home-view',
-    emits: ['levels:start', 'sound:set', 'learn:open', 'variety:open', 'nav:open_sheet', 'nav:close_sheet', 'progress:clear'],
+    emits: ['levels:start', 'sound:set', 'learn:open', 'variety:open', 'custom:open', 'nav:open_sheet', 'nav:close_sheet', 'progress:clear'],
     listens: [],
     owns: [],
     uses: ['view'],
@@ -169,7 +177,16 @@ const homeView: ModuleDef = {
         h('h2', { class: 'eyebrow', id: `home-group-${group}` }, copy.groups[group]), list);
       return { group, el, list };
     });
-    const boards = h('div', { class: 'home__boards', hidden: true }, ...sections.map((x) => x.el));
+    // the last section: make your own board (opens with the other boards)
+    const customGlyph = h('span', { class: 'room-glyph', 'aria-hidden': 'true', style: '--cols:3;--n:3' });
+    for (let i = 0; i < 9; i++) customGlyph.append(h('i', { 'data-lit': String(i === 4) }));
+    const customSub = h('span', { class: 'menu-row__sub' }, copy.customSub);
+    const customRow = h('button', { type: 'button', class: 'menu-row', 'data-action': 'custom', 'data-locked': 'true' },
+      h('span', { class: 'menu-row__glyph' }, customGlyph),
+      h('span', { class: 'menu-row__body' }, h('span', { class: 'menu-row__title' }, copy.custom), customSub));
+    const customSection = h('section', { class: 'section', 'data-group': 'custom', 'aria-labelledby': 'home-group-custom', hidden: true },
+      h('h2', { class: 'eyebrow', id: 'home-group-custom' }, copy.groups.custom), h('div', { class: 'menu-list' }, customRow));
+    const boards = h('div', { class: 'home__boards', hidden: true }, ...sections.map((x) => x.el), customSection);
     const learnGlyph = h('span', { class: 'room-glyph', 'aria-hidden': 'true', style: '--cols:5;--n:5' });
     for (let i = 0; i < 25; i++) learnGlyph.append(h('i', { 'data-lit': String(LEARN_LIT.includes(i)) }));
     const learn = h('button', { type: 'button', class: 'menu-row', 'data-action': 'learn' },
@@ -244,6 +261,8 @@ const homeView: ModuleDef = {
     const metaOf = (pack: Pack) => {
       const vars = { cols: pack.shape.cols, rows: pack.shape.rows, count: pack.count };
       if (pack.kind === 'shape') return fmt(copy.boardShape, vars);
+      if (pack.kind === 'hex') return fmt(copy.boardLights, { ...vars, lights: cellIndexes(pack.shape).length });
+      if (pack.kind === 'cube') return fmt(copy.boardCube, { ...vars, n: cubeSide(pack.shape) });
       const note = copy.boardNotes[pack.id];
       return note ? fmt(copy.boardSizeNote, { ...vars, note }) : fmt(copy.boardSize, vars);
     };
@@ -284,6 +303,12 @@ const homeView: ModuleDef = {
       }
       // the rows open the board screen, so they show only while the variety module runs (it owns the variety slice)
       boards.hidden = ctx.read('variety') === undefined || rows.length === 0;
+      // Custom: while a custom module runs (it owns the custom slice); it opens with the other boards
+      const customOpen = !progress || !!progress.varietyOpen;
+      customSection.hidden = ctx.read('custom') === undefined;
+      setAttr(customRow, 'data-locked', String(!customOpen));
+      setAttr(customRow, 'aria-disabled', customOpen ? null : 'true');
+      setText(customSub, customOpen ? copy.customSub : copy.boardLocked);
 
       // every board's standing, once
       let solved = 0, count = 0, stars = 0;
@@ -343,6 +368,7 @@ const homeView: ModuleDef = {
       switch (action.dataset.action) {
         case 'continue': ctx.emit('levels:start', { levelId: suggested }); break;
         case 'learn': ctx.emit('learn:open', {}); break;
+        case 'custom': if (action.getAttribute('aria-disabled') !== 'true') ctx.emit('custom:open', {}); break;
         case 'sound': {
           const snd = ctx.read('sound');
           if (snd) ctx.emit('sound:set', { enabled: !snd.enabled });
@@ -353,6 +379,9 @@ const homeView: ModuleDef = {
     });
 
     for (const slice of ['levels', 'progress', 'storage', 'sound', 'variety'] as const) ctx.watch(slice, update);
+    // the custom slice changes per puzzle; home only cares whether a custom module runs
+    let hadCustom = ctx.read('custom') !== undefined;
+    ctx.watch('custom', (c) => { if ((c !== undefined) !== hadCustom) { hadCustom = c !== undefined; update(); } });
     // the learn slice changes on every practice tap; home only cares whether a learn module runs
     let hadLearn = ctx.read('learn') !== undefined;
     ctx.watch('learn', (l) => { if ((l !== undefined) !== hadLearn) { hadLearn = l !== undefined; update(); } });

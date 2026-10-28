@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, test } from 'vitest';
 import type { LevelDef, LevelsState, ModuleDef, Pack, State } from '../../contracts';
-import { CLASSIC_SHAPE, SEL } from '../../contracts';
+import { CLASSIC_SHAPE, CUSTOM_LEVEL_ID, SEL } from '../../contracts';
 import { bootModule, createFakeView, fixtureData } from '../../../test/fake-ctx';
 import { createFakeClock, createKernel } from '../../kernel';
 import solvedSheet from './index';
@@ -39,6 +39,27 @@ function relay(): ModuleDef {
 }
 
 beforeEach(() => document.body.replaceChildren());
+
+describe('custom puzzles', () => {
+  test('New puzzle, Replay and Change board; the eyebrow is the board in words; nothing about levels', () => {
+    const custom = { status: 'playing' as const, settings: { grid: 'cube' as const, cols: 6, rows: 6, hexSide: 4, cubeSide: 3, twist: 'none' as const, difficulty: 'hard' as const }, played: 2, label: 'Cube 3×3×3 · Hard' };
+    const t = boot({ custom });
+    t.emit('board:solved', { levelId: CUSTOM_LEVEL_ID, moves: 7, par: 7 });
+    t.emit('progress:level_completed', completed({ levelId: CUSTOM_LEVEL_ID, moves: 7, par: 7, stars: 3, pack: 'custom', unlocked: null, firstSolve: false }));
+    t.clock.advance(DELAY);
+    expect(q('.eyebrow').textContent).toBe('Cube 3×3×3 · Hard');
+    expect(q(SEL.action('next')).textContent).toBe('New puzzle');
+    expect(q(SEL.action('levels')).textContent).toBe('Change board');
+    expect(q('[data-stars-earned]').dataset.starsEarned).toBe('3');
+    q(SEL.action('next')).click();
+    expect(t.all('custom:play')).toEqual([{}]);
+    q(SEL.action('replay')).click();
+    expect(t.all('board:restart')).toEqual([{}]);
+    q(SEL.action('levels')).click();
+    expect(t.all('custom:open')).toEqual([{}]);
+    expect(t.all('levels:start')).toEqual([]);
+  });
+});
 
 describe('solved-sheet', () => {
   test('opens after delayMs, with stars, result and a nudge to par', () => {

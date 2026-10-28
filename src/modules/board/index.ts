@@ -1,9 +1,9 @@
 // board: the rules of the game. Owns the grid (classic 5×5 or any Variety shape), presses, undo, restart and solve detection.
 import * as v from 'valibot';
 import { CLASSIC_SHAPE, ShapeSchema, type BoardState, type Cells, type ModuleDef, type Shape } from '../../contracts';
-import { emptyCells, fitsShape, gridSize, isCell, pressTargets, sameShape, shapeOf } from '../../lib/shape';
+import { emptyCells, fitsShape, gridSize, isCell, isStuck, pressTargets, sameShape, shapeOf, shapeProblem } from '../../lib/shape';
 
-/** Toggle what a press at i reaches (i and its up/down/left/right neighbours that are real cells), in place. */
+/** Toggle what a press at i reaches (lib/shape.ts: the plus, a honeycomb's six, a cube's four, or the cell's wiring), in place. */
 function toggleAt(shape: Shape, cells: boolean[], i: number): void {
   for (const t of pressTargets(shape, i)) cells[t] = !cells[t];
 }
@@ -26,8 +26,7 @@ function readShape(raw: unknown): Shape | null {
   const parsed = v.safeParse(ShapeSchema, raw);
   if (!parsed.success) return null;
   const s = parsed.output;
-  if (s.mask && s.mask.length !== s.cols * s.rows) return null;
-  return s;
+  return shapeProblem(s) ? null : s;
 }
 
 const board: ModuleDef = {
@@ -73,6 +72,8 @@ const board: ModuleDef = {
         ctx.log.warn('Refused a press on a cell that does not exist', { index });
         return ctx.emit('board:refused', { command: 'board:press', reason: 'bad_index' });
       }
+      // a stuck cell is a light like any other but its switch is jammed: the press does nothing and costs no move
+      if (isStuck(shape, index)) return ctx.emit('board:refused', { command: 'board:press', reason: 'stuck' });
       const cells = cur.cells.slice();
       toggleAt(shape, cells, index);
       const litCount = countLit(cells);

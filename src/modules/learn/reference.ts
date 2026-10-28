@@ -5,11 +5,13 @@
 // then the live strips: only what is relevant now, on every board (the full 7-row table lives in lesson 4).
 // Classic 5×5: your bottom row over the matched row's top taps, the matched row's echo as the rule. Other full rectangles: the size's rule (from the maths) and the same pair of strips,
 // the top one empty until bottom-row time. Shaped rooms: chase advice by row, then a small picture of the board with the
-// top-edge fix ringed. Rooms link to their board guide; classic links to all lessons.
+// top-edge fix ringed. Honeycombs, cubes, wired and stuck switches: no bottom row to read, so the room's one-line tip.
+// Rooms link to their board guide; classic links to all lessons.
 import { BOTTOM, blank, chaseShapeSuggest, rectRule, rectTaps, rectTopSets, type Fixer, type RectRule, type TableEntry } from './method';
 import { CELL_COUNT, SIZE, type BoardState, type Ctx, type Shape, type SolverService } from '../../contracts';
 import { fmt, h, setAttr, setText } from '../../lib/dom';
-import { gridSize, isCell, shapeKey } from '../../lib/shape';
+import { gridOf, gridSize, isCell, shapeKey } from '../../lib/shape';
+import type { TwistKind } from './guides';
 
 export interface ReferenceCopy {
   yourRow: string;
@@ -26,10 +28,12 @@ export interface ReferenceCopy {
   };
   /** the strategy line for full rectangles: chase alone clears it / a rule the maths follows / each light its own taps */
   rect: { chaseClears: string; ownTaps: string } & Record<RectRule, string>;
+  /** the one-line tip on a board with no bottom row to read */
+  tips: Record<TwistKind, string>;
 }
 
-export type ReferenceStatus = 'chase' | 'match' | 'nomatch' | 'clear';
-export type BoardKind = 'classic' | 'rect' | 'shaped';
+export type ReferenceStatus = 'chase' | 'match' | 'nomatch' | 'clear' | 'tip';
+export type BoardKind = 'classic' | 'rect' | 'shaped' | TwistKind;
 export interface Advice {
   status: ReferenceStatus; text: string; match: number;
   /** full rectangles at bottom-row time: the player's bottom row and the top-row taps that clear it */

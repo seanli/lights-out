@@ -7,13 +7,22 @@
 //
 // Play screen (play-view):
 //   [data-board]                     the grid; data-status="playing|solved", data-cols, data-rows
+//     data-grid="hex|cube"           absent on square grids. hex: round lights in a honeycomb (odd rows half a light right);
+//                                    a tap between lights presses the nearest. cube: .cube > .cube__face[data-face=
+//                                    "up|left|front|right|down|back"] each holding its lights; [data-facing="true"] on
+//                                    the faces toward you (only they take taps); a tap presses on release, a swipe (or
+//                                    Shift + an arrow) turns it a quarter; [data-cube-line] under it counts lit lights
+//                                    out of sight
 //     data-scroll="true"             the board is taller than the screen (the Tower): it scrolls, a swipe never presses,
 //                                    a press lands on release; data-more-above / data-more-below="true" where there is
 //                                    more to scroll (that edge fades)
 //     data-aim="true"                touch slots are under the tap minimum (10×10, 8×8 on narrow phones): press-and-hold
 //                                    shows [data-aim-bubble] magnifying the target; slide to adjust; lift to press
 //   [data-boss="true"]               on the play header when the level is a boss (skull shown)
-//   [data-cell][data-index="0..159"][data-lit="true|false"]   one button per REAL cell (index over the whole grid)
+//   [data-cell][data-index="0..191"][data-lit="true|false"]   one button per REAL cell (index over the whole grid;
+//                                    a cube's index is over its net, lib/cube.ts)
+//     data-stuck="true"              a stuck switch (screw mark): a tap shakes it ([data-jam] for one animation), no move
+//     data-wires="0..255"            a wired switch: its spokes (.cell__wires) point to what its press also flips
 //   gaps of a shaped board render as an element with [data-gap] and NO data-cell (never a button)
 //     data-hint="true"               on the hinted cell (hints slice)
 //     data-pointer="true"            on the tutorial target (tutorial slice)
@@ -38,7 +47,8 @@
 //   [data-action="continue"]         starts the suggested level (the board last played, else classic)
 //   [data-room-tile][data-room="<pack id>"][data-solved="N"][data-stars="N"][data-locked="true|false"]
 //                                    one row per pack in levels.packs order, classic first → variety:open {room}
-//   [data-group="boards|shapes|extreme"]  the menu section holding a pack's row (from Pack.group)
+//   [data-group="boards|twists|extreme|custom"]  the menu section holding a pack's row (from Pack.group); custom holds
+//                                    [data-action="custom"][data-locked="true|false"] → custom:open (opens with the rooms)
 //   [data-action="learn"]            → learn:open {}
 //   [data-action="sound"]            toggles sound; aria-pressed reflects state
 //   [data-action="reset"]            opens the reset confirmation
@@ -46,7 +56,14 @@
 // Solved sheet (solved-sheet):
 //   [data-sheet="solved"] [data-stars-earned="1..3"]  [data-result]  (e.g. "6 moves · par 5")
 //     data-boss="true" on the sheet after a boss level
-//   [data-action="next"|"replay"|"levels"]
+//   [data-action="next"|"replay"|"levels"]   (a custom puzzle: New puzzle → custom:play, Replay → board:restart,
+//                                    Change board → custom:open)
+//
+// Custom screen (custom):  [data-screen="custom"]
+//   [data-custom-option="grid|twist|difficulty"][data-value] radio buttons (aria-checked; Wired is aria-disabled off
+//   the square grid); [data-custom-size="cols|rows|hexSide|cubeSide"] steppers with [data-step="-1|1"] buttons;
+//   [data-action="custom-play"] → custom:play; [data-action="custom-back"] → nav:back
+//   A custom puzzle plays on the play screen under CUSTOM_LEVEL_ID; its header says the board in words and "Puzzle N".
 //
 // Board screen (variety): one board's levels, classic included  [data-screen="variety"]
 //   [data-room-view="<pack id>"]     classic groups its tiles into chapters ([data-chapter]); rooms are one grid

@@ -8,14 +8,14 @@
       "blackout": "Blackout"
     },
     "rooms": {
-      "5x6": "Tall room",
-      "6x6": "Wide room",
       "7x7": "Great hall",
-      "cross": "Cross",
       "ring": "Ring",
       "diamond": "Diamond",
+      "stuck": "Stuck",
+      "hex": "Hex",
+      "cube": "Cube",
+      "wired": "Wired",
       "8x8": "Ballroom",
-      "10x10": "Cathedral",
       "tower": "Tower"
     }
   },
@@ -30,16 +30,20 @@
     "allSolved": "Every level solved. Replay any level to improve your stars.",
     "levelsError": "The levels couldn't be made, so there's nothing to play. Reload the page to try again.",
     "starTotal": "{stars} {stars|star|stars}",
-    "groups": { "boards": "Boards", "shapes": "Shapes", "extreme": "Extreme" },
+    "groups": { "boards": "Boards", "twists": "Twists", "extreme": "Extreme", "custom": "Make your own" },
     "boardSize": "{cols}×{rows} · {count} levels",
     "boardSizeNote": "{cols}×{rows} · {note} · {count} levels",
     "boardShape": "{count} levels",
-    "boardNotes": { "tower": "scrolls" },
+    "boardLights": "{lights} lights · {count} levels",
+    "boardCube": "{n}×{n}×{n} · {count} levels",
+    "boardNotes": { "tower": "scrolls", "stuck": "jammed switches", "wired": "rewired" },
     "boardSolved": "{solved}/{count}",
-    "boardLocked": "Opens after level 20",
+    "boardLocked": "Opens after level 10",
     "boardLabel": "{name}: {solved} of {count} solved, {stars} {stars|star|stars}",
     "learn": "Learn the patterns",
     "learnSub": "Lessons and a guide for each board",
+    "custom": "Custom",
+    "customSub": "Pick the board, the size, a twist and how hard",
     "learnNew": "New here? Learn the patterns",
     "soundOn": "Sound on",
     "soundOff": "Sound off",
@@ -77,7 +81,18 @@
     "tierOverAria": "{moves} moves or more: {stars} of 3 stars",
     "hintChipCost": "−{stars}★",
     "hintChipWord": "{count|hint|hints}",
-    "hintChipAria": "{count|Hint|Hints} used: {stars} {stars|star|stars} fewer"
+    "hintChipAria": "{count|Hint|Hints} used: {stars} {stars|star|stars} fewer",
+    "faces": { "up": "Top", "left": "Left", "front": "Front", "right": "Right", "down": "Bottom", "back": "Back" },
+    "cubeOn": "{face} face, light {row}, {col}: on",
+    "cubeOff": "{face} face, light {row}, {col}: off",
+    "cubeTurn": "Swipe the cube to turn it",
+    "cubeHidden": "{n} lit {n|light|lights} out of sight · swipe to turn",
+    "stuck": ", stuck: it can't be pressed",
+    "wired": ", wired: also flips {dirs}",
+    "list": ", ",
+    "dirs": ["up", "up-right", "right", "down-right", "down", "down-left", "left", "up-left"],
+    "custom": "Custom",
+    "puzzle": "Puzzle {n}"
   },
   "solved-sheet": {
     "eyebrow": "Level {level}",
@@ -101,7 +116,9 @@
     "roomEyebrow": "{room} · Level {level}",
     "roomDone": "Every level in this room is solved.",
     "roomLast": "That was the last level in this room.",
-    "nextMeta": "Level {level}"
+    "nextMeta": "Level {level}",
+    "customNext": "New puzzle",
+    "customSettings": "Change board"
   },
   "tutorial": {
     "1": [
@@ -474,8 +491,10 @@
     "back": "Back",
     "boardSize": "{cols}×{rows} · {count} levels",
     "boardShape": "{count} levels",
+    "boardLights": "{lights} lights · {count} levels",
+    "boardCube": "{n}×{n}×{n} · {count} levels",
     "summary": "{solved} of {count} solved · {stars} of {max} stars",
-    "guide": "How to clear the {name}",
+    "guide": "How to play {name}",
     "guideClassic": "Learn the patterns",
     "chapter": "Chapter {n} · {name}",
     "chapterRange": "Levels {from}–{to}",
@@ -491,5 +510,36 @@
       "one": "solved",
       "hint": "hint −{cost}★"
     }
+  },
+  "custom": {
+    "title": "Custom",
+    "eyebrow": "Make your own",
+    "back": "Back",
+    "sections": { "grid": "Board", "size": "Size", "twist": "Twist", "difficulty": "Difficulty" },
+    "grids": { "square": "Square", "hex": "Hex", "cube": "Cube" },
+    "twists": { "none": "None", "stuck": "Stuck", "wired": "Wired" },
+    "difficulties": { "easy": "Easy", "medium": "Medium", "hard": "Hard", "boss": "Boss" },
+    "sizes": {
+      "cols": { "name": "Width", "less": "Narrower", "more": "Wider" },
+      "rows": { "name": "Height", "less": "Shorter", "more": "Taller" },
+      "hexSide": { "name": "Side", "less": "Smaller", "more": "Bigger" },
+      "cubeSide": { "name": "Per edge", "less": "Smaller", "more": "Bigger" }
+    },
+    "lights": "{n} lights",
+    "twistNotes": {
+      "none": "A press flips its light and the ones touching it.",
+      "stuck": "A few lights won't press. Their neighbours still flip them.",
+      "wired": "Each switch flips its own pattern of lights."
+    },
+    "wiredNeedsSquare": "Wired needs the square board.",
+    "name": { "square": "Square {cols}×{rows}", "hex": "Hex · {lights} lights", "cube": "Cube {n}×{n}×{n}" },
+    "summary": {
+      "square": "{lights} lights · about {par} {par|press|presses}",
+      "hex": "About {par} {par|press|presses} to clear",
+      "cube": "{lights} lights · about {par} {par|press|presses}"
+    },
+    "sep": " · ",
+    "play": "Play",
+    "error": "Couldn't make that puzzle. Try another size or difficulty."
   }
 }

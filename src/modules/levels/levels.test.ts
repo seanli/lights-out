@@ -3,29 +3,34 @@ import { describe, expect, test } from 'vitest';
 import { bootModule, fixtureData } from '../../../test/fake-ctx';
 import { refPress, refSolve } from '../../../test/ref-solver';
 import type { Cells, LevelsState, ProgressState, Shape, SolverService } from '../../contracts';
-import { cellIndexes, fitsShape, gridSize, parseShape, pressTargets } from '../../lib/shape';
+import { cubeShape } from '../../lib/cube';
+import { readableIn } from '../../lib/puzzle';
+import { cellIndexes, fitsShape, gridSize, hexagonShape, isPressable, parseShape, pressTargets, shapeProblem } from '../../lib/shape';
 import levels from './index';
 import { parsOf } from './generate';
 
-/** independent reference for shaped boards: BigInt elimination over real cells, then the lightest of every solution */
+/**
+ * independent reference for any board: BigInt elimination with one equation per real cell and one variable per
+ * pressable cell (wiring makes the press map one-way, stuck cells have no variable), then the lightest of every solution
+ */
 function refShapedSolve(shape: Shape, cells: readonly boolean[]): number[] | null {
-  const vars = cellIndexes(shape);
+  const real = cellIndexes(shape);
+  const vars = real.filter((g) => isPressable(shape, g));
   if (!fitsShape(shape, cells)) return null;
   const n = vars.length, B = BigInt(n);
-  const pos = new Map(vars.map((g, j) => [g, j]));
-  const rows = vars.map((g) => pressTargets(shape, g).reduce((row, t) => row | (1n << BigInt(pos.get(t)!)), cells[g] ? 1n << B : 0n));
+  const rows = real.map((g) => vars.reduce((row, v, j) => (pressTargets(shape, v).includes(g) ? row | (1n << BigInt(j)) : row), cells[g] ? 1n << B : 0n));
   const pivots: number[] = [];
   for (let col = 0; col < n; col++) {
     const bit = 1n << BigInt(col), rank = pivots.length;
     const p = rows.findIndex((row, i) => i >= rank && (row & bit) !== 0n);
     if (p < 0) continue;
     [rows[rank], rows[p]] = [rows[p]!, rows[rank]!];
-    for (let r = 0; r < n; r++) if (r !== rank && rows[r]! & bit) rows[r]! ^= rows[rank]!;
+    for (let r = 0; r < rows.length; r++) if (r !== rank && rows[r]! & bit) rows[r]! ^= rows[rank]!;
     pivots.push(col);
   }
-  for (let r = pivots.length; r < n; r++) if (rows[r]! >> B) return null;
+  for (let r = pivots.length; r < rows.length; r++) if (rows[r]! >> B) return null;
   const free = [...Array(n).keys()].filter((c) => !pivots.includes(c));
-  let best: bigint[] = [];
+  let best: number[] = [];
   for (let combo = 0; combo < 1 << free.length; combo++) {
     const x = new Set<number>(free.filter((_, k) => combo & (1 << k)));
     pivots.forEach((pv, r) => {
@@ -33,9 +38,9 @@ function refShapedSolve(shape: Shape, cells: readonly boolean[]): number[] | nul
       for (const f of free) if (x.has(f) && rows[r]! & (1n << BigInt(f))) bit ^= 1n;
       if (bit) x.add(pv);
     });
-    if (combo === 0 || x.size < best.length) best = [...x].map(BigInt);
+    if (combo === 0 || x.size < best.length) best = [...x];
   }
-  return best.map((j) => vars[Number(j)]!).sort((a, b) => a - b);
+  return best.map((j) => vars[j]!).sort((a, b) => a - b);
 }
 const shapedPress = (cells: Cells, i: number, shape?: Shape): Cells => {
   if (!shape) return refPress(cells, i);
@@ -48,7 +53,7 @@ const shapedSolve = (cells: Cells, shape?: Shape) => (shape ? refShapedSolve(sha
 // modules never import each other: inject an independent reference solver
 const solver: SolverService = { press: shapedPress, solve: shapedSolve, isSolvable: (c, s) => shapedSolve(c, s) !== null };
 type Band = { pars: number[]; boss: number };
-type Room = { id: string; kind: string; group: string; cols?: number; rows?: number; picture?: string[]; idBase: number; seed: number; bands: Band[] };
+type Room = { id: string; kind: string; group: string; cols?: number; rows?: number; side?: number; picture?: string[]; idBase: number; seed: number; bands: Band[] };
 const rules = (fixtureData.rules as { levels: Record<string, unknown> & { rooms: Room[] } }).levels;
 const target = parsOf(rules.bands as Band[]);
 const nine = (p: number) => Array<number>(9).fill(p);
@@ -198,7 +203,8 @@ describe('levels', () => {
     const b = boot();
     const cmd = b.instance!.commands!;
     expect(String(cmd.list!([])).split('\n')[0]).toBe(`1: ${target[0]}`);
-    expect(String(cmd.list!([]))).toContain('7001: 2 (5x6 1)');
+    const first = rooms[0]!;
+    expect(String(cmd.list!([]))).toContain(`${first.idBase + 1}: ${first.bands[0]!.pars[0]} (${first.id} 1)`);
     expect(String(cmd.list!([]))).toContain('10: 7 boss');
     cmd.start!(['5']);
     expect(b.seen('levels:started', { levelId: 5 })).toBeTruthy();
@@ -206,7 +212,10 @@ describe('levels', () => {
   });
 
   describe('Variety rooms', () => {
-    const shapeOf = (r: Room): Shape => (r.picture ? parseShape(r.picture) : { cols: r.cols!, rows: r.rows!, mask: null });
+    const shapeOf = (r: Room): Shape => (r.kind === 'shape' ? parseShape(r.picture!)
+      : r.kind === 'hex' ? hexagonShape(r.side!)
+      : r.kind === 'cube' ? cubeShape(r.side!)
+      : { cols: r.cols!, rows: r.rows!, mask: null });
 
     test('packs: classic first, then each room in data order, named from copy', () => {
       expect(state.packs).toEqual([
@@ -225,10 +234,19 @@ describe('levels', () => {
       expect(list.map((l) => l.par)).toEqual(pars);
       expect(list.filter((l) => l.boss).map((l) => l.index)).toEqual(room.bands.map((_, k) => (k + 1) * 10));
       for (const l of list) {
-        expect(l.shape).toEqual(shape);
+        // a stuck or wired room's level is the room's grid plus that level's own stuck cells or wiring
+        const { stuck, wires, ...grid } = l.shape!;
+        expect(grid).toEqual(shape);
+        expect(stuck !== undefined).toBe(room.kind === 'stuck');
+        expect(wires !== undefined).toBe(room.kind === 'wired');
+        if (stuck) expect(stuck).toHaveLength((room.bands[Math.floor((l.index! - 1) / 10)] as Band & { stuck: number }).stuck);
+        expect(shapeProblem(l.shape!)).toBeNull();
         expect(l.cells.length).toBe(gridSize(shape));
-        expect(fitsShape(shape, l.cells)).toBe(true);
-        expect(refShapedSolve(shape, l.cells)?.length).toBe(l.par);
+        expect(fitsShape(l.shape!, l.cells)).toBe(true);
+        const fewest = refShapedSolve(l.shape!, l.cells)!;
+        expect(fewest.length).toBe(l.par);
+        // the openings don't give themselves away: no press of a fewest solution shows as its whole footprint
+        expect(readableIn(l.shape!, l.cells, fewest)).toBe(0);
       }
       expect(new Set(list.map((l) => l.cells.map(Number).join(''))).size).toBe(list.length);
     });
@@ -259,15 +277,15 @@ describe('levels', () => {
 
     test('rooms stay locked until Variety opens, then unlock one at a time inside each room', () => {
       const closed = boot({ state: { progress: progress(50) } });
-      closed.emit('levels:start', { levelId: 7001 });
-      expect(closed.seen('levels:refused')).toEqual({ levelId: 7001, reason: 'locked' });
+      closed.emit('levels:start', { levelId: 3001 });
+      expect(closed.seen('levels:refused')).toEqual({ levelId: 3001, reason: 'locked' });
 
-      const open = boot({ state: { progress: progress(21, { varietyOpen: true, packs: { '5x6': { unlockedUpTo: 3, solved: 2, stars: 6 } } }) } });
-      for (const id of [7001, 7003, 2001]) {
+      const open = boot({ state: { progress: progress(21, { varietyOpen: true, packs: { '7x7': { unlockedUpTo: 3, solved: 2, stars: 6 } } }) } });
+      for (const id of [3001, 3003, 13001]) {
         open.emit('levels:start', { levelId: id });
         expect(open.seen('levels:started', { levelId: id })).toBeTruthy();
       }
-      for (const id of [7004, 2002]) {
+      for (const id of [3004, 13002]) {
         open.emit('levels:start', { levelId: id });
         expect(open.seen('levels:refused')).toEqual({ levelId: id, reason: 'locked' });
       }
@@ -283,17 +301,19 @@ describe('levels', () => {
     test.each([
       ['no name in copy', { rooms: [{ ...rooms[0]!, id: 'nameless' }] }, /"nameless" has no name/],
       ['ids that overlap the classic path', { rooms: [{ ...rooms[0]!, idBase: 40 }] }, /overlap "classic"/],
-      ['ids that overlap another room', { rooms: [rooms[0]!, { ...rooms[1]!, idBase: 7005 }] }, /overlap "5x6"/],
-      ['the same room twice', { rooms: [rooms[0]!, rooms[0]!] }, /Two rooms are called "5x6"/],
-      ['a par above the cell count', { rooms: [{ ...rooms[0]!, bands: [{ pars: nine(1), boss: 31 }] }] }, /par 31, but its board has only 30 cells/],
-      ['a ragged picture', { rooms: [{ ...rooms[3]!, picture: ['XXX', 'XX', 'XXX'] }] }, /same length/],
+      ['ids that overlap another room', { rooms: [rooms[0]!, { ...rooms[1]!, idBase: rooms[0]!.idBase + 5 }] }, /overlap "7x7"/],
+      ['the same room twice', { rooms: [rooms[0]!, rooms[0]!] }, /Two rooms are called "7x7"/],
+      ['a par above the cell count', { rooms: [{ ...rooms[0]!, bands: [{ pars: nine(1), boss: 50 }] }] }, /par 50, but its board has only 49 cells/],
+      ['a ragged picture', { rooms: [{ ...rooms.find((r) => r.kind === 'shape')!, picture: ['XXX', 'XX', 'XXX'] }] }, /same length/],
     ])('a room with %s stops the game with a plain message', (_, patch, message) => {
       expect(() => boot({ data: withRules(patch) })).toThrow(message);
     });
 
     test.each([
-      ['both a size and a picture', { ...rooms[0]!, picture: ['XXX', 'XXX', 'XXX'] }, /either cols and rows, or a picture/],
-      ['an 11-wide board', { ...rooms[0]!, cols: 11, rows: 8 }, /Invalid value/],
+      ['both a size and a picture', { ...rooms[0]!, picture: ['XXX', 'XXX', 'XXX'] }, /needs cols and rows \(and no picture\)/],
+      ['a 13-wide board', { ...rooms[0]!, cols: 13, rows: 8 }, /Invalid value/],
+      ['a hex room without a side', { ...rooms.find((r) => r.kind === 'hex')!, side: undefined }, /needs a side/],
+      ['stuck cells on a room that isn\'t stuck', { ...rooms[0]!, bands: rooms[0]!.bands.map((b) => ({ ...b, stuck: 2 })) }, /Only a stuck room/],
     ])('data with %s is rejected before init', (_, room, message) => {
       expect(() => boot({ data: withRules({ rooms: [room] }) })).toThrow(message);
     });

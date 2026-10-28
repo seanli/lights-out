@@ -4,7 +4,7 @@ import type { NavState } from '../contracts/entities';
 import type { Tone, ViewService } from '../contracts/services';
 
 /** how deep a screen sits: a higher number entered from a lower one slides in "forward" */
-const DEPTH: Record<string, number> = { home: 0, variety: 1, play: 2, learn: 3 };
+const DEPTH: Record<string, number> = { home: 0, variety: 1, custom: 1, play: 2, learn: 3 };
 
 export interface ShellView extends ViewService {
   applyNav(nav: NavState | undefined): void;

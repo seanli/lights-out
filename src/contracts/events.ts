@@ -1,7 +1,7 @@
 // Event payloads. Commands are imperative (board:press); facts are past tense (board:pressed).
 // A refused command always emits `<module>:refused` with a reason.
 // Handlers never depend on order: put what a reaction needs in the payload.
-import type { Cells, LevelId, Screen, Shape, Sheet, Stars } from './entities';
+import type { Cells, CustomSettings, LevelId, Screen, Shape, Sheet, Stars } from './entities';
 
 export interface Events {
   // ---- kernel ----
@@ -20,7 +20,7 @@ export interface Events {
   'board:undone': { levelId: LevelId; index: number; cells: Cells; moves: number };
   'board:restarted': { levelId: LevelId; cells: Cells };
   'board:solved': { levelId: LevelId; moves: number; par: number };
-  'board:refused': { command: 'board:press' | 'board:undo' | 'board:restart' | 'board:load'; reason: 'not_playing' | 'bad_index' | 'nothing_to_undo' | 'bad_board' };
+  'board:refused': { command: 'board:press' | 'board:undo' | 'board:restart' | 'board:load'; reason: 'not_playing' | 'bad_index' | 'nothing_to_undo' | 'bad_board' | 'stuck' };
 
   // ---- levels ----
   'levels:start': { levelId: LevelId };
@@ -40,7 +40,7 @@ export interface Events {
     unlocked: LevelId | null;
     /** true when every level of the classic path is now solved (always false for Variety rooms) */
     allSolved: boolean;
-    /** the pack this level belongs to ('classic' when absent) */
+    /** the pack this level belongs to ('classic' when absent; 'custom' for a custom puzzle, which is never saved) */
     pack?: string;
     /** true when this was the level's first solve (so allSolved && firstSolve = this solve finished the set) */
     firstSolve: boolean;
@@ -79,6 +79,16 @@ export interface Events {
   'variety:open': { room: string };
   'variety:opened': { room: string };
   'variety:refused': { reason: 'locked' | 'unknown_room' };
+
+  // ---- custom ----
+  /** open the Custom screen (refused until the other boards are open: progress.varietyOpen) */
+  'custom:open': Record<string, never>;
+  /** change some settings (they are remembered) */
+  'custom:set': { settings: Partial<CustomSettings> };
+  /** make a new puzzle from the settings and start it (also "New puzzle" after a solve) */
+  'custom:play': Record<string, never>;
+  'custom:started': { par: number; label: string; puzzle: number };
+  'custom:refused': { command: 'custom:open' | 'custom:set' | 'custom:play'; reason: 'locked' | 'bad_settings' | 'no_puzzle' };
 
   // ---- learn ----
   /** open the Learn screen, optionally at a lesson */

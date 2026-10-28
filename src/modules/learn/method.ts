@@ -1,7 +1,7 @@
 // Pure maths for the lessons, derived from the solver service (press / isSolvable / solve).
 // Nothing here is hard-coded: the bottom-row table and the quiet patterns are found by trying.
 import { CELL_COUNT, SIZE, type Cells, type Shape, type SolverService } from '../../contracts';
-import { cellIndexes, emptyCells, gridSize, isCell, pressTargets } from '../../lib/shape';
+import { cellIndexes, emptyCells, gridSize, isCell, isPressable, pressTargets } from '../../lib/shape';
 
 type Press = Pick<SolverService, 'press'>;
 
@@ -266,17 +266,17 @@ export function rectTaps(perLight: readonly (number[] | null)[], bottom: readonl
   return [...on].sort((a, b) => a - b);
 }
 
-// ---------- any shape (every room): chase, start and end cells, the start-cell fix ----------
-// A chase leaves lights only on "end" cells (nothing below). Taps on "start" cells (nothing above) are the
-// only taps a chase can't make, so the leftover is fixed there: tap the fewest start cells whose own chase
-// leaves exactly that leftover, then chase again. learn.test.ts proves chase + fix + chase clears every room.
+// ---------- any square-grid shape (rooms with gaps, stuck switches): chase, start and end cells, the start-cell fix ----------
+// A chase leaves lights only on "end" cells (nothing below, or a stuck switch below). Taps on "start" cells (nothing
+// above) are the only taps a chase can't make, so the leftover is fixed there: tap the fewest start cells whose own
+// chase leaves exactly that leftover, then chase again. learn.test.ts proves chase + fix + chase clears every room.
 
-/** true when grid position i is a real cell with a real cell below it */
-export const hasBelow = (shape: Shape, i: number): boolean => isCell(shape, i) && i + shape.cols < gridSize(shape) && isCell(shape, i + shape.cols);
+/** true when grid position i is a real cell with a switch below it (a stuck switch can't be pressed, so it doesn't count) */
+export const hasBelow = (shape: Shape, i: number): boolean => isCell(shape, i) && i + shape.cols < gridSize(shape) && isPressable(shape, i + shape.cols);
 const hasAbove = (shape: Shape, i: number): boolean => isCell(shape, i) && i >= shape.cols && isCell(shape, i - shape.cols);
 
-/** cells with nothing above: where the fix goes ("top-edge lights") */
-export const startCells = (shape: Shape): number[] => cellIndexes(shape).filter((i) => !hasAbove(shape, i));
+/** switches with nothing above: where the fix goes ("top-edge lights") */
+export const startCells = (shape: Shape): number[] => cellIndexes(shape).filter((i) => !hasAbove(shape, i) && isPressable(shape, i));
 /** cells with nothing below: where a chase collects lights */
 export const endCells = (shape: Shape): number[] => cellIndexes(shape).filter((i) => !hasBelow(shape, i));
 /** true when every lit light sits on an end cell (a chase has nothing left to do) */

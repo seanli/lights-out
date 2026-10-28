@@ -3,24 +3,45 @@
 import * as v from 'valibot';
 
 /** Bump when any slice shape below changes; hot-reload snapshots from another version are discarded. */
-export const CONTRACT_VERSION = 3;
+export const CONTRACT_VERSION = 4;
 
 /** The classic board: 5×5, no gaps. The tutorial, Learn and the Patterns table are about this board. */
 export const SIZE = 5;
 export const CELL_COUNT = SIZE * SIZE;
-/** the widest board (10×10 Cathedral) and the tallest (the 6×16 Tower, which scrolls) */
-export const MAX_COLS = 10;
+/** the widest grid (a 4×4 cube's net: three faces across) and the tallest (the 6×16 Tower, which scrolls) */
+export const MAX_COLS = 12;
 export const MAX_ROWS = 16;
 export const MAX_CELLS = MAX_COLS * MAX_ROWS;
+
+export const CellIndexSchema = v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_CELLS - 1));
+
+/**
+ * How cells touch. 'square': up/down/left/right. 'hex': odd rows sit half a cell to the right, and a press reaches the
+ * six touching cells. 'cube': the grid is the cube's unfolded net (lib/cube.ts: three faces across, four down, a
+ * vertical cross), and a press reaches the four touching cells, round the cube's edges too.
+ */
+export const GridSchema = v.picklist(['square', 'hex', 'cube']);
+export type Grid = v.InferOutput<typeof GridSchema>;
 
 /**
  * A board's shape: a cols × rows grid. `mask` marks which grid positions are real cells (null = all of them);
  * a gap is never lit, never pressable, and a press never reaches across it. Pure helpers: src/lib/shape.ts.
+ * The optional rules travel with the shape, so a level whose stuck cells or wiring differ is simply another shape.
  */
 export const ShapeSchema = v.object({
   cols: v.pipe(v.number(), v.integer(), v.minValue(3), v.maxValue(MAX_COLS)),
   rows: v.pipe(v.number(), v.integer(), v.minValue(3), v.maxValue(MAX_ROWS)),
   mask: v.nullable(v.array(v.boolean())),
+  /** absent = 'square' */
+  grid: v.optional(GridSchema),
+  /** stuck cells (grid indexes): lights that can't be pressed; a neighbour's press still flips them */
+  stuck: v.optional(v.array(CellIndexSchema)),
+  /**
+   * wired switches (square grid only): one number per grid position; bit k set = a press there also flips the
+   * neighbour in direction k (0 up, 1 up-right, 2 right, 3 down-right, 4 down, 5 down-left, 6 left, 7 up-left).
+   * The pressed cell always flips. Absent = every cell flips up/down/left/right (the plus).
+   */
+  wires: v.optional(v.array(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(255)))),
 });
 export type Shape = v.InferOutput<typeof ShapeSchema>;
 export const CLASSIC_SHAPE: Shape = Object.freeze({ cols: SIZE, rows: SIZE, mask: null }) as Shape;
@@ -29,10 +50,11 @@ export const CLASSIC_SHAPE: Shape = Object.freeze({ cols: SIZE, rows: SIZE, mask
 export const CellsSchema = v.pipe(v.array(v.boolean()), v.minLength(9), v.maxLength(MAX_CELLS));
 export type Cells = v.InferOutput<typeof CellsSchema>;
 
-export const CellIndexSchema = v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_CELLS - 1));
-
 export const LevelIdSchema = v.pipe(v.number(), v.integer(), v.minValue(1));
 export type LevelId = number;
+
+/** Custom puzzles (the custom module) all play under this one level id; progress never saves them */
+export const CUSTOM_LEVEL_ID = 999_999;
 
 export const StarsSchema = v.picklist([1, 2, 3]);
 export type Stars = v.InferOutput<typeof StarsSchema>;
@@ -81,9 +103,10 @@ export type Chapter = v.InferOutput<typeof ChapterSchema>;
 export const PackSchema = v.object({
   id: v.string(),
   name: v.string(),
-  kind: v.picklist(['classic', 'size', 'shape']),
+  /** classic; size / shape: plain or pictured square grids; hex, cube; stuck / wired: a twist that varies per level */
+  kind: v.picklist(['classic', 'size', 'shape', 'hex', 'cube', 'stuck', 'wired']),
   /** the menu section it sits in */
-  group: v.optional(v.picklist(['boards', 'shapes', 'extreme'])),
+  group: v.optional(v.picklist(['boards', 'twists', 'extreme'])),
   shape: ShapeSchema,
   first: LevelIdSchema,
   count: v.number(),
@@ -140,6 +163,8 @@ export const ProgressStateSchema = v.object({
   packs: v.optional(v.record(v.string(), v.object({ unlockedUpTo: v.number(), solved: v.number(), stars: v.number() }))),
   /** true once the Variety menu is open (rules.json → progress.varietyAfter) */
   varietyOpen: v.optional(v.boolean()),
+  /** hints taken on the custom puzzle on screen (custom puzzles are never saved, so this lives only here) */
+  customHints: v.optional(v.number()),
 });
 export type ProgressState = v.InferOutput<typeof ProgressStateSchema>;
 
@@ -150,7 +175,7 @@ export const HintsStateSchema = v.object({
 });
 export type HintsState = v.InferOutput<typeof HintsStateSchema>;
 
-export const ScreenSchema = v.picklist(['home', 'play', 'learn', 'variety']);
+export const ScreenSchema = v.picklist(['home', 'play', 'learn', 'variety', 'custom']);
 export type Screen = v.InferOutput<typeof ScreenSchema>;
 export const SheetSchema = v.picklist(['solved', 'confirm_reset', 'complete']);
 export type Sheet = v.InferOutput<typeof SheetSchema>;
@@ -222,6 +247,33 @@ export const VarietyStateSchema = v.object({
 });
 export type VarietyState = v.InferOutput<typeof VarietyStateSchema>;
 
+/** What the player picks for a custom board. Each grid keeps its own size, so switching grids keeps your sizes. */
+export const CustomSettingsSchema = v.object({
+  grid: GridSchema,
+  /** square: width and height */
+  cols: v.pipe(v.number(), v.integer(), v.minValue(3), v.maxValue(10)),
+  rows: v.pipe(v.number(), v.integer(), v.minValue(3), v.maxValue(MAX_ROWS)),
+  /** hex: the hexagon's side (3 = 19 lights, 4 = 37, 5 = 61) */
+  hexSide: v.pipe(v.number(), v.integer(), v.minValue(3), v.maxValue(5)),
+  /** cube: cells along a face's edge */
+  cubeSide: v.pipe(v.number(), v.integer(), v.minValue(3), v.maxValue(4)),
+  /** wired needs the square grid */
+  twist: v.picklist(['none', 'stuck', 'wired']),
+  difficulty: v.picklist(['easy', 'medium', 'hard', 'boss']),
+});
+export type CustomSettings = v.InferOutput<typeof CustomSettingsSchema>;
+
+export const CustomStateSchema = v.object({
+  status: v.picklist(['idle', 'playing', 'error']),
+  settings: CustomSettingsSchema,
+  /** puzzles started this session (the play header says "Puzzle N") */
+  played: v.number(),
+  /** the board in words, e.g. "Hex · 37 lights · Stuck cells" (null before the first puzzle) */
+  label: v.nullable(v.string()),
+  error: v.optional(v.string()),
+});
+export type CustomState = v.InferOutput<typeof CustomStateSchema>;
+
 /** Every slice in the store, by name. A slice name equals its owning module's name. */
 export interface State {
   board: BoardState;
@@ -235,5 +287,6 @@ export interface State {
   offline: OfflineState;
   learn: LearnState;
   variety: VarietyState;
+  custom: CustomState;
 }
 export type SliceName = keyof State;

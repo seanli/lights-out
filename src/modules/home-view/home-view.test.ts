@@ -11,7 +11,7 @@ const cells = Array.from({ length: 25 }, (_, i) => i === 12);
 const classic: Pack = { id: 'classic', name: 'Classic', kind: 'classic', group: 'boards', shape: CLASSIC_SHAPE, first: 1, count: COUNT };
 const tall: Pack = { id: '5x6', name: 'Tall room', kind: 'size', group: 'boards', shape: { cols: 5, rows: 6, mask: null }, first: 7001, count: 40 };
 const ring: Pack = {
-  id: 'ring', name: 'Ring', kind: 'shape', group: 'shapes', first: 5001, count: 30,
+  id: 'ring', name: 'Ring', kind: 'shape', group: 'twists', first: 5001, count: 30,
   shape: parseShape(['XXXXXXX', 'XXXXXXX', 'XX...XX', 'XX...XX', 'XX...XX', 'XXXXXXX', 'XXXXXXX']),
 };
 const tower: Pack = { id: 'tower', name: 'Tower', kind: 'size', group: 'extreme', shape: { cols: 5, rows: 16, mask: null }, first: 10001, count: 30 };
@@ -48,7 +48,7 @@ function progress(stars: number[], lastLevel = 0, rooms: Record<number, number> 
   }
   return {
     status: 'ready', save: { version: 1, results, pendingHints: {}, lastLevel }, unlockedUpTo: Math.min(COUNT, stars.length + 1), scoring,
-    packs, varietyOpen: results['20'] !== undefined,
+    packs, varietyOpen: results['10'] !== undefined,
   };
 }
 
@@ -152,29 +152,47 @@ describe('home-view: the menu', () => {
     expect(row('5x6').querySelectorAll('.room-glyph > i[data-lit="true"]').length).toBe(2); // 2 of 40 solved → 2 of 30 dots
   });
 
-  test('three quiet sections in order, Boards, Shapes, Extreme; each row sits in its pack\'s group', () => {
+  test('quiet sections in order, Boards, Twists, Extreme, then Make your own; each row sits in its pack\'s group', () => {
     boot({ progress: progress(Array(20).fill(3), 20) });
     const sections = [...document.querySelectorAll<HTMLElement>('[data-group]')];
-    expect(sections.map((x) => x.dataset.group)).toEqual(['boards', 'shapes', 'extreme']);
-    expect(sections.map((x) => x.querySelector('.eyebrow')!.textContent)).toEqual(['Boards', 'Shapes', 'Extreme']);
-    expect(sections.every((x) => !x.hidden && x.getAttribute('aria-labelledby') === x.querySelector('h2')!.id)).toBe(true);
+    expect(sections.map((x) => x.dataset.group)).toEqual(['boards', 'twists', 'extreme', 'custom']);
+    expect(sections.map((x) => x.querySelector('.eyebrow')!.textContent)).toEqual(['Boards', 'Twists', 'Extreme', 'Make your own']);
+    const boardSections = sections.slice(0, 3);
+    expect(boardSections.every((x) => !x.hidden && x.getAttribute('aria-labelledby') === x.querySelector('h2')!.id)).toBe(true);
+    // Make your own shows only while a custom module runs
+    expect(sections[3]!.hidden).toBe(true);
     const rowsIn = (g: string) => [...document.querySelectorAll<HTMLElement>(`[data-group="${g}"] [data-room-tile]`)].map((r) => r.dataset.room);
     expect(rowsIn('boards')).toEqual(['classic', '5x6']);
-    expect(rowsIn('shapes')).toEqual(['ring']);
+    expect(rowsIn('twists')).toEqual(['ring']);
     expect(rowsIn('extreme')).toEqual(['tower']);
   });
 
-  test('a section with no boards stays hidden; a pack without a group sits by its kind', () => {
+  test('the Custom row: locked until the other boards open, then opens the Custom screen', () => {
+    const custom = { status: 'idle' as const, settings: { grid: 'square' as const, cols: 6, rows: 6, hexSide: 4, cubeSide: 3, twist: 'none' as const, difficulty: 'medium' as const }, played: 0, label: null };
+    const t = boot({ progress: progress([3, 3]), custom });
+    const rowEl = $('[data-action="custom"]');
+    expect($('[data-group="custom"]').hidden).toBe(false);
+    expect(rowEl.dataset.locked).toBe('true');
+    expect(rowEl.textContent).toContain('Opens after level 10');
+    rowEl.click();
+    expect(t.all('custom:open')).toEqual([]);
+    t.kernel.seed('progress', progress(Array(10).fill(3), 10));
+    expect(rowEl.dataset.locked).toBe('false');
+    rowEl.click();
+    expect(t.all('custom:open')).toEqual([{}]);
+  });
+
+  test('a section with no boards stays hidden; a pack without a group sits under Boards', () => {
     const { group: _g, ...ringNoGroup } = ring;
     const packs = [classic, tall, ringNoGroup];
     boot({ levels: { ...levels, packs } });
     expect($('[data-group="extreme"]').hidden).toBe(true);
-    expect($('[data-group="shapes"]').hidden).toBe(false);
-    expect(row('ring').closest<HTMLElement>('[data-group]')!.dataset.group).toBe('shapes');
+    expect($('[data-group="twists"]').hidden).toBe(true);
+    expect(row('ring').closest<HTMLElement>('[data-group]')!.dataset.group).toBe('boards');
     expect(row('5x6').closest<HTMLElement>('[data-group]')!.dataset.group).toBe('boards');
   });
 
-  test('a row opens its board; rooms are locked until classic level 20 (Extreme too), classic never is', () => {
+  test('a row opens its board; rooms are locked until classic level 10 (Extreme too), classic never is', () => {
     const t = boot({ progress: progress([3, 3]) });
     expect(row('classic').dataset.locked).toBe('false');
     for (const id of ['5x6', 'ring', 'tower']) {
@@ -182,8 +200,8 @@ describe('home-view: the menu', () => {
       expect(row(id).getAttribute('aria-disabled')).toBe('true');
       expect(row(id).querySelector<HTMLElement>('.home__score')!.hidden).toBe(true);
     }
-    expect(row('5x6').textContent).toBe('Tall roomOpens after level 20'); // no numbers
-    expect(row('tower').textContent).toBe('TowerOpens after level 20');
+    expect(row('5x6').textContent).toBe('Tall roomOpens after level 10'); // no numbers
+    expect(row('tower').textContent).toBe('TowerOpens after level 10');
     row('tower').click();
     expect(t.all('variety:open')).toEqual([]);
     row('classic').click();

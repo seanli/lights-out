@@ -1,5 +1,6 @@
 // Deterministic level generation and chapter checks. Pure: everything comes in as arguments.
 import { type Cells, type Chapter, type LevelDef, type Rng, type Shape, type SolverService } from '../../contracts';
+import { stuckCells, tangle, wiring } from '../../lib/puzzle';
 import { cellIndexes, emptyCells, shapeOf } from '../../lib/shape';
 
 export interface LevelsRules {
@@ -78,6 +79,57 @@ export function generateLevels(
     const boss = bossEvery && (n + 1) % bossEvery === 0 ? { boss: true as const } : {};
     list.push(pack === undefined ? { id, cells: best.cells, par: best.par, ...boss } : { id, cells: best.cells, par: best.par, pack, index: n + 1, ...(shape ? { shape } : {}), ...boss });
     tries.push(t);
+  });
+  return { list, tries, missed };
+}
+
+/** a band of ten as data: nine pars, the boss's par, and the band's twist settings */
+export interface RoomBand {
+  pars: readonly number[];
+  boss: number;
+  /** stuck cells on each level of the band (a stuck room) */
+  stuck?: number;
+  /** wiring patterns per level, and whether to keep to the gentle ones (a wired room) */
+  kinds?: number;
+  gentle?: boolean;
+}
+
+export interface RoomPlan {
+  idBase: number;
+  pack: string;
+  /** the board every level starts from; stuck cells and wiring are added per level */
+  shape: Shape;
+  twist?: 'stuck' | 'wired';
+  bands: readonly RoomBand[];
+  /** presses a player may read straight off the board (whole footprint lit) */
+  readable: number;
+  maxTries: number;
+}
+
+/**
+ * A Variety room: per level, its own stuck cells or wiring (when the room has a twist), then a tangled board
+ * (lib/puzzle.ts) whose fewest-presses solution is the band's par and whose presses can't be read off the board.
+ * Every 10th level is the band's boss.
+ */
+export function generateRoom(plan: RoomPlan, rng: Rng, solver: SolverService): Generated {
+  const seen = new Set<string>();
+  const list: LevelDef[] = [];
+  const tries: number[] = [];
+  const missed: Generated['missed'] = [];
+  plan.bands.forEach((band, b) => {
+    [...band.pars, band.boss].forEach((wanted, k) => {
+      const index = b * (band.pars.length + 1) + k + 1;
+      const id = plan.idBase + index;
+      let shape: Shape = plan.shape;
+      if (plan.twist === 'stuck') shape = { ...shape, stuck: stuckCells(shape, band.stuck ?? 3, rng) };
+      if (plan.twist === 'wired') shape = { ...shape, wires: wiring(shape, rng, band.kinds ?? 4, band.gentle ?? false) };
+      const made = tangle(shape, wanted, rng, solver, { readable: plan.readable, maxTries: plan.maxTries, seen });
+      if (made.par !== wanted || made.readable > plan.readable) missed.push({ id, wanted, got: made.par });
+      seen.add(made.cells.map((on) => (on ? '1' : '0')).join(''));
+      const boss = k === band.pars.length ? { boss: true as const } : {};
+      list.push({ id, cells: made.cells, par: made.par, pack: plan.pack, index, shape, ...boss });
+      tries.push(made.tries);
+    });
   });
   return { list, tries, missed };
 }
