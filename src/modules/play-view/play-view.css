@@ -5,16 +5,38 @@
   --play-stats-h: calc(var(--text-xs) * var(--leading-tight) + var(--space-1-5) + var(--text-2xl) * var(--leading-num));
 }
 
-/* header right slot: max-stars indicator + reference button side by side */
-.play-head-end { flex-direction: row; align-items: center; gap: var(--space-2); }
-.play-max { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-1); text-align: right; }
-.play-max .caption { white-space: nowrap; }
+/* any board: cols × rows from the level's shape (play-view sets them with data-n; gaps keep their slot) */
+.screen--play .board {
+  grid-template-columns: repeat(var(--board-cols, var(--board-n, 5)), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--board-rows, var(--board-n, 5)), minmax(0, 1fr));
+}
 
-/* the stats sit in the board slot, so stats + tiers + board + line centre together between header and actions */
+/* C1: the stats sit in the board slot, so stats + tiers + board + line form one group that rests on the action bar;
+   the free height collects as headroom under the header, and the board's top row comes down toward the thumb */
 .screen--play { grid-template-rows: auto minmax(0, 1fr) auto; }
-.screen--play .board-slot { --board-chrome-y: calc(var(--play-stats-h) + var(--chip-h) + var(--line-h) + 3 * var(--space-3)); }
-.screen--play .board-slot > .play-stats { align-self: stretch; }
+.screen--play .board-slot {
+  justify-content: flex-end; padding-bottom: clamp(var(--space-3), 3vh, var(--space-6));
+  --board-chrome-y: calc(var(--play-stats-h) + var(--chip-h) + var(--line-h) + 3 * var(--space-3));
+}
 .board-slot[data-tiers="false"] { --board-chrome-y: calc(var(--play-stats-h) + var(--line-h) + 2 * var(--space-3)); }
+
+/* Moves and Par: one centred pair with a hairline between; Par is the reference, so it is smaller and dimmer */
+.screen--play .board-slot > .play-stats { align-self: center; justify-content: center; align-items: stretch; gap: var(--space-8); padding-inline: 0; }
+.play-stats > .stat { align-items: center; justify-content: space-between; text-align: center; }
+.play-stats > .stat + .stat { position: relative; }
+.play-stats > .stat + .stat::before {
+  content: ""; position: absolute; top: 50%; left: calc(-1 * var(--space-8) / 2); translate: 0 -50%;
+  width: var(--hairline); height: var(--space-8); background: var(--c-line);
+}
+.play-stats [data-par] { font-size: var(--text-xl); color: var(--c-text-dim); }
+
+/* Undo / Restart with nothing to take back are resting, not broken */
+.screen--play .play-actions > .btn[aria-disabled="true"] { opacity: var(--rest-opacity, .55); }
+
+/* desktop: room for the board to reach --board-max */
+@media (min-width: 1000px) and (min-height: 820px) {
+  .app:has(> .screens > .screen--play:not([hidden])) { max-width: var(--app-max-play, 560px); }
+}
 
 /* one line under the board: the hint line, or the tutorial's coach line (slot:coach) */
 .play-line { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: var(--line-h); }
@@ -23,8 +45,14 @@
 /* the board is a touch surface: no selection, no callout, no double-tap zoom */
 .screen--play .board { touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 
+/* phone on its side: board left; right column (≤ --side-w) has the header on top and the play group resting on the actions */
 @media (orientation: landscape) and (max-height: 540px) {
-  .screen--play { grid-template-rows: auto auto auto minmax(0, 1fr) auto; } /* components.css's landscape rows (this file loads later) */
+  .screen--play {
+    grid-template-rows: auto minmax(0, 1fr) auto auto auto auto;
+    grid-template-areas: "board head" "board ." "board stats" "board tiers" "board line" "board actions";
+  }
+  .screen--play .board-slot { padding-bottom: 0; }
+  .screen--play .board-slot > .play-stats { grid-area: stats; }
   .screen--play .play-line { grid-area: line; align-self: center; }
 }
 
