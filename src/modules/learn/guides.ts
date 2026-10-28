@@ -1,7 +1,7 @@
 // Board guides: one per room (`guide-<room id>`), built at runtime from the room's real shape and the solver.
 // Which steps a guide has follows from the maths, never from a table:
-//   chase:  a full rectangle where a chase clears every solvable board (4×4)
-//   lights: a full rectangle where each lone bottom light has its own top taps (6×6, 7×7)
+//   chase:  a full rectangle where a chase clears every solvable board (none today: 4×4 and 9×9 were dropped)
+//   lights: a full rectangle where each lone bottom light has its own top taps (5×6, 6×6, 7×7, 8×8, 10×10, Tower)
 //   shapes: anything else (Cross, Ring, Diamond): spot tap shapes, or chase and tap the start-cell fix
 // Example boards come from a fixed-order search, so they always fit the shape; learn.test.ts proves each.
 import type { Cells, Pack, Shape, SolverService } from '../../contracts';
@@ -117,10 +117,13 @@ const touches = (shape: Shape, a: number, b: number) => {
 const demo = (from: number[], play: number[], phases: (Phase | null)[], lit?: number[]): Step =>
   ({ kind: 'demo', from, play, phases, ...(lit ? { lit } : {}) });
 
-/** a board from one top-edge tap and two others whose chase is about `aim` taps long, leaving as little as possible */
+/**
+ * a board from one top-edge tap and two others (from the next three rows, which keeps the search small on 10×10)
+ * whose chase is about `aim` taps long, leaving as little as possible
+ */
 function chaseBoard(solver: Solver, shape: Shape, fx: Fixer, aim: number, avoid?: string) {
   const dark = emptyCells(shape);
-  const rest = cellIndexes(shape).filter((i) => !fx.starts.includes(i));
+  const rest = cellIndexes(shape).filter((i) => !fx.starts.includes(i) && i < 4 * shape.cols);
   const pick = best(triplesOf(fx.starts, rest), (t) => {
     const board = pressAll(solver, dark, t, shape);
     if (board.join() === avoid) return null;
@@ -134,7 +137,8 @@ function chaseBoard(solver: Solver, shape: Shape, fx: Fixer, aim: number, avoid?
   return { from: pick, board, chase: chaseShape(solver, board, shape) };
 }
 
-/** two bottom lights whose top taps share one light, ordered so that light isn't tapped twice in a row; near the middle */
+/** two bottom lights whose top taps share one light, ordered so that light isn't tapped twice in a row; near the middle.
+ *  null when no two share a tap (straight above: 5×6, the Tower) */
 function overlapPair(perLight: readonly number[][], cols: number): [number, number] | null {
   const cands: [number, number][] = [];
   for (let a = 0; a < cols; a++) for (let b = 0; b < cols; b++) if (a !== b) cands.push([a, b]);
@@ -165,8 +169,9 @@ function lightsGuide(solver: Solver, shape: Shape, fx: Fixer): Step[] {
   const one = chaseBoard(solver, shape, fx, 2 * rows - 2);
   const bottom = (c: number) => (rows - 1) * cols + c;
   const pick = Math.floor((cols - 1) / 2);
-  // several bottom lights: each one's top taps in turn (a light tapped twice cancels), then chase again
-  const pair = overlapPair(perLight, cols) ?? [pick];
+  // several bottom lights: each one's top taps in turn (a light tapped twice cancels), then chase again;
+  // where no taps overlap, two lights with a gap between, either side of the middle
+  const pair = overlapPair(perLight, cols) ?? (cols > 2 ? [pick - 1, pick + 1] : [pick]);
   const tops = pair.flatMap((c) => perLight[c]!);
   const lit = pair.map(bottom);
   const start = emptyCells(shape).map((_, i) => lit.includes(i));
@@ -233,5 +238,5 @@ export function buildGuide(solver: Solver, pack: Pick<Pack, 'id' | 'shape'>): { 
   const kind = guideKind(solver, shape);
   const fixer = createFixer(solver, shape);
   const steps = kind === 'chase' ? chaseGuide(solver, shape, fixer) : kind === 'lights' ? lightsGuide(solver, shape, fixer) : shapesGuide(solver, shape, fixer);
-  return { kind, fixer, lesson: { steps, shape, assist: 'fix', pool: cellIndexes(shape) } };
+  return { kind, fixer, lesson: { steps, shape, assist: 'fix', pool: cellIndexes(shape), ...(kind === 'lights' ? { leftover: true } : {}) } };
 }

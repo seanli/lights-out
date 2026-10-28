@@ -1,11 +1,11 @@
 // learn: the Learn screen. Five lessons that teach the patterns that solve any board, each a few
-// short steps (illustration, animated demo, table, practice), and one short guide per Variety room
+// short steps (illustration, animated demo, table, practice), and one short guide per room
 // on that room's own shape. Owns the `learn` slice.
 import * as v from 'valibot';
 import { CELL_COUNT, MAX_CELLS, type Cells, type LearnState, type ModuleDef, type Pack } from '../../contracts';
 import { isCell, shapeKey } from '../../lib/shape';
 import { LESSONS, type Lesson } from './lessons';
-import { bottomRowTable, chaseSuggest, createFixer, fixSuggest, isClear, makeBoard, methodSuggest, quietPatterns, type Fixer, type TableEntry } from './method';
+import { bottomRowTable, chaseShape, chaseSuggest, createFixer, fixSuggest, isClear, makeBoard, methodSuggest, quietPatterns, type Fixer, type TableEntry } from './method';
 import { GUIDE_PREFIX, GUIDE_STEPS, buildGuide, guideId, guideKind, type GuideKind } from './guides';
 import { emptySave, type DrillSave } from './drill';
 import { createReference } from './reference';
@@ -20,6 +20,8 @@ const RulesSchema = v.object({
   demoStartMs: v.pipe(int, v.minValue(0)),
   demoStepMs: v.pipe(int, v.minValue(50)),
   demoHoldMs: v.pipe(int, v.minValue(50)),
+  /** a long demo (10×10, the Tower) plays its taps faster so the whole demo takes about this long */
+  demoMaxMs: v.pipe(int, v.minValue(1000)),
   saveKey: v.pipe(v.string(), v.minLength(1)),
   drill: v.object({
     cards: v.pipe(int, v.minValue(1)),
@@ -33,7 +35,7 @@ export type LearnRules = v.InferOutput<typeof RulesSchema>;
 const text = v.pipe(v.string(), v.minLength(1));
 const CopySchema = v.looseObject({
   title: text, subtitle: text, back: text, backToLessons: text, stepOf: text, prev: text, next: text, finish: text,
-  done: text, assist: text, newBoard: text, another: text, assistLine: text, moves: text, movesPar: text,
+  done: text, assist: text, newBoard: text, another: text, assistLine: text, aimTip: text, moves: text, movesPar: text,
   solved: text, solvedPar: text, solvedAtPar: text, demoPlay: text, demoReplay: text, demoStep: text, demoTap: text, demoDone: text,
   demoPhase: v.object({ chase: text, top: text, edge: text, chase2: text, spot: text }),
   captions: v.record(v.string(), text), cellOn: text, cellOff: text,
@@ -49,7 +51,8 @@ const CopySchema = v.looseObject({
       start: text, chase: text, match: text, progress: text, clear: text, nomatch: text, rectBottom: text, rectMatch: text,
       shapedFix: text, shapedProgress: text, shapedNomatch: text,
     }),
-    rect: v.object({ chaseClears: text, threeAbove: text, ownTaps: text }),
+    /** the rule line per full rectangle: the rule its maths follows (method.ts → RECT_RULES), else ownTaps */
+    rect: v.object({ chaseClears: text, straightAbove: text, threeAbove: text, twoAside: text, aboveTwoAside: text, ownTaps: text }),
   }),
   lessons: v.record(v.string(), v.object({ title: text, summary: text, steps: v.array(text) })),
   /** the Learn list's two groups */
@@ -221,7 +224,11 @@ const learn: ModuleDef = {
       const lesson = lessonOf(id)!;
       const [min, max] = rules.practicePresses[id]!;
       const pool = lesson.pool ?? [...Array(CELL_COUNT).keys()];
-      const cells = makeBoard(solver, (n) => rng.int(n), min + rng.int(max - min + 1), pool, lesson.shape);
+      const make = () => makeBoard(solver, (n) => rng.int(n), min + rng.int(max - min + 1), pool, lesson.shape);
+      let cells = make();
+      // a room's guide teaches the bottom-row step: draw again (a few times) while a chase alone would clear the board
+      const chased = (b: Cells) => (lesson.shape ? chaseShape(solver, b, lesson.shape).cells : b);
+      for (let k = 0; lesson.leftover && k < 30 && isClear(chased(cells)); k++) cells = make();
       return { ...s, practice: { cells, start: cells, moves: 0, suggest: suggestFor(s, cells), status: 'playing' } };
     };
 

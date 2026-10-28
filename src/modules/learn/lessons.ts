@@ -53,6 +53,8 @@ export interface Lesson {
   assist: Assist;
   /** practice taps come only from these cells (default: every cell of the board) */
   pool?: number[];
+  /** practice boards always leave lights after a chase, so the bottom-row step gets used (full-rectangle guides) */
+  leftover?: boolean;
   /** show moves vs par while practising */
   showPar?: boolean;
   /** an extra lesson behind a quiet "Go deeper" link on the last step */

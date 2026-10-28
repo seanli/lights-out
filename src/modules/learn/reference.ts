@@ -2,10 +2,11 @@
 // Built once; every board change only patches attributes and a few lines of text (well under 1 ms).
 // Never marks the main board: the panel teaches the method, the paid Hint stays the only on-board help.
 // Classic 5×5: live advice, live bottom row, the 7-row table; the matching row's echo and rule in one line.
-// Other full rectangles: chase advice for that size, then the player's bottom row over its top taps.
+// Other full rectangles: chase advice and the size's rule (from the maths), the player's live bottom row (on the Tower
+// it is far below while chasing), and at bottom-row time the top taps under it.
 // Shaped rooms: chase advice by row, then a small picture of the board with the top-edge fix ringed.
 // Rooms link to their board guide; classic links to all lessons.
-import { BOTTOM, blank, chaseShapeSuggest, rectTaps, rectTopSets, type Fixer, type TableEntry } from './method';
+import { BOTTOM, blank, chaseShapeSuggest, rectRule, rectTaps, rectTopSets, type Fixer, type RectRule, type TableEntry } from './method';
 import { CELL_COUNT, SIZE, type BoardState, type Ctx, type Shape, type SolverService } from '../../contracts';
 import { fmt, h, setAttr, setText } from '../../lib/dom';
 import { gridSize, isCell, shapeKey } from '../../lib/shape';
@@ -23,8 +24,8 @@ export interface ReferenceCopy {
     /** shaped rooms once only end lights are left: {n} ringed top-edge lights; part-way through them; no fix */
     shapedFix: string; shapedProgress: string; shapedNomatch: string;
   };
-  /** the strategy line for full rectangles: chase alone clears it / three above each light / each light its own taps */
-  rect: { chaseClears: string; threeAbove: string; ownTaps: string };
+  /** the strategy line for full rectangles: chase alone clears it / a rule the maths follows / each light its own taps */
+  rect: { chaseClears: string; ownTaps: string } & Record<RectRule, string>;
 }
 
 export type ReferenceStatus = 'chase' | 'match' | 'nomatch' | 'clear';
@@ -114,8 +115,8 @@ export function createAdvisor(solver: Pick<SolverService, 'press'>, table: reado
   const rectLine = (shape: Shape, lines: ReferenceCopy['rect']): string => {
     const { perLight, chaseClears } = setsFor(shape);
     if (chaseClears) return fmt(lines.chaseClears, { cols: shape.cols, rows: shape.rows });
-    const threeAbove = perLight.every((set, c) => set !== null && set.join() === [c - 1, c, c + 1].filter((x) => x >= 0 && x < shape.cols).join());
-    return threeAbove ? lines.threeAbove : lines.ownTaps;
+    const rule = rectRule(perLight);
+    return rule ? lines[rule] : lines.ownTaps;
   };
 
   /** any shape: part-way through a fix → finish it; lights above an end cell → chase that row; else the fix, ringed */
@@ -177,12 +178,11 @@ export function createReference(ctx: Ctx, solver: SolverService, table: readonly
     }
     return r;
   };
-  /** retarget a strip's cells (lit for a bottom strip, pointer + letter for a top strip) */
-  const paintStrip = (el: HTMLElement, kind: 'bottom' | 'top', cols: readonly number[]) => {
+  /** retarget a top strip's cells: pointer + letter on the columns to tap */
+  const paintTaps = (el: HTMLElement, cols: readonly number[]) => {
     [...el.children].forEach((cell, c) => {
-      setAttr(cell, 'data-lit', String(kind === 'bottom' && cols.includes(c)));
-      setAttr(cell, 'data-suggest', kind === 'top' && cols.includes(c) ? 'true' : null);
-      setAttr(cell, 'data-letter', kind === 'top' && cols.includes(c) ? labels.letters[c]! : null);
+      setAttr(cell, 'data-suggest', cols.includes(c) ? 'true' : null);
+      setAttr(cell, 'data-letter', cols.includes(c) ? labels.letters[c]! : null);
     });
   };
 
@@ -195,11 +195,13 @@ export function createReference(ctx: Ctx, solver: SolverService, table: readonly
       strip('bottom', e.bottom), h('span', { class: 'learn-table__arrow', 'aria-hidden': 'true' }, '→'), strip('top', e.top)));
   // the matching row's one line: "Echo of B"
   const ruleOf = table.map((e) => fmt(copy.echo, { name: labels.echo(e.top) }));
-  // full rectangles at bottom-row time: your bottom row, and the top lights to tap (rebuilt when the width changes)
+  // full rectangles: the live bottom row, and at bottom-row time the top lights to tap under it (rebuilt per shape)
   const rectBottom = h('div', { class: 'reference__you' }, h('span', { class: 'caption' }, copy.yourRow));
   const rectTop = h('div', { class: 'reference__you' }, h('span', { class: 'caption' }, copy.top));
   const rectBox = h('div', { class: 'reference__rect', hidden: true }, rectBottom, rectTop);
-  let rectCols = 0;
+  let rectKey = '';
+  let rectRow: HTMLElement | null = null;
+  let rectLive: HTMLElement[] = [];
   // shaped rooms: a small picture of the board, the end lights lit and the fix ringed (rebuilt when the shape changes)
   const shapeBox = h('div', { class: 'reference__shape', 'data-reference-shape': '', hidden: true });
   let shapeKeyNow = '';
@@ -288,17 +290,29 @@ export function createReference(ctx: Ctx, solver: SolverService, table: readonly
         setAttr(cell, 'data-suggest', a.shaped.ring.includes(i) ? 'true' : null);
       }
     }
-    // full rectangles: the strip pair at bottom-row time
-    rectBox.hidden = !a.rect;
-    if (a.rect && board?.shape) {
-      const n = board.shape.cols;
-      if (n !== rectCols) {
-        rectCols = n;
-        rectBottom.replaceChildren(rectBottom.firstChild!, strip('bottom', [], n));
-        rectTop.replaceChildren(rectTop.firstChild!, strip('top', [], n));
+    // full rectangles: the live bottom row (the one [data-reference-bottom]), the top taps under it at bottom-row time
+    const rectShape = kind === 'rect' ? board?.shape : undefined;
+    rectBox.hidden = !rectShape;
+    setAttr(live, 'data-reference-bottom', classic ? '' : null);
+    if (rectRow) setAttr(rectRow, 'data-reference-bottom', rectShape ? '' : null);
+    if (rectShape) {
+      const { cols, rows: height } = rectShape;
+      if (shapeKey(rectShape) !== rectKey) {
+        rectKey = shapeKey(rectShape);
+        rectRow = strip('live', [], cols);
+        rectRow.setAttribute('data-reference-bottom', '');
+        rectLive = [...rectRow.children] as HTMLElement[];
+        rectLive.forEach((cell, c) => setAttr(cell, 'data-index', String((height - 1) * cols + c)));
+        rectBottom.replaceChildren(rectBottom.firstChild!, rectRow);
+        rectTop.replaceChildren(rectTop.firstChild!, strip('top', [], cols));
+        setAttr(rectBox, 'style', `--strip-n:${cols}`);
       }
-      paintStrip(rectBottom.lastElementChild as HTMLElement, 'bottom', a.rect.bottom);
-      paintStrip(rectTop.lastElementChild as HTMLElement, 'top', a.rect.taps);
+      rectLive.forEach((cell, c) => setAttr(cell, 'data-lit', String(!!board!.cells[(height - 1) * cols + c])));
+      const appear = rectTop.hidden && !!a.rect;
+      rectTop.hidden = !a.rect;
+      paintTaps(rectTop.lastElementChild as HTMLElement, a.rect?.taps ?? []);
+      // a short panel scrolls: the taps to make are the line that must show
+      if (appear) (rectTop.lastElementChild as HTMLElement).scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
     }
     const line = match >= 0 ? ruleOf[match]! : kind === 'rect' && board?.shape ? advise.rectLine(board.shape, copy.rect) : '';
     rule.hidden = !line;
