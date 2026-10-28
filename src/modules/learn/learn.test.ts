@@ -1171,8 +1171,8 @@ describe('learn: the Patterns panel on room boards', () => {
   });
 
   const RULE_LINE: Record<string, RegExp> = {
-    '5x6': /straight above it/, tower: /straight above it/, '6x6': /two to each side; at the edges, also/, '7x7': /three top lights above it/,
-    '8x8': /has its own top taps/, '10x10': /above it and two to each side; at the edges, skip/,
+    '5x6': /straight above it/, tower: /straight above it/, '6x6': /two places left and right; at the edges, also/, '7x7': /three top lights above it/,
+    '8x8': /has its own top lights to tap/, '10x10': /above it and two places left and right; at the edges, skip/,
   };
   test.each(Object.keys(RULE_LINE))('%s: the rule line from the maths, the live bottom row while chasing, then the top taps under it; following them clears the board', (id) => {
     const shape = ROOM[id]!;

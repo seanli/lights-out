@@ -247,9 +247,9 @@
         "chaseClears": "On {cols}×{rows}, chasing clears the whole board.",
         "straightAbove": "Each lit bottom light: tap the top light straight above it.",
         "threeAbove": "Each lit bottom light: tap the three top lights above it. Overlaps cancel.",
-        "twoAside": "Each lit bottom light: tap the top lights two to each side; at the edges, also the one above.",
-        "aboveTwoAside": "Each lit bottom light: tap the top light above it and two to each side; at the edges, skip that one.",
-        "ownTaps": "Each lit bottom light has its own top taps. Overlaps cancel."
+        "twoAside": "Each lit bottom light: tap the top lights two places left and right; at the edges, also the one above.",
+        "aboveTwoAside": "Each lit bottom light: tap the top light above it and two places left and right; at the edges, skip that one.",
+        "ownTaps": "Each lit bottom light has its own top lights to tap. Overlaps cancel."
       }
     },
     "lessons": {
