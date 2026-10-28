@@ -54,4 +54,16 @@ describe('sound', () => {
     expect(t.state('sound').status).toBe('unavailable');
     expect(t.kernel.debug.services().find((s) => s.service === 'audio')?.ok).toBe(false);
   });
+
+  test('audio warms up just after a level starts, so the first board tap is cheap', () => {
+    vi.stubGlobal('AudioContext', FakeAudio);
+    const t = bootModule(sound);
+    t.emit('levels:started', { levelId: 1, par: 1, count: 50 });
+    expect(created).toBe(0);
+    t.clock.advance(0);
+    expect(created).toBe(1);
+    t.emit('board:pressed', pressed);
+    expect(created).toBe(1);
+  });
 });
+

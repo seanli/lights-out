@@ -233,7 +233,9 @@ const playView: ModuleDef = {
 
     // ---------- solve sweep ----------
     let cancelSweep: (() => void) | null = null;
+    let sweepFrame = 0;
     const stopSweep = () => {
+      cancelAnimationFrame(sweepFrame);
       cancelSweep?.();
       cancelSweep = null;
       if (!board.classList.contains('board--sweep')) return;
@@ -241,19 +243,27 @@ const playView: ModuleDef = {
       cells.forEach((c, i) => c.style.setProperty('--i', String(rowOf(i) + colOf(i))));
     };
     /** a ripple from the winning tap: each cell waits by its distance, scaled so the farthest one ends on --dur-sweep */
+    let timing: { total: number; span: number } | null = null; // tokens never change at runtime: read once
     const startSweep = (origin: number) => {
       stopSweep();
       if (view.reducedMotion()) return;
-      const css = getComputedStyle(board);
-      const total = ms(css.getPropertyValue('--dur-sweep'));
-      const span = (total - ms(css.getPropertyValue('--dur-sweep-cell'))) / ms(css.getPropertyValue('--sweep-step'));
-      const dist = cells.map((_, i) => Math.hypot(rowOf(i) - rowOf(origin), colOf(i) - colOf(origin)));
-      const far = Math.max(...dist) || 1;
-      const scale = Number.isFinite(span) && span > 0 ? span / far : 1;
-      cells.forEach((c, i) => c.style.setProperty('--i', (dist[i]! * scale).toFixed(2)));
-      void board.offsetWidth; // restart the animation even if the class was on a moment ago
-      board.classList.add('board--sweep');
-      if (clock && Number.isFinite(total)) cancelSweep = clock.setTimeout(stopSweep, total);
+      // start on the next frame: the winning tap's own light change paints first, and nothing
+      // in the tap's handler forces a style or layout pass
+      cancelAnimationFrame(sweepFrame);
+      sweepFrame = requestAnimationFrame(() => {
+        if (!timing) {
+          const css = getComputedStyle(board);
+          const total = ms(css.getPropertyValue('--dur-sweep'));
+          timing = { total, span: (total - ms(css.getPropertyValue('--dur-sweep-cell'))) / ms(css.getPropertyValue('--sweep-step')) };
+        }
+        const { total, span } = timing;
+        const dist = cells.map((_, i) => Math.hypot(rowOf(i) - rowOf(origin), colOf(i) - colOf(origin)));
+        const far = Math.max(...dist) || 1;
+        const scale = Number.isFinite(span) && span > 0 ? span / far : 1;
+        cells.forEach((c, i) => c.style.setProperty('--i', (dist[i]! * scale).toFixed(2)));
+        board.classList.add('board--sweep');
+        if (clock && Number.isFinite(total)) cancelSweep = clock.setTimeout(stopSweep, total);
+      });
     };
 
     // ---------- render ----------

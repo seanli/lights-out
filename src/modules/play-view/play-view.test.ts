@@ -240,11 +240,13 @@ describe('play-view', () => {
     });
   });
 
-  test('a solve ripples from the winning tap, then the sweep class is removed', () => {
+  test('a solve ripples from the winning tap (starting on the next frame), then the sweep class is removed', async () => {
     const view = { ...createFakeView(), reducedMotion: () => false };
     const t = bootModule(playView, { state: { board: board(), hints: IDLE, levels, progress: progress() }, services: { view } });
     const el = document.querySelector<HTMLElement>(SEL.board)!;
     t.kernel.seed('board', board({ status: 'solved', cells: cellsFrom('0'.repeat(25)), moves: 5, history: [1, 2, 3, 4, 24] }));
+    expect(el.classList.contains('board--sweep')).toBe(false); // the tap itself stays light
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
     expect(el.classList.contains('board--sweep')).toBe(true);
     expect(el.dataset.status).toBe('solved');
     const delay = (i: number) => Number(document.querySelector<HTMLElement>(SEL.cell(i))!.style.getPropertyValue('--i'));

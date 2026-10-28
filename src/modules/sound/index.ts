@@ -16,9 +16,9 @@ const sound: ModuleDef = {
   manifest: {
     name: 'sound',
     emits: ['sound:changed'],
-    listens: ['sound:set', 'board:pressed', 'board:undone', 'board:solved', 'hints:shown'],
+    listens: ['sound:set', 'board:pressed', 'board:undone', 'board:solved', 'hints:shown', 'levels:started'],
     owns: ['sound'],
-    optional: ['storage'],
+    optional: ['storage', 'clock'],
     data: { rules: Rules, flags: Flags },
   },
   init(ctx) {
@@ -76,6 +76,14 @@ const sound: ModuleDef = {
       osc.start(t);
       osc.stop(t + dur + 0.02);
     }
+
+    // Starting audio costs tens of milliseconds on some phones. Do it right after the tap that opens a
+    // level (still inside the browser's user-activation window), so no board tap ever pays for it.
+    const clock = ctx.service('clock');
+    ctx.on('levels:started', () => {
+      if (audio || !ctx.read('sound')!.enabled) return;
+      if (clock) clock.setTimeout(() => { ensure(); }, 0);
+    });
 
     ctx.on('board:pressed', ({ litCount }) => blip(hz(STEPS[Math.min(STEPS.length - 1, Math.round(litCount / 2.5))]!)));
     ctx.on('board:undone', () => blip(hz(0), 0, 0.05, 0.3, 'sine'));

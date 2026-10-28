@@ -15,11 +15,11 @@ Shell: `src/shell` (entry, view service, design system in `src/shell/styles`). C
 | **levels** | `levels` | — | `solver`, `rng` | `levels:generated`, `levels:started`, `levels:refused`, `board:load` | `levels:start` | `rules`, `copy` |
 | **nav** | `nav` | — | — | `nav:changed` | `nav:go`, `nav:back`, `nav:open_sheet`, `nav:close_sheet`, `levels:started` | — |
 | **offline** | `offline` | — | `env?`, `view?`, `clock?` | `offline:status_changed` | — | `copy` |
-| **play-view** | — | — | `view`, `clock?` | `board:press`, `board:undo`, `board:restart`, `hints:request`, `nav:go`, `learn:open` | — | `copy` |
+| **play-view** | — | — | `view`, `clock?` | `board:press`, `board:undo`, `board:restart`, `hints:request`, `nav:go` | — | `copy` |
 | **progress** | `progress` | — | `clock`, `storage?`, `view?` | `progress:loaded`, `progress:level_completed`, `progress:cleared`, `progress:save_failed`, `progress:clear` | `progress:clear`, `levels:started`, `levels:generated`, `hints:shown`, `board:solved` | `rules`, `copy` |
 | **solved-sheet** | — | — | `view`, `clock` | `nav:open_sheet`, `nav:go`, `levels:start` | `board:solved`, `progress:level_completed`, `levels:started`, `board:loaded`, `board:restarted` | `rules`, `copy` |
 | **solver** | — | `solver` | — | — | — | — |
-| **sound** | `sound` | — | `storage?` | `sound:changed` | `sound:set`, `board:pressed`, `board:undone`, `board:solved`, `hints:shown` | `rules`, `flags` |
+| **sound** | `sound` | — | `storage?`, `clock?` | `sound:changed` | `sound:set`, `board:pressed`, `board:undone`, `board:solved`, `hints:shown`, `levels:started` | `rules`, `flags` |
 | **storage** | `storage` | `storage` | `view?` | `storage:checked` | — | `rules`, `copy` |
 | **tutorial** | `tutorial` | — | `solver?`, `storage?`, `view?` | `tutorial:step_shown`, `tutorial:finished` | `board:loaded`, `board:pressed`, `board:undone`, `board:restarted`, `board:solved`, `tutorial:skip` | `rules`, `flags`, `copy` |
 
@@ -42,7 +42,7 @@ Shell: `src/shell` (entry, view service, design system in `src/shell/styles`). C
 - `learn:lesson_completed`: learn → (nobody yet)
 - `learn:lesson_opened`: learn → (nobody yet)
 - `learn:new_practice`: learn → learn
-- `learn:open`: home-view, learn, play-view → learn
+- `learn:open`: home-view, learn → learn
 - `learn:practice_solved`: learn → (nobody yet)
 - `learn:press`: learn → learn
 - `learn:refused`: learn → (nobody yet)
@@ -51,7 +51,7 @@ Shell: `src/shell` (entry, view service, design system in `src/shell/styles`). C
 - `levels:generated`: levels → progress
 - `levels:refused`: levels → (nobody yet)
 - `levels:start`: home-view, solved-sheet → levels
-- `levels:started`: levels → nav, progress, solved-sheet
+- `levels:started`: levels → nav, progress, solved-sheet, sound
 - `nav:back`: learn → nav
 - `nav:changed`: nav → (nobody yet)
 - `nav:close_sheet`: home-view → nav

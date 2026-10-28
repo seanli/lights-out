@@ -144,7 +144,7 @@ const solvedSheet: ModuleDef = {
       solved = p;
       // keep a verdict that already arrived for this level in this same drain
       if (completed && completed.levelId !== p.levelId) completed = null;
-      render();
+      // nothing is drawn during the winning tap itself; the sheet renders when it opens
       // with reduced motion there is no sweep to wait for
       const wait = ctx.service('view')?.reducedMotion() ? Math.min(delayMs, 150) : delayMs;
       cancelTimer = clock.setTimeout(() => {
@@ -157,7 +157,7 @@ const solvedSheet: ModuleDef = {
     });
     ctx.on('progress:level_completed', (p) => {
       completed = p;
-      if (solved?.levelId === p.levelId) render();
+      if (solved?.levelId === p.levelId && ctx.read('nav')?.sheet === 'solved') render();
     });
     // a new board (next, replay, restart, another level) cancels a sheet that hasn't opened yet
     const reset = () => { cancel(); solved = null; completed = null; };

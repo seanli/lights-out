@@ -46,7 +46,7 @@ export function contextOptions({ width, height }, extra = {}) {
  * Instrumentation installed before the page's own scripts (context.addInitScript).
  * window.__probe collects:
  *  - taps:   per pointerdown on a [data-cell]: { index, down (event timeStamp), entry (when the page got it),
- *            dom (first data-lit change), frame (the next animation frame after that) }
+ *            dom (first data-lit change), frame (the next animation frame after that), win (this tap solved the board) }
  *  - sweeps: { frames, ms } rAF callbacks counted for 800ms after an armed tap (armSweep())
  *  - sheets: { name, at } each time a [data-sheet] goes from [hidden] to shown
  */
@@ -82,6 +82,8 @@ export const INSTRUMENT = `(() => {
         (r.type === 'attributes' && r.attributeName === 'data-lit') ||
         (r.type === 'childList' && [...r.addedNodes].some(isCellNode)))) {
         const p = pending; pending = null; p.dom = now;
+        const board = document.querySelector('[data-screen="play"] [data-board]');
+        p.win = !!board && board.dataset.status === 'solved';
         requestAnimationFrame(() => { p.frame = performance.now(); });
       }
     }
