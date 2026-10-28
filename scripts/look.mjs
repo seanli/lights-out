@@ -10,13 +10,15 @@ import { CELLS, Skip, debugState, emit, enterLevel, hasDebug, readBoard, settle,
 const USAGE = `Usage: npm run look -- --state <state> [options]
 
 States:
-  home        the home screen (level path)
+  home        the home screen (the menu of boards)
+  board:ID    one board's level screen, e.g. board:classic, board:ring (rooms open after classic level 20: add --solved 20)
   play:N      level N, untouched
   hint:N      level N with a hint showing
   solved:N    level N solved, solved sheet open
   console     the debug console over the home screen
 
 Options:
+  --solved N              first mark classic levels 1..N solved at 3★ (progress.unlock), e.g. to show the rooms open
   --widths 375,768,1440   widths to shoot (height: 844 below 768, 1024 at 768–1199, 900 from 1200)
   --landscape             also shoot a 812×375 phone on its side
   --short                 also shoot a short 375×600 phone
@@ -26,10 +28,13 @@ Options:
 
 const args = parseArgs(process.argv.slice(2));
 if (args.help || !args.state) { console.log(USAGE); process.exit(args.help ? 0 : 2); }
-const m = String(args.state).match(/^(home|console|play|hint|solved)(?::(\d+))?$/);
-if (!m || (['play', 'hint', 'solved'].includes(m[1]) && !m[2])) { console.error(`Unknown state "${args.state}".\n\n${USAGE}`); process.exit(2); }
-const [, kind, num] = m;
-const level = num ? Number(num) : null;
+const m = String(args.state).match(/^(home|console|play|hint|solved|board)(?::([\w-]+))?$/);
+const needsNum = ['play', 'hint', 'solved'].includes(m?.[1]);
+if (!m || (needsNum && !/^\d+$/.test(m[2] ?? '')) || (m[1] === 'board' && !m[2])) { console.error(`Unknown state "${args.state}".\n\n${USAGE}`); process.exit(2); }
+const [, kind, arg] = m;
+const level = needsNum ? Number(arg) : null;
+const solvedUpTo = args.solved === undefined ? null : Number(args.solved);
+if (solvedUpTo !== null && !(Number.isInteger(solvedUpTo) && solvedUpTo >= 1)) { console.error('--solved needs a level number, e.g. --solved 25'); process.exit(2); }
 
 const widths = String(args.widths ?? '375,768,1440').split(',').map(Number).filter(Boolean);
 const sizes = widths.map((w) => ({ width: w, height: w < 768 ? 844 : w < 1200 ? 1024 : 900 }));
@@ -66,7 +71,7 @@ async function shoot(size) {
     if (!(await hasDebug(page))) throw new Error('window.__lightsOut.debug is missing (is #debug passed through?)');
     await reach(page);
     await settle(page);
-    const path = join(outDir, `${args.state.replace(':', '-')}-${label}.png`);
+    const path = join(outDir, `${args.state.replace(':', '-')}${solvedUpTo ? `-solved${solvedUpTo}` : ''}-${label}.png`);
     await page.screenshot({ path });
     return { size: label, path };
   } catch (err) {
@@ -77,6 +82,25 @@ async function shoot(size) {
 }
 
 async function reach(page) {
+  if (solvedUpTo) {
+    await page.waitForFunction(() => window.__lightsOut.debug.state().levels?.status === 'ready', null, { timeout: 10000 })
+      .catch(() => { throw new Error('levels never became ready'); });
+    const unlock = await page.evaluate(() => typeof window.__lightsOut.debug.commands()['progress.unlock'] === 'function');
+    if (!unlock) throw new Error('--solved needs the progress.unlock console command');
+    await page.evaluate((n) => window.__lightsOut.debug.commands()['progress.unlock']([String(n)]), solvedUpTo);
+  }
+  if (kind === 'board') {
+    await emit(page, 'variety:open', { room: arg });
+    const shown = await page.waitForFunction((id) => {
+      const view = document.querySelector(`[data-screen="variety"]:not([hidden]) [data-room-view="${CSS.escape(id)}"]`);
+      return !!view && view.getClientRects().length > 0;
+    }, arg, { timeout: 3000 }).then(() => true, () => false);
+    if (!shown) {
+      const refused = await page.evaluate(() => window.__lightsOut.debug.events().filter((e) => e.type === 'variety:refused').at(-1)?.payload?.reason ?? null);
+      throw new Error(refused === 'locked' ? `board "${arg}" is locked: add --solved 20` : refused ? `variety:open refused: ${refused}` : `board "${arg}" never showed ([data-room-view="${arg}"])`);
+    }
+    return;
+  }
   if (kind === 'home' || kind === 'console') {
     await emit(page, 'nav:go', { screen: 'home' });
     if (kind === 'console') await page.locator('[data-console]').first().waitFor({ state: 'visible', timeout: 3000 })

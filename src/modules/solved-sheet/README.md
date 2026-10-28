@@ -8,8 +8,8 @@ The end-of-level sheet in `view.region('sheet:solved')`. Uses `view`, `clock`; o
 - `levels:started {pack, index, next}` is kept (order-independent); without it (hot reload) the place comes from the levels slice.
 - Shows: eyebrow "Level 7" (rooms: "Small room · Level 3"), "Lights out.", `[data-stars-earned]`, `[data-result]` "6 moves · par 5",
   and a note only when it says what to do (over par, or hinted). No drag handle.
-- `next` → `levels:start {next}` ("Next · Level 8", hidden when next is null), `replay`, `levels` → home (classic) or `variety:open {room}`.
-  Last classic level: the all-done copy, "Back to the levels" primary. Last room level: "Back to rooms" primary → `variety:open {room}`.
+- `next` → `levels:start {next}` ("Next · Level 8", hidden when next is null), `replay`, `levels` → `variety:open {room: pack}` (this board's
+  level screen, classic included; home when no `variety` slice). Last level of a board: "Back to the levels" is primary (classic: all-done copy).
 - The backdrop does nothing. Copy: `copy.json → solved-sheet`.
 
 Delete it and a solve just leaves the dimmed board with its back button.

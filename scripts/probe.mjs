@@ -23,6 +23,8 @@ const only = args.only ? new Set(String(args.only).split(',').map(Number)) : nul
 // A person taps a few times a second. Back-to-back synthetic taps (< ~250ms apart) wait in headless Chromium's
 // input queue for the next frame, which would measure the harness rather than the game.
 const PACE = 450;
+/** the menu's row for the classic board (each board is a row on home; its levels are on the board screen) */
+const CLASSIC_ROW = '[data-room-tile][data-room="classic"]';
 const T0 = Date.now();
 
 // ---- targets ----
@@ -214,18 +216,26 @@ report();
 // checks
 
 async function progressSurvivesReload(page) {
-  if ((await count(page, '[data-level-tile]')) === 0) throw new Skip('home level tiles not rendered yet ([data-level-tile])');
-  // back to the home screen, as the player would, then compare the tiles before and after a reload
+  if ((await count(page, '[data-room-tile]')) === 0) throw new Skip('home board rows not rendered yet ([data-room-tile])');
+  // to the classic board's levels as the player would (the solved sheet's Levels, or the menu's Classic row),
+  // then compare the tiles before and after a reload, reaching them again through the menu
   if (await isVisible(page, '[data-action="levels"]')) await tapAction(page, 'levels');
-  else if (await isVisible(page, '[data-action="back"]')) await tapAction(page, 'back');
-  await page.locator('[data-level-tile] >> visible=true').first().waitFor({ timeout: 3000 }).catch(() => {});
+  else {
+    if (await isVisible(page, '[data-action="back"]')) await tapAction(page, 'back');
+    await tapAction(page, CLASSIC_ROW);
+  }
+  await boardShows(page, 'classic');
   const before = await readTiles(page);
   const starred = Object.values(before).filter((s) => Number(s) > 0).length;
   if (starred === 0) return { pass: false, measured: '0 tiles with stars', detail: `solved ${playedInJourney} levels but no tile shows data-stars > 0` };
   await page.reload({ waitUntil: 'load' });
   await waitInteractive(page);
-  await page.locator('[data-level-tile]').first().waitFor({ state: 'attached', timeout: 3000 });
+  await tapAction(page, CLASSIC_ROW);
+  await boardShows(page, 'classic');
   const after = await readTiles(page);
+  // back to the menu, where the next check starts
+  await tapAction(page, 'variety-back');
+  await page.locator('[data-action="continue"] >> visible=true').first().waitFor({ timeout: 3000 });
   const diff = Object.keys(before).filter((k) => before[k] !== after[k]);
   return {
     pass: diff.length === 0,
@@ -381,9 +391,10 @@ async function layoutAt(size) {
         const r = bd.getBoundingClientRect();
         return { w: r.width / n, h: r.height / n };
       };
-      const small = [...document.querySelectorAll('[data-cell], [data-action]')].filter(shown).map((el) => {
-        const r = el.dataset.action ? el.getBoundingClientRect() : (slotOf(el) ?? el.getBoundingClientRect());
-        return { what: el.dataset.action ? `${el.dataset.action}` : `cell`, w: r.width, h: r.height };
+      const small = [...document.querySelectorAll('[data-cell], [data-action], [data-room-tile], [data-level-tile]')].filter(shown).map((el) => {
+        const r = el.matches('[data-cell]') ? (slotOf(el) ?? el.getBoundingClientRect()) : el.getBoundingClientRect();
+        const what = el.dataset.action ?? (el.dataset.room ? `row ${el.dataset.room}` : el.dataset.level ? `tile ${el.dataset.level}` : 'cell');
+        return { what, w: r.width, h: r.height };
       }).filter((s) => s.w < 43.5 || s.h < 43.5);
       const board = document.querySelector('[data-screen="play"] [data-board]');
       const b = board && shown(board) ? board.getBoundingClientRect() : null;
@@ -400,6 +411,11 @@ async function layoutAt(size) {
   try {
     await open(page, target.url);
     await inspect('home');
+    // the classic board's level screen, reached from its menu row
+    try { await tapAction(page, CLASSIC_ROW); } catch (err) { if (err instanceof Skip) return { size: label, skip: err.message, problems }; throw err; }
+    await boardShows(page, 'classic');
+    await inspect('board');
+    await tapAction(page, 'variety-back');
     try { await tapAction(page, 'continue'); } catch (err) { if (err instanceof Skip) return { size: label, skip: err.message, problems }; throw err; }
     await enterLevel(page);
     const r = await inspect('play');
@@ -498,6 +514,16 @@ function parseArgs(argv) {
   }
   return out;
 }
+/** waits until a board's level screen ([data-room-view]) is showing; SKIP when the board screen isn't rendered at all */
+async function boardShows(page, id, timeout = 3000) {
+  const sel = `[data-screen="variety"] [data-room-view="${id}"]`;
+  try {
+    await page.locator(`${sel} >> visible=true`).first().waitFor({ timeout });
+  } catch (err) {
+    if ((await count(page, '[data-screen="variety"]')) === 0) throw new Skip('board screen not rendered yet ([data-screen="variety"])');
+    throw new Error(`board "${id}" didn't show (${sel})`);
+  }
+}
 function p95(xs) { const s = [...xs].sort((a, b) => a - b); return s[Math.min(s.length - 1, Math.ceil(0.95 * s.length) - 1)]; }
 function round1(x) { return Math.round(x * 10) / 10; }
 function kb(n) { return `${(n / 1024).toFixed(1)}KB`; }
@@ -516,7 +542,10 @@ async function varietyRooms() {
       if (!packs.length) throw new Skip('no Variety rooms in the levels slice');
       await page.evaluate(() => window.__lightsOut.debug.commands()['progress.unlock'](['20']));
       for (const pack of packs) {
-        await emit(page, 'levels:start', { levelId: pack.first });
+        // like a player: the room's row on the menu, then its first level on the board screen
+        await tapAction(page, `[data-room-tile][data-room="${pack.id}"]`);
+        await boardShows(page, pack.id);
+        await tapAction(page, `[data-level-tile][data-level="${pack.first}"]`);
         await page.waitForFunction((id) => window.__lightsOut.debug.state().board?.levelId === id, pack.first, { timeout: 3000 });
         await page.waitForTimeout(250);
         const info = await page.evaluate((PLAY) => {
@@ -546,9 +575,15 @@ async function varietyRooms() {
           }
           const sheet = await waitForSolvedSheet(page, { after }).catch(() => null);
           if (!sheet) out.push(`${pack.id}: solved sheet didn't open after ${info.sol.length} taps (par ${info.par})`);
-          else if (sheet.stars !== 3) out.push(`${pack.id}: ${sheet.stars}★ at par`);
-          await emit(page, 'nav:close_sheet', {});
-        }
+          else {
+            if (sheet.stars !== 3) out.push(`${pack.id}: ${sheet.stars}★ at par`);
+            // the sheet's Levels returns to this room's board screen; its back goes to the menu
+            await tapAction(page, 'levels');
+            if (!(await boardShows(page, pack.id).then(() => true, () => false))) out.push(`${pack.id}: Levels didn't return to its board`);
+            await tapAction(page, 'variety-back');
+          }
+          if (!(await isVisible(page, '[data-action="continue"]'))) { await emit(page, 'nav:close_sheet', {}); await emit(page, 'nav:go', { screen: 'home' }); }
+        } else await tapAction(page, 'back');
       }
     } finally {
       await context.close();
