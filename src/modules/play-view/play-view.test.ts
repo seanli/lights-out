@@ -248,6 +248,21 @@ describe('play-view', () => {
       expect(screen().dataset.reference).toBe('open');
     });
 
+    test('opening it only inserts the panel above the tools: the other blocks keep their order and form', () => {
+      const { q } = boot({ learn: LEARN });
+      const blocks = () => [...screen().children].filter((el) => !el.matches('.play-reference')).map((el) => el.className);
+      const tools = () => [...q('.play-actions').querySelectorAll('.play-act__label')].map((l) => l.textContent);
+      const before = { blocks: blocks(), tools: tools(), tiers: q('.play-tiers').hidden };
+      expect(before.blocks).toEqual(['screen-header', 'play-status', 'board-slot', 'bar bar--icons play-actions']);
+      expect(before.tools).toEqual(['Undo', 'Restart', 'Hint · −1★']);
+      q(SEL.action('reference')).click();
+      expect(screen().dataset.reference).toBe('open');
+      expect({ blocks: blocks(), tools: tools(), tiers: q('.play-tiers').hidden }).toEqual(before);
+      // the panel sits between the board area and the tools
+      expect(q('.board-slot').nextElementSibling).toBe(q('.play-reference'));
+      expect(q('.play-reference').nextElementSibling).toBe(q('.play-actions'));
+    });
+
     test('a toggle during a press waits for the finger to lift', () => {
       const { q, cell } = boot({ learn: LEARN });
       pointer(cell(3));

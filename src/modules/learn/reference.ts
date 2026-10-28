@@ -1,11 +1,11 @@
 // In-game pattern reference: fills view.region('slot:reference') (play-view places it).
 // Built once; every board change only patches attributes and a few lines of text (well under 1 ms).
 // Never marks the main board: the panel teaches the method, the paid Hint stays the only on-board help.
-// Classic 5×5: live advice, live bottom row, the 7-row table; the matching row's echo and rule in one line.
-// Other full rectangles: chase advice and the size's rule (from the maths), the player's live bottom row (on the Tower
-// it is far below while chasing), and at bottom-row time the top taps under it.
-// Shaped rooms: chase advice by row, then a small picture of the board with the top-edge fix ringed.
-// Rooms link to their board guide; classic links to all lessons.
+// One structure for every board: line 1 the status (with the guide link at its right), line 2 the rule (whole or hidden),
+// then the live strips. Classic 5×5: your bottom row over the matched row's top taps, the matched row's echo as the rule,
+// and the 7-row table (tall screens). Other full rectangles: the size's rule (from the maths) and the same pair of strips,
+// the top one empty until bottom-row time. Shaped rooms: chase advice by row, then a small picture of the board with the
+// top-edge fix ringed. Rooms link to their board guide; classic links to all lessons.
 import { BOTTOM, blank, chaseShapeSuggest, rectRule, rectTaps, rectTopSets, type Fixer, type RectRule, type TableEntry } from './method';
 import { CELL_COUNT, SIZE, type BoardState, type Ctx, type Shape, type SolverService } from '../../contracts';
 import { fmt, h, setAttr, setText } from '../../lib/dom';
@@ -186,22 +186,29 @@ export function createReference(ctx: Ctx, solver: SolverService, table: readonly
     });
   };
 
+  // one structure for every board: the status sentence with the guide link on its first line, the rule (never cut:
+  // whole or hidden), then the live strips in a body that scrolls on its own under a fade
   const status = h('p', { class: 'reference__status', 'data-reference-status': 'chase', role: 'status', 'aria-live': 'polite' });
   const rule = h('p', { class: 'reference__rule', 'data-reference-rule': '', hidden: true });
+  const caption = (text: string) => h('span', { class: 'caption' }, text);
+  // classic 5×5: your bottom row and, once it matches a table row, that row's top taps under it
   const live = strip('live', []);
   live.setAttribute('data-reference-bottom', '');
+  const classicTop = strip('top', []);
+  classicTop.setAttribute('data-empty', 'true');
+  const classicBox = h('div', { class: 'reference__pair' }, caption(copy.yourRow), live, caption(copy.top), classicTop);
   const rows = table.map((e) =>
     h('div', { class: 'reference__row', 'data-pattern-row': '', 'data-pattern': e.bottom.join(','), 'data-match': 'false' },
       strip('bottom', e.bottom), h('span', { class: 'learn-table__arrow', 'aria-hidden': 'true' }, '→'), strip('top', e.top)));
   // the matching row's one line: "Echo of B"
   const ruleOf = table.map((e) => fmt(copy.echo, { name: labels.echo(e.top) }));
-  // full rectangles: the live bottom row, and at bottom-row time the top lights to tap under it (rebuilt per shape)
-  const rectBottom = h('div', { class: 'reference__you' }, h('span', { class: 'caption' }, copy.yourRow));
-  const rectTop = h('div', { class: 'reference__you' }, h('span', { class: 'caption' }, copy.top));
-  const rectBox = h('div', { class: 'reference__rect', hidden: true }, rectBottom, rectTop);
+  // full rectangles: the same pair, as wide as the board (rebuilt per shape); the top strip waits empty until bottom-row time
+  let rectRow = strip('live', [], 1);
+  let rectTop = strip('top', [], 1);
+  const rectBox = h('div', { class: 'reference__pair reference__rect', hidden: true }, caption(copy.yourRow), rectRow, caption(copy.top), rectTop);
   let rectKey = '';
-  let rectRow: HTMLElement | null = null;
   let rectLive: HTMLElement[] = [];
+  let tapsShown = false;
   // shaped rooms: a small picture of the board, the end lights lit and the fix ringed (rebuilt when the shape changes)
   const shapeBox = h('div', { class: 'reference__shape', 'data-reference-shape': '', hidden: true });
   let shapeKeyNow = '';
@@ -217,10 +224,10 @@ export function createReference(ctx: Ctx, solver: SolverService, table: readonly
     }
     shapeBox.replaceChildren(grid);
   };
-  // the guide link on room boards (classic keeps "All lessons")
-  const lessonsBtn = h('button', { class: 'btn btn--ghost reference__lessons', type: 'button', 'data-action': 'learn', onclick: () => ctx.emit('learn:open', {}) }, copy.lessons);
+  // the guide link on room boards (classic links to all the lessons)
+  const lessonsBtn = h('button', { class: 'btn btn--link reference__link', type: 'button', 'data-action': 'learn', onclick: () => ctx.emit('learn:open', {}) }, copy.lessons);
   let guideId: string | null = null;
-  const guideBtn = h('button', { class: 'btn btn--ghost reference__lessons', type: 'button', 'data-action': 'guide', hidden: true, onclick: () => { if (guideId) ctx.emit('learn:open', { lessonId: guideId }); } }, copy.guide);
+  const guideBtn = h('button', { class: 'btn btn--link reference__link', type: 'button', 'data-action': 'guide', hidden: true, onclick: () => { if (guideId) ctx.emit('learn:open', { lessonId: guideId }); } }, copy.guide);
   /** level id → its pack ('classic' when absent), read from the levels slice */
   const packOf = (levelId: number | null | undefined): string => {
     if (levelId == null) return 'classic';
@@ -233,34 +240,28 @@ export function createReference(ctx: Ctx, solver: SolverService, table: readonly
       h('span', { class: 'caption reference__head2', 'aria-hidden': 'true' }, copy.bottom), h('span', { class: 'reference__head2', 'aria-hidden': 'true' }),
       h('span', { class: 'caption reference__head2', 'aria-hidden': 'true' }, copy.top)),
     ...rows);
+  const body = h('div', { class: 'reference__body' }, classicBox, rectBox, shapeBox, tableEl);
+  const ruleBox = h('div', { class: 'reference__fit', hidden: true }, rule);
   const root = h('div', { class: 'reference', 'data-reference': '', 'data-reference-kind': 'classic' },
-    // status and rule stay pinned at the top while the table scrolls under them
-    h('div', { class: 'reference__pin' },
-      h('div', { class: 'reference__top' },
-        status,
-        lessonsBtn,
-        guideBtn,
-        rule)),
-    h('div', { class: 'reference__you' }, h('span', { class: 'caption' }, copy.yourRow), live),
-    tableEl,
-    rectBox,
-    shapeBox,
+    h('div', { class: 'reference__line' }, status, lessonsBtn, guideBtn),
+    ruleBox,
+    body,
   );
   slot.replaceChildren(root);
   const liveCells = [...live.children] as HTMLElement[];
 
-  // ---- scrolling: keep the matching row in view, and fade the bottom edge while more is below ----
+  // ---- scrolling: keep the matching row in view, and fade the body's bottom edge while more is below ----
   let matched = -1;
   const reveal = () => {
     if (matched < 0) return;
     const target = rows[matched]!.firstElementChild as HTMLElement | null; // rows are display: contents
     target?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
   };
-  const fade = () => setAttr(root, 'data-overflow', String(root.scrollHeight - root.scrollTop - root.clientHeight > 2));
-  root.addEventListener('scroll', fade, { passive: true });
+  const fade = () => setAttr(body, 'data-overflow', String(body.scrollHeight - body.scrollTop - body.clientHeight > 2));
+  body.addEventListener('scroll', fade, { passive: true });
   // fires when the panel opens (display: none → a size) and on every resize: re-check the fade, re-show the match
   const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(() => { fade(); reveal(); }) : null;
-  observer?.observe(root);
+  observer?.observe(body);
 
   const update = (board: BoardState | undefined) => {
     const kind = kindOf(board?.shape);
@@ -274,6 +275,10 @@ export function createReference(ctx: Ctx, solver: SolverService, table: readonly
     const match = classic ? a.match : -1;
     rows.forEach((r, k) => setAttr(r, 'data-match', String(k === match)));
     setAttr(root, 'data-matched', String(match >= 0 || !!a.rect || !!a.shaped));
+    // classic: the matched row's top taps under your row
+    paintTaps(classicTop, match >= 0 ? table[match]!.top : []);
+    setAttr(classicTop, 'data-empty', match >= 0 ? null : 'true');
+    classicBox.hidden = !classic;
     // rooms: their board guide instead of all lessons
     const pack = kind === 'classic' ? 'classic' : packOf(board?.levelId);
     guideId = pack === 'classic' ? null : rooms.guideFor(pack);
@@ -294,28 +299,35 @@ export function createReference(ctx: Ctx, solver: SolverService, table: readonly
     const rectShape = kind === 'rect' ? board?.shape : undefined;
     rectBox.hidden = !rectShape;
     setAttr(live, 'data-reference-bottom', classic ? '' : null);
-    if (rectRow) setAttr(rectRow, 'data-reference-bottom', rectShape ? '' : null);
+    setAttr(rectRow, 'data-reference-bottom', rectShape ? '' : null);
     if (rectShape) {
       const { cols, rows: height } = rectShape;
       if (shapeKey(rectShape) !== rectKey) {
         rectKey = shapeKey(rectShape);
-        rectRow = strip('live', [], cols);
-        rectRow.setAttribute('data-reference-bottom', '');
-        rectLive = [...rectRow.children] as HTMLElement[];
+        const nextRow = strip('live', [], cols);
+        nextRow.setAttribute('data-reference-bottom', '');
+        rectLive = [...nextRow.children] as HTMLElement[];
         rectLive.forEach((cell, c) => setAttr(cell, 'data-index', String((height - 1) * cols + c)));
-        rectBottom.replaceChildren(rectBottom.firstChild!, rectRow);
-        rectTop.replaceChildren(rectTop.firstChild!, strip('top', [], cols));
+        const nextTop = strip('top', [], cols);
+        rectRow.replaceWith(nextRow);
+        rectTop.replaceWith(nextTop);
+        rectRow = nextRow;
+        rectTop = nextTop;
+        tapsShown = false;
         setAttr(rectBox, 'style', `--strip-n:${cols}`);
+        setAttr(rectBox, 'data-wide', cols > 8 ? '' : null);
       }
       rectLive.forEach((cell, c) => setAttr(cell, 'data-lit', String(!!board!.cells[(height - 1) * cols + c])));
-      const appear = rectTop.hidden && !!a.rect;
-      rectTop.hidden = !a.rect;
-      paintTaps(rectTop.lastElementChild as HTMLElement, a.rect?.taps ?? []);
+      const appear = !tapsShown && !!a.rect;
+      tapsShown = !!a.rect;
+      paintTaps(rectTop, a.rect?.taps ?? []);
+      setAttr(rectTop, 'data-empty', a.rect ? null : 'true');
       // a short panel scrolls: the taps to make are the line that must show
-      if (appear) (rectTop.lastElementChild as HTMLElement).scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+      if (appear) rectTop.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
     }
     const line = match >= 0 ? ruleOf[match]! : kind === 'rect' && board?.shape ? advise.rectLine(board.shape, copy.rect) : '';
     rule.hidden = !line;
+    ruleBox.hidden = !line;
     setText(rule, line);
     if (match !== matched) {
       matched = match;
