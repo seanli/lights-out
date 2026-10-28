@@ -368,3 +368,13 @@ button, input { font: inherit; color: inherit; }
     .screen--play .board { --board-size: min(calc(100vh - 2 * var(--space-4)), calc(100vw - var(--side-w) - 3 * var(--space-6)), var(--board-max)); }
   }
 }
+
+/* room glyph (src/lib/glyph.ts): a board's shape as dots, gaps empty, lit as it is solved. Size with --glyph-box. */
+.room-glyph {
+  --glyph-box: var(--space-8);
+  display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: calc(var(--glyph-box) / 22);
+  width: var(--glyph-box); aspect-ratio: 1; flex: none;
+}
+.room-glyph > i { aspect-ratio: 1; border-radius: 28%; background: var(--c-line-strong); }
+.room-glyph > i[data-lit="true"] { background: var(--c-tile-on); box-shadow: 0 0 var(--space-1-5) var(--c-glow); }
+.room-glyph > i[data-gap] { visibility: hidden; }
