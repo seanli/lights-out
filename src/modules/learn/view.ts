@@ -232,10 +232,7 @@ export function createLearnView(d: Deps) {
     const progress = ctx.read('progress');
     // the room's own picture, lit as it is on the menu (the share of its levels solved)
     const glyph = (pack: Pack) => {
-      const g = roomGlyph(pack, progress?.packs?.[pack.id]?.solved ?? 0);
-      // a taller-than-wide room (5×6, the Tower) keeps the tile's height: its picture narrows instead
-      if (pack.shape.rows > pack.shape.cols) g.style.setProperty('--glyph-scale', String(pack.shape.cols / pack.shape.rows));
-      return g;
+      return roomGlyph(pack, progress?.packs?.[pack.id]?.solved ?? 0);
     };
     const boards = catalog.guides().map((g) => tile(g.id, glyph(g.pack), null, g.pack.name, copy.guides[g.pack.id]!.summary));
     return [header, section('basics', basics), ...(boards.length ? [section('boards', boards)] : [])];

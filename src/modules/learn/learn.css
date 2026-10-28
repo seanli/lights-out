@@ -11,10 +11,9 @@
 .learn-list { list-style: none; margin: 0; padding: 0 0 var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
 /* a guide's tile: the room's own picture (src/lib/glyph.ts) on the same small board as a lesson's */
 .lesson-tile .room-glyph {
-  --glyph-full: calc(5 * var(--glyph-cell-sm) + 4 * var(--glyph-gap-sm));
-  --glyph-box: calc(var(--glyph-full) * var(--glyph-scale, 1));
-  /* a narrowed (taller-than-wide) picture keeps the same slot, centred */
-  box-sizing: content-box; padding: var(--space-1-5) calc(var(--space-1-5) + (var(--glyph-full) - var(--glyph-box)) / 2);
+  /* the shared glyph fits any shape in this box: a 10×10 draws fine dots, the 5×16 Tower a tall narrow sliver */
+  --glyph-box: calc(5 * var(--glyph-cell-sm) + 4 * var(--glyph-gap-sm));
+  box-sizing: content-box; padding: var(--space-1-5);
   border-radius: var(--radius-sm); background: var(--c-board); box-shadow: var(--shadow-board);
 }
 .lesson-tile {
