@@ -19,8 +19,16 @@
 }
 
 .variety__chapter { display: flex; flex-direction: column; gap: var(--space-3); }
-/* a room is one grid of 12: three rows of four */
-.variety__levels { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+/* five columns on every board; each band of ten closes on its boss (every second row), the next band a little apart */
+.variety__bands { display: flex; flex-direction: column; gap: var(--space-6); }
+
+/* a tile: its number dead centre, a boss's skull above it, Play or the stars below */
+.variety .level-tile { display: grid; grid-template-rows: 1fr auto 1fr; justify-items: center; gap: 0; }
+.variety .level-tile__num { grid-row: 2; }
+.variety .level-tile .skull { grid-row: 1; align-self: end; width: var(--space-4); height: var(--space-4); margin-bottom: var(--space-half); color: var(--c-text-dim); }
+.variety .level-tile__deco { grid-row: 3; align-self: start; display: flex; margin-top: var(--space-1); }
+.variety .level-tile[data-current="true"] .skull { color: currentColor; }
+.variety .level-tile[data-locked="true"] .skull { color: var(--c-text-faint); opacity: var(--lost-opacity); }
 
 /* a level a solve just unlocked: its light comes on once */
 .variety .level-tile[data-power-on] { animation: lo-variety-power-on calc(var(--dur-sweep) * .56) var(--ease-out) both; }
@@ -44,8 +52,8 @@
 .variety__legend-item { display: inline-flex; align-items: center; gap: var(--space-1); white-space: nowrap; }
 .variety__sep { color: var(--c-text-faint); }
 
-/* short landscape (phone on its side): a chapter of 20 is two rows of ten, a room two rows of six */
+/* short landscape (phone on its side): each band of ten is one row */
 @media (orientation: landscape) and (max-height: 540px) {
   .variety .level-grid { grid-template-columns: repeat(10, minmax(0, 1fr)); }
-  .variety .variety__levels { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .variety__bands { gap: var(--space-3); }
 }

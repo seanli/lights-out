@@ -1,9 +1,11 @@
 // variety: one board's level screen, classic included. Owns the `variety` slice (which board is showing) and renders
-// view.region('screen:variety'): the board's levels (classic in chapters, a room as one grid). The menu on home opens it.
+// view.region('screen:variety'): the board's levels in five columns, in bands that each close on a boss (every 10th
+// level, drawn with a skull), classic's bands inside its chapters. The menu on home opens it.
 // Reads levels, progress, learn and nav; emits commands only.
 import * as v from 'valibot';
-import type { Chapter, LevelsState, ModuleDef, Pack, ProgressState } from '../../contracts';
+import type { Chapter, LevelDef, LevelsState, ModuleDef, Pack, ProgressState } from '../../contracts';
 import { roomGlyph } from '../../lib/glyph';
+import { skull } from '../../lib/icons';
 import { fmt, h, setAttr, setText } from '../../lib/dom';
 import './variety.css';
 
@@ -11,7 +13,11 @@ const Text = v.pipe(v.string(), v.minLength(1));
 const Copy = v.object({
   back: Text,
   boardSize: Text,
+  /** a rectangle with a note after its size, e.g. "5×16 · scrolls · 30 levels" */
+  boardSizeNote: Text,
   boardShape: Text,
+  /** a short note on a board's meta line, by pack id (the Tower scrolls) */
+  boardNotes: v.record(v.string(), Text),
   summary: Text,
   guide: Text,
   guideClassic: Text,
@@ -22,6 +28,8 @@ const Copy = v.object({
   tileSolved: Text,
   tileOpen: Text,
   tileLocked: Text,
+  /** a boss tile's label wraps the tile's own: "Boss. Level 10, locked" */
+  tileBoss: Text,
   starLegend: v.object({ three: Text, two: Text, one: Text, hint: Text }),
 });
 type CopyT = v.InferOutput<typeof Copy>;
@@ -60,7 +68,8 @@ function chevron(): Element {
   return span.firstElementChild!;
 }
 
-interface Tile { el: HTMLButtonElement; id: number; index: number; key: string }
+/** a level button: its number, a skull on a boss, and `deco` (Play on the current tile, else its stars) */
+interface Tile { el: HTMLButtonElement; deco: HTMLElement; id: number; index: number; boss: boolean; key: string }
 /** a run of tiles (a classic chapter, or a whole room); `locked` is the quiet row shown instead while it is ahead */
 interface Group { from: number; open: HTMLElement; locked: HTMLElement | null }
 interface Board { pack: Pack; tiles: Tile[]; groups: Group[]; summary: HTMLElement; glyph: HTMLElement; guide: HTMLButtonElement; glyphKey: number }
@@ -94,8 +103,12 @@ const variety: ModuleDef = {
       ctx.emit('nav:go', { screen: 'variety' });
     });
 
-    const metaOf = (p: Pack) =>
-      fmt(p.kind === 'shape' ? copy.boardShape : copy.boardSize, { cols: p.shape.cols, rows: p.shape.rows, count: p.count });
+    const metaOf = (p: Pack) => {
+      const vars = { cols: p.shape.cols, rows: p.shape.rows, count: p.count };
+      if (p.kind === 'shape') return fmt(copy.boardShape, vars);
+      const note = copy.boardNotes[p.id];
+      return note ? fmt(copy.boardSizeNote, { ...vars, note }) : fmt(copy.boardSize, vars);
+    };
 
     const header = (title: string, eyebrow: string) =>
       h('header', { class: 'screen-header' },
@@ -109,7 +122,7 @@ const variety: ModuleDef = {
     const legend = h('p', { class: 'variety__legend', 'data-star-legend': '' });
 
     function build(p: Pack, levels: LevelsState): Board {
-      const ids = new Set(levels.list.map((l) => l.id));
+      const defs = new Map<number, LevelDef>(levels.list.map((l) => [l.id, l]));
       // classic groups its tiles into chapters (by id, which is its index); a room is one grid
       const chapters: Chapter[] = p.kind === 'classic' && levels.chapters.length
         ? levels.chapters
@@ -117,19 +130,27 @@ const variety: ModuleDef = {
       const tiles: Tile[] = [];
       const groups: Group[] = [];
       chapters.forEach((ch, n) => {
-        const grid = h('div', { class: `level-grid${p.kind === 'classic' ? '' : ' variety__levels'}` });
+        // five columns everywhere; a boss closes its band (every second row) and the next band starts a little apart
+        const bands = h('div', { class: 'variety__bands' });
+        let grid: HTMLElement | null = null;
         for (let id = Math.max(ch.from, p.first); id <= Math.min(ch.to, p.first + p.count - 1); id++) {
-          if (!ids.has(id)) continue;
+          const def = defs.get(id);
+          if (!def) continue;
           const index = id - p.first + 1;
-          const el = h('button', { type: 'button', class: 'level-tile', 'data-level-tile': '', 'data-level': id }, String(index));
-          tiles.push({ el, id, index, key: '' });
+          const boss = def.boss === true;
+          const deco = h('span', { class: 'level-tile__deco' });
+          const el = h('button', { type: 'button', class: 'level-tile', 'data-level-tile': '', 'data-level': id, 'data-boss': boss ? 'true' : null },
+            h('span', { class: 'level-tile__num' }, String(index)), boss ? skull() : null, deco);
+          tiles.push({ el, deco, id, index, boss, key: '' });
+          if (!grid) bands.append(grid = h('div', { class: 'level-grid variety__band' }));
           grid.append(el);
+          if (boss) grid = null;
         }
         const eyebrow = ch.name ? fmt(copy.chapter, { n: n + 1, name: ch.name }) : '';
         const head = ch.name
           ? h('div', { class: 'chapter' }, h('span', { class: 'eyebrow' }, eyebrow), h('span', { class: 'chapter__meta' }, fmt(copy.chapterRange, { from: ch.from, to: ch.to })))
           : null;
-        const open = h('section', { class: 'variety__chapter', 'data-chapter': ch.id }, head, grid, n === 0 ? legend : null);
+        const open = h('section', { class: 'variety__chapter', 'data-chapter': ch.id }, head, bands, n === 0 ? legend : null);
         // a chapter ahead is one quiet row, not a card (a room is never ahead: it can't be opened while locked)
         const locked = ch.name
           ? h('div', { class: 'chapter variety__ahead', 'data-locked': 'true', 'data-chapter': ch.id, hidden: true },
@@ -176,14 +197,15 @@ const variety: ModuleDef = {
         setAttr(x.el, 'data-current', String(isCurrent));
         setAttr(x.el, 'aria-disabled', locked ? 'true' : null);
         setAttr(x.el, 'aria-current', isCurrent ? 'step' : null);
-        setAttr(x.el, 'aria-label', locked ? fmt(copy.tileLocked, { level: x.index })
-          : stars ? fmt(copy.tileSolved, { level: x.index, stars }) : fmt(copy.tileOpen, { level: x.index }));
+        const label = locked ? fmt(copy.tileLocked, { level: x.index })
+          : stars ? fmt(copy.tileSolved, { level: x.index, stars }) : fmt(copy.tileOpen, { level: x.index });
+        setAttr(x.el, 'aria-label', x.boss ? fmt(copy.tileBoss, { label }) : label);
         const key = locked ? 'locked' : isCurrent && !stars ? 'play' : `stars${stars}`;
         if (key === x.key) continue;
         x.key = key;
-        while (x.el.childNodes.length > 1) x.el.lastChild!.remove();
-        if (key === 'play') x.el.append(h('span', { class: 'level-tile__tag', 'aria-hidden': 'true' }, copy.play));
-        else if (stars) x.el.append(starsEl(stars));
+        if (key === 'play') x.deco.replaceChildren(h('span', { class: 'level-tile__tag', 'aria-hidden': 'true' }, copy.play));
+        else if (stars) x.deco.replaceChildren(starsEl(stars));
+        else x.deco.replaceChildren();
       }
       for (const g of b.groups) {
         if (!g.locked) continue;

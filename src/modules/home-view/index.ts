@@ -1,8 +1,10 @@
-// home-view: the menu (The Good Sudoku pattern). Continue on top, then every board as its own row, then Learn.
+// home-view: the menu (The Good Sudoku pattern). Continue on top, then every board as its own row in three quiet
+// sections (Boards, Shapes, Extreme), then Learn, Reset and the release version at the very bottom.
 // Renders view.region('screen:home') and the reset confirmation sheet. Reads levels, progress, storage, sound,
-// learn, variety and nav; emits commands only. A board's levels live on the board screen (the variety module).
+// learn, variety and nav, and the env service when present; emits commands only. A board's levels live on the board
+// screen (the variety module).
 import * as v from 'valibot';
-import type { LevelsState, ModuleDef, Pack, ProgressState } from '../../contracts';
+import type { Env, LevelsState, ModuleDef, Pack, ProgressState } from '../../contracts';
 import { roomGlyph } from '../../lib/glyph';
 import { fmt, h, setAttr, setText } from '../../lib/dom';
 import './home-view.css';
@@ -19,9 +21,14 @@ const Copy = v.object({
   allSolved: Text,
   levelsError: Text,
   starTotal: Text,
-  boards: Text,
+  /** the menu's section eyebrows, by Pack.group */
+  groups: v.object({ boards: Text, shapes: Text, extreme: Text }),
   boardSize: Text,
+  /** a rectangle with a note after its size, e.g. "5×16 · scrolls · 30 levels" */
+  boardSizeNote: Text,
   boardShape: Text,
+  /** a short note on a board's meta line, by pack id (the Tower scrolls) */
+  boardNotes: v.record(v.string(), Text),
   boardSolved: Text,
   boardLocked: Text,
   boardLabel: Text,
@@ -36,6 +43,11 @@ const Copy = v.object({
   resetBody: Text,
   resetConfirm: Text,
   resetCancel: Text,
+  /** the caption at the very bottom: env.version and the build date (from env.buildId, UTC yyyymmddhhmm) */
+  version: Text,
+  versionOnly: Text,
+  date: Text,
+  months: v.pipe(v.array(Text), v.length(12)),
 });
 type CopyT = v.InferOutput<typeof Copy>;
 
@@ -45,6 +57,21 @@ const LEARN_LINK_UNTIL = 3;
 type Results = ProgressState['save']['results'];
 /** a board's standing: open (rooms wait for progress.varietyOpen), highest startable index, levels solved, stars */
 export interface Tally { open: boolean; unlocked: number; solved: number; stars: number }
+
+/** the menu's sections, top to bottom */
+export const GROUPS = ['boards', 'shapes', 'extreme'] as const;
+export type Group = (typeof GROUPS)[number];
+/** a pack's section (Pack.group; packs from before groups: shapes by kind, everything else under Boards) */
+export const groupOf = (p: Pack): Group => p.group ?? (p.kind === 'shape' ? 'shapes' : 'boards');
+
+/** "Version 0.7.0 · 28 Oct 2026" from the env service; just the version when the build id isn't a date; '' without one */
+export function versionLine(env: Pick<Env, 'version' | 'buildId'> | undefined, copy: CopyT): string {
+  if (!env?.version) return '';
+  const m = /^(\d{4})(\d{2})(\d{2})\d{4}$/.exec(env.buildId ?? '');
+  const month = m ? copy.months[Number(m[2]) - 1] : undefined;
+  if (!m || !month || Number(m[3]) < 1 || Number(m[3]) > 31) return fmt(copy.versionOnly, { version: env.version });
+  return fmt(copy.version, { version: env.version, date: fmt(copy.date, { day: Number(m[3]), month, year: m[1]! }) });
+}
 
 /** the boards in menu order (classic first); none until the levels are ready */
 export const boardsOf = (levels: LevelsState | undefined): Pack[] => (levels?.status === 'ready' ? levels.packs ?? [] : []);
@@ -110,6 +137,7 @@ const homeView: ModuleDef = {
     listens: [],
     owns: [],
     uses: ['view'],
+    optional: ['env'],
     data: { copy: Copy },
   },
   init(ctx) {
@@ -133,9 +161,14 @@ const homeView: ModuleDef = {
     const learnLink = h('button', { type: 'button', class: 'btn btn--ghost home__link', 'data-action': 'learn', hidden: true }, copy.learnNew);
     const levelsError = h('p', { class: 'home__error', role: 'alert', hidden: true }, copy.levelsError);
 
-    const list = h('div', { class: 'home__list' });
-    const boards = h('section', { class: 'home__boards', 'aria-labelledby': 'home-boards', hidden: true },
-      h('h2', { class: 'eyebrow', id: 'home-boards' }, copy.boards), list);
+    // one quiet section per group; a section with no boards stays hidden
+    const sections = GROUPS.map((group) => {
+      const list = h('div', { class: 'home__list' });
+      const el = h('section', { class: 'home__group', 'data-group': group, 'aria-labelledby': `home-group-${group}`, hidden: true },
+        h('h2', { class: 'eyebrow', id: `home-group-${group}` }, copy.groups[group]), list);
+      return { group, el, list };
+    });
+    const boards = h('div', { class: 'home__boards', hidden: true }, ...sections.map((x) => x.el));
     const learn = h('button', { type: 'button', class: 'home__row home__row--learn', 'data-action': 'learn' },
       h('span', { class: 'home__row-glyph' }, svg(ICON_LEARN)),
       h('span', { class: 'home__row-body' }, h('span', { class: 'home__row-name' }, copy.learn), h('span', { class: 'home__row-meta' }, copy.learnSub)));
@@ -144,6 +177,9 @@ const homeView: ModuleDef = {
     const soundIcon = h('span', { class: 'home__icon' });
     const sound = h('button', { type: 'button', class: 'btn btn--icon', 'data-action': 'sound', 'aria-label': copy.sound, hidden: true }, soundIcon);
     const reset = h('button', { type: 'button', class: 'btn btn--ghost home__reset', 'data-action': 'reset', hidden: true }, copy.reset);
+    // the release, so the owner can tell which build is the latest (DECISIONS #47); built once, the env never changes
+    const versionText = versionLine(ctx.service('env'), copy);
+    const version = h('p', { class: 'home__version', 'data-home-version': '', hidden: !versionText }, versionText);
 
     region.replaceChildren(
       h('header', { class: 'home__top' },
@@ -153,7 +189,7 @@ const homeView: ModuleDef = {
       levelsError,
       boards,
       learnList,
-      h('footer', { class: 'home__footer' }, reset),
+      h('footer', { class: 'home__footer' }, reset, version),
     );
 
     // ---- reset confirmation sheet (the viewer can't show confirm(), so this sheet is the confirmation) ----
@@ -195,8 +231,19 @@ const homeView: ModuleDef = {
           glyphHost, h('span', { class: 'home__row-body' }, h('span', { class: 'home__row-name' }, pack.name), meta), score);
         return { pack, el, glyph: glyphHost, meta, score, solved, stars, key: '' };
       });
-      list.replaceChildren(...rows.map((r) => r.el));
+      for (const x of sections) {
+        const mine = rows.filter((r) => groupOf(r.pack) === x.group);
+        x.list.replaceChildren(...mine.map((r) => r.el));
+        x.el.hidden = mine.length === 0;
+      }
     }
+
+    const metaOf = (pack: Pack) => {
+      const vars = { cols: pack.shape.cols, rows: pack.shape.rows, count: pack.count };
+      if (pack.kind === 'shape') return fmt(copy.boardShape, vars);
+      const note = copy.boardNotes[pack.id];
+      return note ? fmt(copy.boardSizeNote, { ...vars, note }) : fmt(copy.boardSize, vars);
+    };
 
     function paintRow(r: Row, t: Tally) {
       const { pack, el } = r;
@@ -207,8 +254,7 @@ const homeView: ModuleDef = {
       setAttr(el, 'aria-disabled', locked ? 'true' : null);
       // a locked row reads well as it is ("Small room, Opens after level 20"); an open one needs its numbers spoken
       setAttr(el, 'aria-label', locked ? null : fmt(copy.boardLabel, { name: pack.name, solved: t.solved, count: pack.count, stars: t.stars }));
-      setText(r.meta, locked ? copy.boardLocked
-        : fmt(pack.kind === 'shape' ? copy.boardShape : copy.boardSize, { cols: pack.shape.cols, rows: pack.shape.rows, count: pack.count }));
+      setText(r.meta, locked ? copy.boardLocked : metaOf(pack));
       r.score.hidden = locked;
       setText(r.solved, locked ? '' : fmt(copy.boardSolved, { solved: t.solved, count: pack.count }));
       setText(r.stars, locked ? '' : String(t.stars));
@@ -229,7 +275,10 @@ const homeView: ModuleDef = {
       cont.disabled = !ready;
 
       if (ready && builtFor !== levels.packs) buildRows(packs);
-      if (!ready && builtFor) { list.replaceChildren(); rows = []; builtFor = null; }
+      if (!ready && builtFor) {
+        for (const x of sections) { x.list.replaceChildren(); x.el.hidden = true; }
+        rows = []; builtFor = null;
+      }
       // the rows open the board screen, so they show only while the variety module runs (it owns the variety slice)
       boards.hidden = ctx.read('variety') === undefined || rows.length === 0;
 

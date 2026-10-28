@@ -1,8 +1,13 @@
 // A board's shape as a small dot picture (gaps stay empty), for menus and lists. Styled by `.room-glyph` in
-// src/shell/styles/components.css; size it with --glyph-box. Pure DOM helper: no state, no events.
+// src/shell/styles/components.css; size it with --glyph-box. The picture keeps the board's proportions inside that
+// square box: its longer side fills the box, so a 10×10 draws fine dots and the 5×16 Tower a tall narrow sliver,
+// while every glyph keeps the same footprint. Pure DOM helper: no state, no events.
 import type { Pack } from '../contracts';
 import { cellIndexes, gridSize } from './shape';
 import { h } from './dom';
+
+/** a board this many times taller than wide is a tower: its picture may reach above and below its box (`--glyph-tall`) */
+const TALL = 2;
 
 /**
  * `solved` of `pack.count` levels light the same share of its dots, nearest the centre first,
@@ -10,7 +15,11 @@ import { h } from './dom';
  */
 export function roomGlyph(pack: Pick<Pack, 'shape' | 'count'>, solved: number): HTMLElement {
   const { cols, rows } = pack.shape;
-  const g = h('span', { class: 'room-glyph', 'aria-hidden': 'true', style: `--cols:${cols}` });
+  // --n: dots along the longer side (it sets the dot size); --cols lays out the grid; a tower may reach above its box
+  const g = h('span', {
+    class: 'room-glyph', 'aria-hidden': 'true', 'data-tall': rows >= TALL * cols ? 'true' : null,
+    style: `--cols:${cols};--n:${Math.max(cols, rows)}`,
+  });
   const real = cellIndexes(pack.shape);
   const cx = (cols - 1) / 2, cy = (rows - 1) / 2;
   const order = [...real].sort((a, b) =>

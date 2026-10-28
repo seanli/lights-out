@@ -30,9 +30,11 @@
     "allSolved": "Every level solved. Replay any level to improve your stars.",
     "levelsError": "The levels couldn't be made, so there's nothing to play. Reload the page to try again.",
     "starTotal": "{stars} {stars|star|stars}",
-    "boards": "Boards",
+    "groups": { "boards": "Boards", "shapes": "Shapes", "extreme": "Extreme" },
     "boardSize": "{cols}×{rows} · {count} levels",
+    "boardSizeNote": "{cols}×{rows} · {note} · {count} levels",
     "boardShape": "{count} levels",
+    "boardNotes": { "tower": "scrolls" },
     "boardSolved": "{solved}/{count}",
     "boardLocked": "Opens after level 20",
     "boardLabel": "{name}: {solved} of {count} solved, {stars} {stars|star|stars}",
@@ -46,7 +48,11 @@
     "resetTitle": "Reset all progress?",
     "resetBody": "This clears every star and locks all levels after level 1. It can't be undone.",
     "resetConfirm": "Reset progress",
-    "resetCancel": "Keep my progress"
+    "resetCancel": "Keep my progress",
+    "version": "Version {version} · {date}",
+    "versionOnly": "Version {version}",
+    "date": "{day} {month} {year}",
+    "months": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
   },
   "play-view": {
     "chapter": "Chapter {chapter}",
@@ -410,7 +416,9 @@
   "variety": {
     "back": "Back",
     "boardSize": "{cols}×{rows} · {count} levels",
+    "boardSizeNote": "{cols}×{rows} · {note} · {count} levels",
     "boardShape": "{count} levels",
+    "boardNotes": { "tower": "scrolls" },
     "summary": "{solved} of {count} solved · {stars} of {max} stars",
     "guide": "How to clear the {name}",
     "guideClassic": "Learn the patterns",
@@ -421,6 +429,7 @@
     "tileSolved": "Level {level}, {stars} of 3 stars",
     "tileOpen": "Level {level}, not solved yet",
     "tileLocked": "Level {level}, locked",
+    "tileBoss": "Boss. {label}",
     "starLegend": {
       "three": "par",
       "two": "par +{within}",

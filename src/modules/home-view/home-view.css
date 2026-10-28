@@ -23,9 +23,11 @@
 }
 .home__error { color: var(--c-error); font-size: var(--text-sm); }
 
-/* the menu: one full-width row per board, hairlines between (The Good Sudoku's mode list) */
-.home__boards { display: flex; flex-direction: column; gap: var(--space-2); }
-.home__boards > .eyebrow { padding-inline: var(--space-1); }
+/* the menu: three quiet sections (Boards, Shapes, Extreme), one full-width row per board, hairlines between
+   (The Good Sudoku's mode list) */
+.home__boards { display: flex; flex-direction: column; gap: var(--space-5); }
+.home__group { display: flex; flex-direction: column; gap: var(--space-2); }
+.home__group > .eyebrow { padding-inline: var(--space-1); }
 .home__list { display: flex; flex-direction: column; border-block: var(--hairline) solid var(--c-line); }
 .home__row {
   display: flex; align-items: center; gap: var(--space-4); width: 100%; min-height: var(--row-h);
@@ -38,7 +40,8 @@
 @media (hover: hover) { .home__row:not([aria-disabled="true"]):hover { background-color: var(--c-surface); } }
 .home__row:focus-visible { outline-offset: calc(-1 * var(--ring-w)); border-radius: var(--radius-sm); }
 .home__row-glyph { display: flex; align-items: center; justify-content: center; width: var(--row-glyph); height: var(--row-glyph); flex: none; color: var(--c-text-dim); }
-.home__row .room-glyph { --glyph-box: var(--row-glyph); }
+/* a tower's picture may use the row's height, not just the square box */
+.home__row .room-glyph { --glyph-box: var(--row-glyph); --glyph-tall: calc(var(--row-h) - var(--space-3)); }
 .home__row-body { display: flex; flex-direction: column; gap: var(--space-1); flex: 1; min-width: 0; }
 .home__row-name { font: var(--fw-display) var(--text-lg) / var(--leading-snug) var(--font-display); }
 .home__row-meta { font-size: var(--text-sm); color: var(--c-text-dim); }
@@ -58,6 +61,8 @@
 
 .home__footer { margin-top: auto; display: flex; flex-direction: column; gap: var(--space-2); padding-top: var(--space-2); }
 .home__reset { align-self: center; min-height: var(--tap-min); box-shadow: none; color: var(--c-text-faint); font-size: var(--text-sm); }
+/* the release, at the very bottom: one quiet centred caption */
+.home__version { text-align: center; font-size: var(--text-xs); color: var(--c-text-faint); font-variant-numeric: tabular-nums; padding-bottom: var(--space-2); }
 .home__icon { display: inline-flex; }
 /* destructive confirm on the reset sheet (no destructive variant in the design system yet) */
 .home__danger { color: var(--c-error); background: var(--c-tone-bg-error); box-shadow: inset 0 0 0 var(--hairline) var(--c-error); }
