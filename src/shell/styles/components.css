@@ -315,15 +315,18 @@ button, input { font: inherit; color: inherit; }
   transition: --lit var(--dur-flip) var(--ease-out) var(--flip-delay, 0ms), filter 0ms linear var(--flip-delay, 0ms),
     transform var(--dur-press) var(--ease-out), opacity var(--dur-sheet) var(--ease-out);
 }
+/* the face keeps its own --lit (set and animated here, never inherited: Safari doesn't pass a changed --lit down to a
+   child that inherits it, so the tile would glow while its face stayed dark) */
 .cell__face {
-  --lit: inherit;
   position: absolute; inset: 0; clip-path: var(--hex-clip); pointer-events: none;
+  transition: --lit var(--dur-flip) var(--ease-out) var(--flip-delay, 0ms);
   /* the same paint as a square light, plus a soft top sheen so each tile reads as a raised cell of the comb */
   background:
     linear-gradient(180deg, rgb(255 255 255 / .06), transparent 45%),
     radial-gradient(circle at 50% 40%, rgb(var(--rgb-tile-on-core) / var(--lit, 0)) 0%, rgb(var(--rgb-tile-on) / var(--lit, 0)) 52%, rgb(var(--rgb-tile-on-rim) / var(--lit, 0)) 100%),
     var(--grad-tile-off);
 }
+.cell[data-lit="true"] > .cell__face { --lit: 1; }
 .board[data-grid="hex"] > .cell[data-lit="true"] { box-shadow: none; filter: drop-shadow(0 0 var(--glow-blur) var(--c-glow)); }
 .board[data-grid="hex"] > .cell[data-lit="true"]:active { filter: drop-shadow(0 0 var(--glow-blur) var(--c-glow)) brightness(var(--press-brightness)); }
 .board[data-grid="hex"] > .cell::after { border-radius: 50%; }
@@ -458,6 +461,8 @@ button, input { font: inherit; color: inherit; }
   animation: lo-power-on var(--dur-power-on) var(--ease-out) calc(var(--i, 0) * var(--power-step)) backwards,
     lo-glow-on var(--dur-power-on) step-end calc(var(--i, 0) * var(--power-step)) backwards;
 }
+/* a honeycomb tile's face fades in the same way (it holds its own --lit) */
+.board--intro .cell[data-lit="true"] > .cell__face { animation: lo-power-on var(--dur-power-on) var(--ease-out) calc(var(--i, 0) * var(--power-step)) backwards; }
 @keyframes lo-power-on { from { --lit: 0; } }
 @keyframes lo-glow-on { from { box-shadow: var(--shadow-tile-off); } }
 
