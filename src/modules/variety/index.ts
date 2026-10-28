@@ -289,7 +289,10 @@ const variety: ModuleDef = {
       if (tile && tile.dataset.locked !== 'true') ctx.emit('levels:start', { levelId: Number(tile.dataset.level) });
     });
 
-    for (const slice of ['levels', 'progress', 'variety', 'learn'] as const) ctx.watch(slice, render);
+    for (const slice of ['levels', 'progress', 'variety'] as const) ctx.watch(slice, render);
+    // the learn slice changes on every practice tap; the guide link only cares whether a learn module runs
+    let hadLearn = ctx.read('learn') !== undefined;
+    ctx.watch('learn', (l) => { if ((l !== undefined) !== hadLearn) { hadLearn = l !== undefined; render(); } });
     let lastShown = false;
     ctx.watch('nav', () => {
       const now = showing();

@@ -300,7 +300,10 @@ const homeView: ModuleDef = {
       }
     });
 
-    for (const slice of ['levels', 'progress', 'storage', 'sound', 'variety', 'learn'] as const) ctx.watch(slice, update);
+    for (const slice of ['levels', 'progress', 'storage', 'sound', 'variety'] as const) ctx.watch(slice, update);
+    // the learn slice changes on every practice tap; home only cares whether a learn module runs
+    let hadLearn = ctx.read('learn') !== undefined;
+    ctx.watch('learn', (l) => { if ((l !== undefined) !== hadLearn) { hadLearn = l !== undefined; update(); } });
     let lastSheet: string | null = null;
     ctx.watch('nav', (nav) => {
       const sheetNow = nav?.sheet ?? null;
