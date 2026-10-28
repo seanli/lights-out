@@ -1,0 +1,54 @@
+/* variety layout only. Level tiles, stars, buttons and the screen header come from the design system; tokens only. */
+.variety {
+  gap: var(--space-4); padding-bottom: var(--space-4);
+  --v-solved: var(--c-tile-solved, color-mix(in srgb, var(--c-accent) 6%, var(--c-room-warm)));
+  --v-edge: inset 0 0 0 var(--hairline) color-mix(in srgb, var(--c-tile-on) 10%, transparent), var(--shadow-raised);
+}
+/* the scroll box would clip tile glows and focus rings at the gutters: give them room (as home does) */
+.screen.variety { margin-inline: calc(-1 * var(--space-2)); padding-inline: var(--space-2); }
+.screen.variety > * { flex-shrink: 0; }
+
+/* a room's shape as dots: gaps stay empty, cells light up as the room is solved */
+.variety .room-glyph {
+  --glyph-box: calc(var(--space-8) * 2);
+  display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: calc(var(--glyph-box) / 22);
+  width: var(--glyph-box); aspect-ratio: 1; flex: none;
+}
+.variety .room-glyph > i { aspect-ratio: 1; border-radius: 28%; background: var(--c-line-strong); }
+.variety .room-glyph > i[data-lit="true"] { background: var(--c-tile-on); box-shadow: 0 0 var(--space-1-5) var(--c-glow); }
+.variety .room-glyph > i[data-gap] { visibility: hidden; }
+
+/* room list */
+.room-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--level-gap); }
+.room-tile {
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2);
+  min-height: var(--tap-min); padding: var(--space-4); border: 0; border-radius: var(--radius-md); cursor: pointer; text-align: left;
+  color: var(--c-text); background: var(--c-surface); box-shadow: var(--shadow-raised);
+  touch-action: manipulation; transition: transform var(--dur-press) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+}
+.room-tile:active { transform: scale(var(--press-scale-btn)); }
+@media (hover: hover) { .room-tile:hover { background-color: var(--c-surface-3); } }
+.room-tile__glyph { display: flex; margin-bottom: var(--space-1); }
+.room-tile__name { font: var(--fw-display) var(--text-lg) / var(--leading-snug) var(--font-display); }
+.room-tile__meta { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); font-size: var(--text-sm); color: var(--c-text-dim); }
+.room-tile__stars { display: inline-flex; align-items: center; gap: var(--space-1); }
+.room-tile__stars .star { --star-size: var(--star-sm); }
+/* a room with stars in it is warm, like a solved level tile */
+.room-tile:not([data-solved="0"]) { background: var(--v-solved); box-shadow: var(--v-edge); }
+.variety__empty { padding-block: var(--space-4); text-align: center; }
+
+/* one room */
+.variety__room { display: flex; flex-direction: column; gap: var(--space-4); }
+.variety__room-top { display: flex; align-items: center; gap: var(--space-4); }
+.variety__room-top .room-glyph { --glyph-box: calc(var(--space-8) + var(--space-2)); }
+.variety__levels { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+/* level tiles: dark sockets when locked, warm when solved (the same language as home) */
+.variety .level-tile[data-locked="true"]::before { content: none; }
+.variety .level-tile:not([data-stars="0"]):not([data-current="true"]) { background: var(--v-solved); box-shadow: var(--v-edge); }
+.variety .level-tile[data-stars="3"]:not([data-current="true"]) { box-shadow: var(--v-edge), 0 0 var(--space-4) color-mix(in srgb, var(--c-glow) 24%, transparent); }
+
+@media (orientation: landscape) and (max-height: 540px) {
+  .room-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .variety__levels { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}

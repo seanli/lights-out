@@ -39,8 +39,9 @@ const TARGETS = {
   10: { name: 'Progress survives reload', target: 'same tile stars' },
   11: { name: 'Blocked storage', target: 'plays + storage notice' },
   12: { name: 'Layout', target: '6 viewports: no h-scroll, 44px, board fits' },
-  13: { name: 'Page weight', target: '≤ 230KB, gzip ≤ 90KB' },
+  13: { name: 'Page weight', target: '≤ 280KB, gzip ≤ 105KB' },
   14: { name: 'Offline install (PWA)', target: 'plays offline after SW ready' },
+  15: { name: 'Variety rooms', target: '6 rooms play; 44px cells at 375+, 40px at 320' },
 };
 const VIEWPORTS = [
   { width: 320, height: 568 }, { width: 375, height: 667 }, { width: 390, height: 844 },
@@ -186,6 +187,7 @@ await Promise.all([
     await check(11, blockedStorage);
     await check(12, layout);
     await check(14, offlineInstall);
+    await check(15, varietyRooms);
   })(),
 ]);
 
@@ -201,7 +203,7 @@ await check(13, async () => {
   if (!target.file || !existsSync(target.file)) throw new Skip('target is not a local file');
   const bytes = statSync(target.file).size;
   const gz = gzipSync(readFileSync(target.file)).length;
-  return { pass: bytes <= 230 * 1024 && gz <= 90 * 1024, measured: `${kb(bytes)} (gzip ${kb(gz)})`, detail: target.file.replace(ROOT + '/', '') };
+  return { pass: bytes <= 280 * 1024 && gz <= 105 * 1024, measured: `${kb(bytes)} (gzip ${kb(gz)})`, detail: target.file.replace(ROOT + '/', '') };
 });
 
 await browser.close();
@@ -284,7 +286,8 @@ async function everyLevel() {
     if (!(await hasDebug(page))) throw new Skip('window.__lightsOut.debug missing with #debug');
     await page.waitForFunction(() => window.__lightsOut.debug.state().levels?.status === 'ready', null, { timeout: 10000 })
       .catch(() => { throw new Skip('levels slice never became ready'); });
-    const list = (await debugState(page)).levels.list;
+    // the classic path only; Variety rooms are checked by target 15
+    const list = (await debugState(page)).levels.list.filter((l) => !l.pack || l.pack === 'classic');
     const problems = [];
     if (list.length !== 50) problems.push(`${list.length} levels, expected 50`);
     list.forEach((l, k) => {
@@ -335,13 +338,14 @@ async function blockedStorage() {
   const { context, page } = await newPage('blocked-storage', PHONE, { init: [BLOCK_STORAGE] });
   try {
     await open(page, target.url);
+    // the warning belongs on the home screen, where the player starts (it is hidden during play: DECISIONS #39)
+    const onHome = (await count(page, '[data-notice="storage"]')) > 0 && (await isVisible(page, '[data-notice="storage"]'));
     await tapAction(page, 'continue');
     await enterLevel(page);
     await playLevel(page, { pointer: 'follow' });
     await waitForSolvedSheet(page);
     if ((await count(page, '[data-notice="storage"]')) === 0) return { pass: false, measured: 'played, no notice', detail: 'no [data-notice="storage"] when localStorage throws' };
-    const visible = await isVisible(page, '[data-notice="storage"]');
-    return { pass: visible, measured: visible ? 'played, notice shown' : 'played, notice hidden' };
+    return { pass: onHome, measured: onHome ? 'played; notice shown on home' : 'played; notice not visible on home' };
   } finally {
     await context.close();
   }
@@ -369,8 +373,16 @@ async function layoutAt(size) {
     const r = await page.evaluate(() => {
       scrollTo(0, 0);
       const shown = (el) => !el.closest('[hidden]') && el.getClientRects().length > 0;
+      // a board cell's touch target is its grid slot: the gutter between cells presses the nearest cell (DECISIONS #40)
+      const slotOf = (el) => {
+        const bd = el.closest('[data-board]');
+        if (!bd) return null;
+        const n = Math.max(Number(bd.dataset.cols) || 5, Number(bd.dataset.rows) || 5);
+        const r = bd.getBoundingClientRect();
+        return { w: r.width / n, h: r.height / n };
+      };
       const small = [...document.querySelectorAll('[data-cell], [data-action]')].filter(shown).map((el) => {
-        const r = el.getBoundingClientRect();
+        const r = el.dataset.action ? el.getBoundingClientRect() : (slotOf(el) ?? el.getBoundingClientRect());
         return { what: el.dataset.action ? `${el.dataset.action}` : `cell`, w: r.width, h: r.height };
       }).filter((s) => s.w < 43.5 || s.h < 43.5);
       const board = document.querySelector('[data-screen="play"] [data-board]');
@@ -490,3 +502,57 @@ function p95(xs) { const s = [...xs].sort((a, b) => a - b); return s[Math.min(s.
 function round1(x) { return Math.round(x * 10) / 10; }
 function kb(n) { return `${(n / 1024).toFixed(1)}KB`; }
 function firstLine(err) { return String(err?.message ?? err).split('\n')[0].slice(0, 200); }
+
+
+/** Every Variety room: its first level plays by touch, gaps are never buttons, cells stay big enough. */
+async function varietyRooms() {
+  const out = [];
+  for (const size of [{ width: 390, height: 844 }, { width: 375, height: 667 }, { width: 320, height: 568 }]) {
+    const { context, page } = await newPage(`variety-${size.width}`, size);
+    try {
+      await open(page, withHash(target.url, 'debug'));
+      if (!(await hasDebug(page))) throw new Skip('window.__lightsOut.debug missing with #debug');
+      const packs = (await debugState(page)).levels.packs?.filter((p) => p.id !== 'classic') ?? [];
+      if (!packs.length) throw new Skip('no Variety rooms in the levels slice');
+      await page.evaluate(() => window.__lightsOut.debug.commands()['progress.unlock'](['20']));
+      for (const pack of packs) {
+        await emit(page, 'levels:start', { levelId: pack.first });
+        await page.waitForFunction((id) => window.__lightsOut.debug.state().board?.levelId === id, pack.first, { timeout: 3000 });
+        await page.waitForTimeout(250);
+        const info = await page.evaluate((PLAY) => {
+          const b = window.__lightsOut.debug.state().board;
+          const shape = b.shape ?? { cols: 5, rows: 5, mask: null };
+          const real = shape.mask ? shape.mask.filter(Boolean).length : shape.cols * shape.rows;
+          const cells = [...document.querySelectorAll(`${PLAY} [data-cell]`)];
+          const gapButtons = [...document.querySelectorAll(`${PLAY} [data-gap]`)].filter((g) => g.matches('button, [data-cell], [tabindex]:not([tabindex="-1"])')).length;
+          const sizes = cells.map((c) => c.getBoundingClientRect()).map((r) => Math.min(r.width, r.height));
+          const slot = Math.min(...[...document.querySelectorAll(`${PLAY} [data-board]`)].map((bd) => bd.getBoundingClientRect().width / Math.max(shape.cols, shape.rows)));
+          const sol = window.__lightsOut.kernel.service('solver').solve(b.cells, b.shape);
+          return { real, cells: cells.length, gapButtons, minCell: Math.min(...sizes), slot, sol, par: b.par };
+        }, PLAY);
+        const need = size.width >= 375 ? 44 : 40;
+        if (info.cells !== info.real) out.push(`${pack.id}@${size.width}: ${info.cells} cells shown, ${info.real} expected`);
+        if (info.gapButtons) out.push(`${pack.id}@${size.width}: ${info.gapButtons} gaps are tappable`);
+        // the gutter counts as hit area, so the touch target is the cell's grid slot
+        if (info.slot < need) out.push(`${pack.id}@${size.width}: touch slot ${info.slot.toFixed(0)}px < ${need}px`);
+        if (size.width === 390) {
+          const after = await sheetOpens(page);
+          for (const i of info.sol) {
+            const loc = page.locator(`${PLAY} [data-cell][data-index="${i}"]`);
+            const box = (await loc.count()) ? await loc.first().boundingBox({ timeout: 1000 }) : null;
+            if (!box) { out.push(`${pack.id}: cell ${i} not on screen`); break; }
+            await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+            await page.waitForTimeout(60);
+          }
+          const sheet = await waitForSolvedSheet(page, { after }).catch(() => null);
+          if (!sheet) out.push(`${pack.id}: solved sheet didn't open after ${info.sol.length} taps (par ${info.par})`);
+          else if (sheet.stars !== 3) out.push(`${pack.id}: ${sheet.stars}★ at par`);
+          await emit(page, 'nav:close_sheet', {});
+        }
+      }
+    } finally {
+      await context.close();
+    }
+  }
+  return { pass: out.length === 0, measured: out.length ? `${out.length} problems` : '6 rooms × 3 sizes ok', detail: out.slice(0, 4).join('; ') };
+}

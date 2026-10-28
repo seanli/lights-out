@@ -15,3 +15,5 @@ body { margin: 0; background: var(--c-room, #0d1015); color: var(--c-text, #efe8
 .fatal h1 { font-size: 1.25rem; text-wrap: balance; }
 .fatal p { color: var(--c-text-dim, #8b93a0); margin: 0.5rem 0; }
 .screen:focus { outline: none; }
+/* the play screen keeps every pixel for the board: info and warn notices show on the other screens, errors everywhere */
+.app[data-active-screen="play"] .notice:not([data-tone="error"]) { display: none; }

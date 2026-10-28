@@ -3,6 +3,9 @@
 import type { NavState } from '../contracts/entities';
 import type { Tone, ViewService } from '../contracts/services';
 
+/** how deep a screen sits: a higher number entered from a lower one slides in "forward" */
+const DEPTH: Record<string, number> = { home: 0, variety: 1, play: 2, learn: 3 };
+
 export interface ShellView extends ViewService {
   applyNav(nav: NavState | undefined): void;
   root: HTMLElement;
@@ -25,6 +28,17 @@ export function createView(root: HTMLElement): ShellView {
   let openSheet: string | null = null;
   let returnFocus: HTMLElement | null = null;
   let shownScreen: string | null = null;
+  let homeScroll = 0; // the level path's scroll position, kept while another screen is up
+
+  /** fade the incoming screen in from the room (CSS: .screen[data-enter]); nothing with reduced motion */
+  function enter(node: HTMLElement, from: string, to: string) {
+    if (reduce?.matches) return;
+    node.dataset.enter = (DEPTH[to] ?? 0) >= (DEPTH[from] ?? 0) ? 'forward' : 'back';
+  }
+  function entered(e: Event) {
+    const node = e.currentTarget as HTMLElement;
+    if (e.target === node) delete node.dataset.enter; // cells and stars animate inside the screen too
+  }
 
   function region(name: string): HTMLElement {
     const existing = regions.get(name);
@@ -35,6 +49,8 @@ export function createView(root: HTMLElement): ShellView {
       node = el('section', 'screen');
       node.dataset.screen = id;
       node.hidden = true;
+      node.addEventListener('animationend', entered);
+      node.addEventListener('animationcancel', entered);
       screens.append(node);
     } else if (kind === 'sheet') {
       node = el('div', 'sheet');
@@ -106,10 +122,23 @@ export function createView(root: HTMLElement): ShellView {
     reducedMotion: () => !!reduce?.matches,
     applyNav(nav) {
       const screen = nav?.screen ?? 'home';
-      for (const [name, node] of regions) if (name.startsWith('screen:')) node.hidden = name !== `screen:${screen}`;
+      const prevScreen = shownScreen;
+      const changed = prevScreen !== null && prevScreen !== screen;
+      const home = regions.get('screen:home');
+      if (changed && prevScreen === 'home' && home) homeScroll = home.scrollTop; // read before it hides
+      for (const [name, node] of regions) {
+        if (!name.startsWith('screen:')) continue;
+        node.hidden = name !== `screen:${screen}`;
+        if (node.hidden) delete node.dataset.enter;
+      }
       root.dataset.activeScreen = screen;
-      const changed = shownScreen !== null && shownScreen !== screen;
       shownScreen = screen;
+      const incoming = regions.get(`screen:${screen}`);
+      if (changed && incoming) {
+        // back on the level path: where the player left it (home-view still reveals a newly suggested level)
+        if (screen === 'home' && homeScroll) incoming.scrollTop = homeScroll;
+        enter(incoming, prevScreen, screen);
+      }
       if (changed) returnFocus = null; // a new screen: the old focus target is gone
       showSheet(nav?.sheet ?? null);
       // keep keyboard and screen-reader users in place: focus lands on the new screen, not <body>
