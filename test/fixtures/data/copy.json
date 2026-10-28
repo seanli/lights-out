@@ -56,8 +56,8 @@
     "allDoneBody": "Replay any level to collect the stars you missed."
   },
   "tutorial": {
-    "1": ["Tap the glowing light. It switches itself and its neighbours."],
-    "2": ["Each tap flips a plus shape. Turn every light off."]
+    "1": ["Turn every light off. Tap the ringed light: it flips, and so do the lights next to it."],
+    "2": ["A tap flips a light and the lights next to it. Tap the ringed light.", "Each tap flips a plus shape. Now tap the ringed light."]
   },
   "storage": {
     "memoryNotice": "This browser isn't saving progress, so it will be lost when you close the page."
