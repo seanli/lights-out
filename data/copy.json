@@ -212,7 +212,7 @@
       "status": {
         "start": "Start a level, then chase the lights down.",
         "chase": "Row {row}: tap under each lit light.",
-        "match": "Found it below. Tap the ringed top lights, then chase again.",
+        "match": "Tap the ringed top lights, then chase again.",
         "progress": "Finish the ringed top taps, then chase again.",
         "clear": "All dark. Solved.",
         "nomatch": "This bottom row can't be cleared. Restart and chase again.",
@@ -260,7 +260,7 @@
           "Tap one top-row light, then chase down. The bottom row it leaves is its echo.",
           "Your bottom row is an echo. Tap that top light and chase again: the echo lands twice and cancels.",
           "Some rows are two echoes stacked. Tap both top lights; where the echoes overlap, they cancel.",
-          "Your turn: chase, tap the top light of the echo you see, chase again. Assist rings each tap."
+          "Your turn: chase, cancel the echo, chase again. Assist rings each tap."
         ]
       },
       "shortest": {

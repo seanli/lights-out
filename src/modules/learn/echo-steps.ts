@@ -44,11 +44,13 @@ export function stackView(copy: LearnCopy, solver: Pick<SolverService, 'press'>,
     const ea = echoOf(solver, a), eb = echoOf(solver, b);
     const both = echoOfSet(solver, [a, b]);
     const cancel = ea.filter((c) => eb.includes(c));
-    const line = (label: string, s: HTMLElement, extra = '') => h('div', { class: `learn-stack__line ${extra}` }, h('span', { class: 'caption' }, label), s);
+    const label = (text: string) => h('span', { class: 'caption learn-stack__label' }, text);
+    // one grid per pair, so the labels and strips line up
     return h('div', { class: 'learn-stack__group', 'data-stack': `${a},${b}` },
-      line(fmt(copy.stack.of, { name: copy.letters[a]! }), strip({ lit: ea })),
-      line(fmt(copy.stack.of, { name: copy.letters[b]! }), strip({ lit: eb })),
-      line(fmt(copy.stack.both, { a: copy.letters[a]!, b: copy.letters[b]! }), strip({ lit: both, cancel, kind: 'sum' }), 'learn-stack__sum'));
+      label(fmt(copy.stack.of, { name: copy.letters[a]! })), strip({ lit: ea }),
+      label(fmt(copy.stack.of, { name: copy.letters[b]! })), strip({ lit: eb }),
+      h('i', { class: 'learn-stack__rule', 'aria-hidden': 'true' }),
+      label(fmt(copy.stack.both, { a: copy.letters[a]!, b: copy.letters[b]! })), strip({ lit: both, cancel, kind: 'sum' }));
   });
   return h('div', { class: 'learn-stack' }, ...groups, h('p', { class: 'learn-caption learn-stack__legend' }, h('i', { class: 'learn-cancel-key', 'aria-hidden': 'true' }), copy.stack.cancel));
 }
@@ -114,10 +116,11 @@ export function createDrill(d: { copy: LearnCopy; rules: LearnRules; solver: Pic
     setAttr(root, 'data-drill', state);
     card.hidden = !e;
     bottoms.forEach((el, c) => setAttr(el, 'data-lit', String(!!e?.bottom.includes(c))));
-    const reveal = state === 'wrong' ? e!.top : [];
+    // after a miss, the ring shows the answer instead of the guess
+    const ringed = state === 'wrong' ? e!.top : chosen;
     tops.forEach((el, c) => {
       setAttr(el, 'aria-pressed', String(chosen.includes(c)));
-      setAttr(el, 'data-suggest', chosen.includes(c) || reveal.includes(c) ? 'true' : null);
+      setAttr(el, 'data-suggest', ringed.includes(c) ? 'true' : null);
       (el as HTMLButtonElement).disabled = state !== 'asking';
     });
     setText(count, round && !finished(round) ? fmt(copy.drill.card, { n: round.pos + 1, total: round.queue.length }) : '');
@@ -129,6 +132,7 @@ export function createDrill(d: { copy: LearnCopy; rules: LearnRules; solver: Pic
     setAttr(line, 'data-tone', state === 'wrong' ? 'warn' : state === 'right' ? 'hint' : 'coach');
     setText(action, state === 'idle' ? copy.drill.start : state === 'asking' ? copy.drill.check : state === 'done' ? copy.drill.again : copy.drill.next);
     action.disabled = state === 'asking' && chosen.length === 0;
+    action.className = `btn ${state === 'idle' || state === 'done' ? 'btn--primary' : 'btn--ghost'} learn-small`;
   }
 
   function judge(right: boolean) {

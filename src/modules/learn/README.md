@@ -1,14 +1,12 @@
 # learn
 
-The Learn screen (`screen:learn`): five lessons that teach the patterns that solve any board. Owns the `learn` slice.
+The Learn screen (`screen:learn`): five lessons, at most five short steps each (one idea per step). Owns the `learn` slice.
 
-- `learn:open {lessonId?}` → lesson (or the list when omitted), step 0, `learn:lesson_opened`, then `nav:go learn`. Unknown id → `learn:refused`.
-- `learn:step {delta}` → prev/next; past the last step marks the lesson completed (`learn:lesson_completed`) and returns to the list.
-- Practice: `learn:new_practice` builds a board from N taps (N from `rules.json → learn.practicePresses`, cells from `rng`); `learn:press {index}` uses `solver.press`; solved → `learn:practice_solved {lessonId, moves, par}`. Never touches stars or progress.
-- `learn:set_assist {on}` rings the next tap (`practice.suggest`): chase taps in lesson 3, the full method (chase → table → chase) in lesson 4.
-- Maths (`method.ts`) is derived from the solver at init: the bottom-row table (7 entries) and the 3 quiet patterns. Nothing hard-coded.
-- Lesson shapes in `lessons.ts`; every sentence in `copy.json → learn`. Demos auto-play with the `clock` service, step by tap under reduced motion.
-- Mini board `.board--mini` lives in `learn.css` (tokens only). Practice cells press on `pointerdown`, keyboard via click + arrow keys.
-- Saves completed lesson ids under storage key `learn` (`rules.json → learn.saveKey`); without storage they last until the page closes.
-- In-game reference: fills `slot:reference` (play-view places it) from `reference.ts`: chase line, live advice `[data-reference-status]`, live bottom row, the 7 table rows (`[data-match]`), "All lessons". Patches attributes on every `board` change; never marks the main board.
+- `learn:open {lessonId?}` → lesson (or the list), step 0, `learn:lesson_opened`, `nav:go learn`. Unknown id → `learn:refused`.
+- `learn:step {delta}` → Previous/Next; past the last step completes the lesson (`learn:lesson_completed`) and returns to the list.
+- Practice: `learn:new_practice` / `learn:press {index}` on a mini board (`solver.press`); `learn:practice_solved`. Never touches stars.
+- Lesson 4 teaches **echoes**: a top-row tap, chased down, leaves its echo; the leftover bottom row is an echo (or two stacked), so tapping that top light and chasing again cancels it. "Go deeper" on its last step opens `echo-more` (not in the list, never "completed"): five rules over the 7 rows, how an echo forms (row rule, `echoRows`), and a "whose echo is this?" drill (`drill.ts`: Leitner boxes, 10 cards, misses return 3 cards later, saved under `rules.json → learn.drill.saveKey`). Any top-row set that clears the row is accepted.
+- Maths (`method.ts`) comes from the solver: the bottom-row table, quiet patterns, echoes. `RULES` (lessons.ts) is presentation only; tests prove each rule clears its rows.
+- In-game Patterns panel (`reference.ts` → `slot:reference`): classic 5×5 shows status, the matching row's "Echo of X · rule" line, the live bottom row and the 7-row table. It scrolls the match into view, and fades the bottom edge while there is more (ResizeObserver). On screens ≤740px tall, once a row matches, only the rule and that row show. Other full rectangles get row-by-row chase advice (bottom row only → Hint). Shaped rooms get one line. It never marks the main board.
+- Every sentence is in `copy.json → learn`; the mini board lives in `learn.css` (tokens only). Saves completed ids under `rules.json → learn.saveKey`.
 - Services: uses `view`, `solver`, `rng`; optional `storage`, `clock`. Console: `learn.open [lessonId]`, `learn.table`.
