@@ -2,7 +2,10 @@
 import type { Shape } from '../../contracts';
 import { isCell } from '../../lib/shape';
 
-/** the board's box in px: its width/height (padding box), padding and the gap between cells */
+/** a tall board (the Tower, 5×16): it fits its width and scrolls instead of shrinking into the screen */
+export const isTall = (shape: Shape): boolean => shape.rows >= 2 * shape.cols;
+
+/** the board's box in px: its width/height (padding box; a scrolling board's whole content), padding and the gap between cells */
 export interface Box { width: number; height: number; padX: number; padY: number; gapX: number; gapY: number }
 
 const clamp = (n: number, max: number) => Math.min(max, Math.max(0, n));

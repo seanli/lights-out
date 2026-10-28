@@ -63,15 +63,18 @@ export async function readBoard(page, prev = null) {
   }, { prev, PLAY });
 }
 
-/** Waits until a level with lights on is showing; SKIP when the play view has no cells at all. */
-export async function enterLevel(page, timeout = 4000) {
+/**
+ * Waits until a level with lights on is showing; SKIP when the play view has no cells at all.
+ * `cells`: the number of cells to expect (25 = the classic board), or null for any board.
+ */
+export async function enterLevel(page, timeout = 4000, { cells: want = 25 } = {}) {
   try {
-    await page.waitForFunction((PLAY) => {
+    await page.waitForFunction(({ PLAY, want }) => {
       const board = document.querySelector(`${PLAY} [data-board]`);
       const cells = document.querySelectorAll(`${PLAY} [data-cell]`);
-      return !!board && !board.closest('[hidden]') && board.getClientRects().length > 0 && cells.length === 25 &&
+      return !!board && !board.closest('[hidden]') && board.getClientRects().length > 0 && (want === null ? cells.length > 0 : cells.length === want) &&
         board.dataset.status !== 'solved' && [...cells].some((c) => c.dataset.lit === 'true');
-    }, PLAY, { timeout, polling: 'raf' });
+    }, { PLAY, want }, { timeout, polling: 'raf' });
   } catch {
     if ((await count(page, CELLS)) === 0) throw new Skip('play view not rendered yet (no [data-screen="play"] [data-cell])');
     if ((await count(page, BOARD)) === 0) throw new Skip('play view has cells but no [data-board]');
@@ -204,4 +207,28 @@ export async function settle(page, timeout = 2000) {
     });
     await Promise.race([Promise.all(finite.map((a) => a.finished.catch(() => {}))), new Promise((r) => setTimeout(r, timeout))]);
   }, timeout);
+}
+
+/**
+ * Real touch input through the DevTools protocol, for gestures Playwright's touchscreen can't make
+ * (it only taps): hold a finger down, slide it, lift it. Coordinates are CSS px in the viewport.
+ */
+export async function fingers(page) {
+  const cdp = await page.context().newCDPSession(page);
+  const send = (type, touchPoints) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints });
+  return {
+    down: (x, y) => send('touchStart', [{ x, y, id: 1 }]),
+    move: (x, y) => send('touchMove', [{ x, y, id: 1 }]),
+    up: () => send('touchEnd', []),
+    /** a swipe from (x, y) by (dx, dy) in `steps` moves, then lift */
+    async swipe(x, y, dx, dy, steps = 8) {
+      await send('touchStart', [{ x, y, id: 1 }]);
+      for (let k = 1; k <= steps; k++) {
+        await send('touchMove', [{ x: x + (dx * k) / steps, y: y + (dy * k) / steps, id: 1 }]);
+        await page.waitForTimeout(16);
+      }
+      await send('touchEnd', []);
+    },
+    detach: () => cdp.detach(),
+  };
 }

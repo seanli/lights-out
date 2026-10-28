@@ -10,7 +10,7 @@ import { gzipSync } from 'node:zlib';
 import { BLOCK_STORAGE, INSTRUMENT, PHONE, ROOT, contextOptions, launch, resolveTarget, withHash } from './lib/target.mjs';
 import { pressMask, solve, toMask } from './lib/solver.mjs';
 import {
-  BOARD, CELLS, PLAY, Skip, count, debugState, emit, enterLevel, hasDebug, isVisible, playLevel, readBoard, readNumber, readTiles,
+  BOARD, CELLS, PLAY, Skip, count, debugState, emit, enterLevel, fingers, hasDebug, isVisible, playLevel, readBoard, readNumber, readTiles,
   sheetOpens, tap, tapAction, waitForSolvedSheet, waitInteractive,
 } from './lib/play.mjs';
 
@@ -40,10 +40,10 @@ const TARGETS = {
   9: { name: 'Undo / restart', target: 'undo restores, restart → 0' },
   10: { name: 'Progress survives reload', target: 'same tile stars' },
   11: { name: 'Blocked storage', target: 'plays + storage notice' },
-  12: { name: 'Layout', target: '6 viewports: no h-scroll, 44px, board fits' },
+  12: { name: 'Layout', target: '6 viewports: no h-scroll, 44px, board fits' },  // board slots: 44px, or the board aims
   13: { name: 'Page weight', target: '≤ 280KB, gzip ≤ 105KB' },
   14: { name: 'Offline install (PWA)', target: 'plays offline after SW ready' },
-  15: { name: 'Variety rooms', target: '6 rooms play; 44px cells at 375+, 40px at 320' },
+  15: { name: 'Every room by touch', target: 'level 1 of each; slot ≥ 44px or aim' },
 };
 const VIEWPORTS = [
   { width: 320, height: 568 }, { width: 375, height: 667 }, { width: 390, height: 844 },
@@ -69,7 +69,8 @@ const blockedBy = (id, dep) => record(id, 'SKIP', '—', `needs #${dep} (${resul
 let target;
 try { target = resolveTarget(args.url); } catch (err) { console.error(err.message); process.exit(2); }
 const pageUrl = target.url.split('#')[0];
-const rulesPars = JSON.parse(readFileSync(join(ROOT, 'data/rules.json'), 'utf8')).levels.pars;
+// classic pars from the data: bands of ten, each band's nine levels then its boss (DECISIONS #46)
+const rulesPars = JSON.parse(readFileSync(join(ROOT, 'data/rules.json'), 'utf8')).levels.bands.flatMap((b) => [...b.pars, b.boss]);
 const browser = await launch();
 const requests = [];
 const errors = [];
@@ -383,13 +384,15 @@ async function layoutAt(size) {
     const r = await page.evaluate(() => {
       scrollTo(0, 0);
       const shown = (el) => !el.closest('[hidden]') && el.getClientRects().length > 0;
-      // a board cell's touch target is its grid slot: the gutter between cells presses the nearest cell (DECISIONS #40)
+      // a board cell's touch target is its grid slot: the gutter between cells presses the nearest cell (DECISIONS #40);
+      // a board in aim mode (press-and-hold, magnifier, lift to press) is exempt: that is its answer to small slots
       const slotOf = (el) => {
         const bd = el.closest('[data-board]');
         if (!bd) return null;
-        const n = Math.max(Number(bd.dataset.cols) || 5, Number(bd.dataset.rows) || 5);
+        if (bd.dataset.aim === 'true') return { w: 44, h: 44 };
         const r = bd.getBoundingClientRect();
-        return { w: r.width / n, h: r.height / n };
+        const h = bd.dataset.scroll === 'true' ? bd.scrollHeight : r.height;
+        return { w: r.width / (Number(bd.dataset.cols) || 5), h: h / (Number(bd.dataset.rows) || 5) };
       };
       const small = [...document.querySelectorAll('[data-cell], [data-action], [data-room-tile], [data-level-tile]')].filter(shown).map((el) => {
         const r = el.matches('[data-cell]') ? (slotOf(el) ?? el.getBoundingClientRect()) : el.getBoundingClientRect();
@@ -530,9 +533,16 @@ function kb(n) { return `${(n / 1024).toFixed(1)}KB`; }
 function firstLine(err) { return String(err?.message ?? err).split('\n')[0].slice(0, 200); }
 
 
-/** Every Variety room: its first level plays by touch, gaps are never buttons, cells stay big enough. */
+/**
+ * Every room (every board but classic): its first level plays by touch, gaps are never buttons, and each touch slot
+ * is ≥ 44px or the board is in aim mode. At 390 the level is played to the end by real taps (aim boards press on
+ * release, so a tap is down and up at one point; the Tower scrolls each cell into view first), and a swipe on the
+ * Tower must scroll it without pressing anything.
+ */
 async function varietyRooms() {
   const out = [];
+  const seen = new Set();
+  const modes = {};
   for (const size of [{ width: 390, height: 844 }, { width: 375, height: 667 }, { width: 320, height: 568 }]) {
     const { context, page } = await newPage(`variety-${size.width}`, size);
     try {
@@ -542,6 +552,7 @@ async function varietyRooms() {
       if (!packs.length) throw new Skip('no Variety rooms in the levels slice');
       await page.evaluate(() => window.__lightsOut.debug.commands()['progress.unlock'](['20']));
       for (const pack of packs) {
+        seen.add(pack.id);
         // like a player: the room's row on the menu, then its first level on the board screen
         await tapAction(page, `[data-room-tile][data-room="${pack.id}"]`);
         await boardShows(page, pack.id);
@@ -554,26 +565,47 @@ async function varietyRooms() {
           const real = shape.mask ? shape.mask.filter(Boolean).length : shape.cols * shape.rows;
           const cells = [...document.querySelectorAll(`${PLAY} [data-cell]`)];
           const gapButtons = [...document.querySelectorAll(`${PLAY} [data-gap]`)].filter((g) => g.matches('button, [data-cell], [tabindex]:not([tabindex="-1"])')).length;
-          const sizes = cells.map((c) => c.getBoundingClientRect()).map((r) => Math.min(r.width, r.height));
-          const slot = Math.min(...[...document.querySelectorAll(`${PLAY} [data-board]`)].map((bd) => bd.getBoundingClientRect().width / Math.max(shape.cols, shape.rows)));
+          const bd = document.querySelector(`${PLAY} [data-board]`);
+          const r = bd.getBoundingClientRect();
+          const scroll = bd.dataset.scroll === 'true';
+          // the touch slot: board size / cols, gutter included (DECISIONS #40); a scrolling board's whole height
+          const slot = Math.min(r.width / shape.cols, (scroll ? bd.scrollHeight : r.height) / shape.rows);
           const sol = window.__lightsOut.kernel.service('solver').solve(b.cells, b.shape);
-          return { real, cells: cells.length, gapButtons, minCell: Math.min(...sizes), slot, sol, par: b.par };
+          return { real, cells: cells.length, gapButtons, slot, aim: bd.dataset.aim === 'true', scroll, top: bd.scrollTop, sol, par: b.par };
         }, PLAY);
-        const need = size.width >= 375 ? 44 : 40;
-        if (info.cells !== info.real) out.push(`${pack.id}@${size.width}: ${info.cells} cells shown, ${info.real} expected`);
-        if (info.gapButtons) out.push(`${pack.id}@${size.width}: ${info.gapButtons} gaps are tappable`);
-        // the gutter counts as hit area, so the touch target is the cell's grid slot
-        if (info.slot < need) out.push(`${pack.id}@${size.width}: touch slot ${info.slot.toFixed(0)}px < ${need}px`);
+        const where = `${pack.id}@${size.width}`;
+        (modes[size.width] ??= []).push(`${pack.id} ${Math.round(info.slot)}px${info.aim ? ' aim' : info.scroll ? ' scroll' : ''}`);
+        if (info.cells !== info.real) out.push(`${where}: ${info.cells} cells shown, ${info.real} expected`);
+        if (info.gapButtons) out.push(`${where}: ${info.gapButtons} gaps are tappable`);
+        if (info.slot < 43.5 && !info.aim) out.push(`${where}: touch slot ${info.slot.toFixed(0)}px < 44px and not in aim mode`);
+        if (info.slot >= 44.5 && info.aim) out.push(`${where}: aim mode on ${info.slot.toFixed(0)}px slots`);
+        if (info.scroll && info.top !== 0) out.push(`${where}: the Tower did not start at the top (scrollTop ${info.top})`);
         if (size.width === 390) {
-          const after = await sheetOpens(page);
+          if (info.scroll) {
+            // a swipe scrolls the Tower and presses nothing
+            const box = await page.locator(`${PLAY} [data-cell]`).nth(12).boundingBox();
+            const finger = await fingers(page);
+            await finger.swipe(box.x + box.width / 2, box.y + box.height / 2, 0, -220);
+            await finger.detach();
+            await page.waitForTimeout(300);
+            const after = await page.evaluate((PLAY) => ({ moves: window.__lightsOut.debug.state().board.moves, top: document.querySelector(`${PLAY} [data-board]`).scrollTop }), PLAY);
+            if (after.moves !== 0) out.push(`${pack.id}: a swipe pressed ${after.moves} cell(s)`);
+            if (!(after.top > 0)) out.push(`${pack.id}: a swipe did not scroll the board`);
+            extra.towerSwipe = { scrolled: after.top, moves: after.moves };
+          }
+          const opened = await sheetOpens(page);
           for (const i of info.sol) {
             const loc = page.locator(`${PLAY} [data-cell][data-index="${i}"]`);
-            const box = (await loc.count()) ? await loc.first().boundingBox({ timeout: 1000 }) : null;
-            if (!box) { out.push(`${pack.id}: cell ${i} not on screen`); break; }
+            if (!(await loc.count())) { out.push(`${pack.id}: cell ${i} missing`); break; }
+            if (info.scroll) await loc.first().evaluate((el) => el.scrollIntoView({ block: 'nearest' }));
+            const box = await loc.first().boundingBox({ timeout: 1000 });
+            if (!box || box.y < 0 || box.y + box.height > size.height) { out.push(`${pack.id}: cell ${i} not on screen`); break; }
             await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
             await page.waitForTimeout(60);
           }
-          const sheet = await waitForSolvedSheet(page, { after }).catch(() => null);
+          const moves = await page.evaluate(() => window.__lightsOut.debug.state().board.moves);
+          if (moves !== info.sol.length) out.push(`${pack.id}: ${info.sol.length} taps made ${moves} moves`);
+          const sheet = await waitForSolvedSheet(page, { after: opened }).catch(() => null);
           if (!sheet) out.push(`${pack.id}: solved sheet didn't open after ${info.sol.length} taps (par ${info.par})`);
           else {
             if (sheet.stars !== 3) out.push(`${pack.id}: ${sheet.stars}★ at par`);
@@ -586,7 +618,7 @@ async function varietyRooms() {
         } else {
           // Back from a level returns to the board it was opened from, and the board's Back to the menu
           await tapAction(page, 'back');
-          if (!(await boardShows(page, pack.id).then(() => true, () => false))) out.push(`${pack.id}@${size.width}: Back from the level didn't return to its board`);
+          if (!(await boardShows(page, pack.id).then(() => true, () => false))) out.push(`${where}: Back from the level didn't return to its board`);
           await tapAction(page, 'variety-back');
         }
       }
@@ -594,5 +626,6 @@ async function varietyRooms() {
       await context.close();
     }
   }
-  return { pass: out.length === 0, measured: out.length ? `${out.length} problems` : '6 rooms × 3 sizes ok', detail: out.slice(0, 4).join('; ') };
+  extra.rooms = modes;
+  return { pass: out.length === 0, measured: out.length ? `${out.length} problems` : `${seen.size} rooms × 3 sizes ok`, detail: out.slice(0, 4).join('; ') };
 }

@@ -87,19 +87,52 @@ button, input { font: inherit; color: inherit; }
 /* ---------- board + cells ---------- */
 .board {
   --board-size: min(100cqw, 100cqh - var(--board-chrome-y), var(--board-max));
+  /* the box a play board (.board[data-n]) fits in; layouts that move the board set these two */
+  --fit-w: min(100cqw, var(--board-max));
+  --fit-h: min(100cqh - var(--board-chrome-y), var(--board-max));
   width: var(--board-size); max-width: 100%; aspect-ratio: 1;
   display: grid; grid-template-columns: repeat(var(--board-n, 5), minmax(0, 1fr)); grid-template-rows: repeat(var(--board-n, 5), minmax(0, 1fr));
   gap: var(--cell-gap); padding: var(--board-pad);
   background: var(--c-board); border-radius: var(--radius-lg); box-shadow: var(--shadow-board);
 }
-/* per side (4–7): tighter gaps on big boards; corner radius and glow scale with the cell so 7×7 doesn't smear */
+/* per side: tighter gaps on big boards; corner radius and glow scale with the cell so 7×7 and up don't smear */
 .board[data-n="4"] { --board-n: 4; }
 .board[data-n="6"] { --board-n: 6; --cell-gap: var(--cell-gap-6); --board-pad: var(--board-pad-6); }
 .board[data-n="7"] { --board-n: 7; --cell-gap: var(--cell-gap-7); --board-pad: var(--board-pad-7); --ring-offset: var(--ring-offset-tight); }
+.board[data-n="8"] { --board-n: 8; --cell-gap: var(--cell-gap-8); --board-pad: var(--board-pad-8); --ring-offset: var(--ring-offset-tight); }
+.board[data-n="10"] { --board-n: 10; --cell-gap: var(--cell-gap-10); --board-pad: var(--board-pad-10); --ring-offset: var(--ring-offset-tight); }
+/* the play board: --board-cols × --board-rows (set inline by play-view) square cells, as big as the fit box allows (any shape, not only squares) */
 .board[data-n] {
-  --cell-size: calc((var(--board-size) - 2 * var(--board-pad) - (var(--board-n, 5) - 1) * var(--cell-gap)) / var(--board-n, 5));
+  --cell-size: min(
+    (var(--fit-w) - 2 * var(--board-pad) - (var(--board-cols) - 1) * var(--cell-gap)) / var(--board-cols),
+    (var(--fit-h) - 2 * var(--board-pad) - (var(--board-rows) - 1) * var(--cell-gap)) / var(--board-rows));
+  width: calc(var(--board-cols) * var(--cell-size) + (var(--board-cols) - 1) * var(--cell-gap) + 2 * var(--board-pad));
+  height: calc(var(--board-rows) * var(--cell-size) + (var(--board-rows) - 1) * var(--cell-gap) + 2 * var(--board-pad));
+  aspect-ratio: auto; flex: none;
+  grid-template-columns: repeat(var(--board-cols), minmax(0, 1fr)); grid-template-rows: repeat(var(--board-rows), minmax(0, 1fr));
   --cell-radius: calc(var(--cell-size) * .2); --glow-blur: calc(var(--cell-size) * .35);
+  touch-action: manipulation;
 }
+/* a tall board (the Tower): fits its width, its cells capped near the classic size; it scrolls inside the fit box */
+.board[data-scroll="true"] {
+  --cell-gap: var(--cell-gap-tall); --board-pad: var(--board-pad-tall); --ring-offset: var(--ring-offset-tight);
+  --cell-size: min((var(--fit-w) - 2 * var(--board-pad) - (var(--board-cols) - 1) * var(--cell-gap)) / var(--board-cols), var(--cell-max-tall));
+  height: min(var(--board-rows) * var(--cell-size) + (var(--board-rows) - 1) * var(--cell-gap) + 2 * var(--board-pad), var(--fit-h));
+  grid-template-rows: repeat(var(--board-rows), var(--cell-size));
+  overflow: hidden auto; overscroll-behavior: contain; scrollbar-width: none; touch-action: pan-y;
+}
+/* its window ends half-way through a row, so it reads as a board that goes on */
+@supports (height: round(down, 10px, 1px)) {
+  .board[data-scroll="true"] {
+    height: min(var(--board-rows) * var(--cell-size) + (var(--board-rows) - 1) * var(--cell-gap) + 2 * var(--board-pad),
+      var(--board-pad) + round(down, var(--fit-h) - var(--board-pad) - (var(--cell-size) + var(--cell-gap)) / 2, var(--cell-size) + var(--cell-gap)) + (var(--cell-size) + var(--cell-gap)) / 2);
+  }
+}
+.board[data-scroll="true"]::-webkit-scrollbar { display: none; }
+.board[data-scroll="true"] > .cell { scroll-margin-block: var(--board-pad); }
+/* aim-and-release (src/lib/aim.ts): the cell under the finger, also magnified in the bubble */
+.board[data-aim="true"] { touch-action: none; }
+.cell[data-aimed="true"] { outline: var(--ring-w) dashed var(--c-tile-on); outline-offset: var(--focus-offset-tight); }
 /* a gap in a shaped board keeps its grid slot and nothing else */
 .board > [data-gap] { visibility: hidden; pointer-events: none; }
 .cell {
@@ -355,7 +388,7 @@ button, input { font: inherit; color: inherit; }
   .screen--play .tutorial-line { grid-area: line; }
   .screen--play .play-actions { grid-area: actions; }
   .screen--play .board-slot { display: contents; container-type: normal; }
-  .screen--play .board { grid-area: board; align-self: center; --board-size: min(100cqh, 100cqw - var(--side-w) - var(--space-6), var(--board-max)); }
+  .screen--play .board { grid-area: board; align-self: center; --fit-w: min(100cqw - var(--side-w) - var(--space-6), var(--board-max)); --fit-h: min(100cqh, var(--board-max)); }
   .sheet { max-width: var(--app-max-wide); gap: var(--space-2); }
   .sheet__actions { flex-direction: row; }
   .sheet__actions > .btn { flex: 1; }
@@ -363,9 +396,12 @@ button, input { font: inherit; color: inherit; }
 
 /* Browsers without container queries (iOS Safari before 16): size the board from the viewport instead. */
 @supports not (container-type: size) {
-  .board { --board-size: min(calc(100vw - 2 * var(--space-4)), calc(100vh - 340px), var(--board-max)); }
+  .board {
+    --board-size: min(calc(100vw - 2 * var(--space-4)), calc(100vh - 340px), var(--board-max));
+    --fit-w: min(calc(100vw - 2 * var(--space-4)), var(--board-max)); --fit-h: min(calc(100vh - 340px), var(--board-max));
+  }
   @media (orientation: landscape) and (max-height: 540px) {
-    .screen--play .board { --board-size: min(calc(100vh - 2 * var(--space-4)), calc(100vw - var(--side-w) - 3 * var(--space-6)), var(--board-max)); }
+    .screen--play .board { --fit-w: min(calc(100vw - var(--side-w) - 3 * var(--space-6)), var(--board-max)); --fit-h: min(calc(100vh - 2 * var(--space-4)), var(--board-max)); }
   }
 }
 
@@ -391,7 +427,6 @@ button, input { font: inherit; color: inherit; }
 .aim-bubble > i[data-state="on"] { background: var(--grad-tile-on); box-shadow: 0 0 var(--space-2) var(--c-glow); }
 .aim-bubble > i[data-state="none"] { visibility: hidden; }
 .aim-bubble > i[data-target="true"] { outline: 2px dashed var(--c-tile-on); outline-offset: 2px; }
-.board[data-aim="true"] { touch-action: none; }
 
 /* skull (src/lib/icons.ts): marks a boss level */
 .skull { width: 1em; height: 1em; flex: none; vertical-align: -0.125em; }

@@ -1,16 +1,20 @@
 // play-view: the play screen. Renders the board, hints, tutorial and progress slices and turns taps into commands.
 // The DOM is built once (the grid again only when the board's shape changes); every change only touches what differs.
+// How a touch presses depends on the measured board: instant on pointerdown (normal boards), on release unless the
+// finger moved (a tall board that scrolls), or aim-and-release with a magnifier (slots under the tap minimum).
 import * as v from 'valibot';
 import { MAX_CELLS, type BoardState, type HintsState, type LevelsState, type ModuleDef, type ProgressState, type Shape, type TutorialState } from '../../contracts';
 import { flip, measure } from './flip';
-import { cellAt, rowEdge, stepFrom, type Box } from './grid';
+import { cellAt, isTall, rowEdge, stepFrom } from './grid';
+import { attachAim, type AimMode } from '../../lib/aim';
 import { fmt, h, setAttr, setText } from '../../lib/dom';
+import { skull } from '../../lib/icons';
 import { cellIndexes, gridSize, isCell, shapeKey, shapeOf } from '../../lib/shape';
 import './play-view.css';
 
 const text = v.pipe(v.string(), v.minLength(1));
 const CopySchema = v.object({
-  chapter: text, level: text, moves: text, par: text, undo: text, restart: text, hint: text, hintCost: text,
+  chapter: text, level: text, boss: text, moves: text, par: text, undo: text, restart: text, hint: text, hintCost: text,
   back: text, patterns: text, board: text, maxAria: text, hintLine: text, hintChipCost: text, hintChipWord: text, hintChipAria: text,
   cellOn: text, cellOff: text, tierWithin: text, tierOver: text, tierWithinAria: text, tierOverAria: text,
 });
@@ -76,7 +80,11 @@ const playView: ModuleDef = {
 
     const back = h('button', { class: 'btn btn--icon', type: 'button', 'data-action': 'back', 'aria-label': copy.back }, icon(ICON.back));
     const chapterEl = h('span', { class: 'eyebrow' });
-    const levelEl = h('strong', { 'data-level-label': '' });
+    // a boss level: the skull beside the level's name (the eyebrow says "· Boss" in words)
+    const skullEl = skull();
+    skullEl.classList.add('play-skull');
+    const levelText = h('span', {});
+    const levelEl = h('strong', { 'data-level-label': '' }, skullEl, levelText);
     const refBtn = h('button', {
       class: 'btn btn--icon', type: 'button', 'data-action': 'reference', 'aria-label': copy.patterns, title: copy.patterns,
       'aria-expanded': 'false', 'aria-controls': 'play-reference', hidden: true,
@@ -141,6 +149,10 @@ const playView: ModuleDef = {
     let focusIndex = 0;
     let hintCell = -1;
     let pointerCell = -1;
+    let aimedCell = -1;
+    /** a tall board scrolls (presses land on release); `aim`: its slots are under the tap minimum (measured) */
+    let tall = false;
+    let aim = false;
     const rowOf = (i: number) => Math.floor(i / shape!.cols);
     const colOf = (i: number) => i % shape!.cols;
     const resetOrder = () => { for (const i of real) cells[i]!.style.setProperty('--i', String(rowOf(i) + colOf(i))); };
@@ -178,12 +190,16 @@ const playView: ModuleDef = {
       board.style.setProperty('--board-n', String(n));
       board.style.setProperty('--board-cols', String(next.cols));
       board.style.setProperty('--board-rows', String(next.rows));
+      tall = isTall(next);
+      setAttr(board, 'data-scroll', tall ? 'true' : null);
       shown.fill(-1);
       delays.fill(-1);
       pending.fill(0);
       focusIndex = real[0] ?? 0;
       hintCell = -1;
       pointerCell = -1;
+      aimedCell = -1;
+      measureSlot(); // the same box can hold a different grid (8×8 → 10×10): the observer wouldn't fire
     };
 
     // ---------- input ----------
@@ -195,22 +211,32 @@ const playView: ModuleDef = {
       const el = (target as Element | null)?.closest?.('[data-cell]') as HTMLElement | null | undefined;
       return el && board.contains(el) ? Number(el.dataset.index) : -1;
     };
-    /** the space between cells and the board's padding are hit area too: they press the real cell whose slot holds the point */
-    const gutterCell = (e: PointerEvent): number => {
+    /** the real cell whose grid slot holds a client point (gutter and padding included; a scrolled board's content counts) */
+    const pointCell = (x: number, y: number): number => {
       if (!shape) return -1;
-      const r = board.getBoundingClientRect(); // layout is clean on pointerdown: nothing has been written yet
+      const r = board.getBoundingClientRect();
       const css = getComputedStyle(board);
       const px = (v: string) => parseFloat(v) || 0;
-      const box: Box = {
-        width: r.width, height: r.height, padX: px(css.paddingLeft), padY: px(css.paddingTop),
-        gapX: px(css.columnGap), gapY: px(css.rowGap),
-      };
-      return cellAt(shape, e.clientX - r.left, e.clientY - r.top, box);
+      return cellAt(shape, x - r.left + board.scrollLeft, y - r.top + board.scrollTop, {
+        width: r.width, height: tall ? Math.max(board.scrollHeight, r.height) : r.height,
+        padX: px(css.paddingLeft), padY: px(css.paddingTop), gapX: px(css.columnGap), gapY: px(css.rowGap),
+      });
     };
+    /** null = press at once on pointerdown; otherwise src/lib/aim.ts owns every pointer press */
+    const pointerMode = (): AimMode | null => (tall ? 'tap' : aim ? 'aim' : null);
+    const aimer = attachAim(board, {
+      mode: pointerMode,
+      cellAt: pointCell,
+      litAt: (i) => (cells[i] ? shown[i] === 1 : null),
+      cols: () => shape?.cols ?? 5,
+      press,
+      onAim: (i) => { aimedCell = mark('data-aimed', aimedCell, i); },
+    });
     board.addEventListener('pointerdown', (e) => {
-      if (e.button !== 0) return; // primary mouse button; every touch/pen contact is button 0
+      if (e.button !== 0 || pointerMode()) return; // primary mouse button; every touch/pen contact is button 0
       let i = cellIndex(e.target);
-      if (i < 0 && e.target === board) i = gutterCell(e);
+      // the space between cells and the board's padding are hit area too (layout is clean: nothing written yet)
+      if (i < 0 && e.target === board) i = pointCell(e.clientX, e.clientY);
       if (i < 0) return;
       if (cellIndex(e.target) === i) pending[i] = 1; // the click that follows lands on the cell; a gutter click lands on the board
       press(i);
@@ -220,8 +246,23 @@ const playView: ModuleDef = {
       if (i < 0) return;
       if (e.detail === 0) return press(i); // keyboard (Enter/Space) or assistive tech
       if (pending[i]) { pending[i] = 0; return; } // already pressed on pointerdown
+      if (pointerMode() || aimer.active()) return; // pressed (or not) on release by the aim helper: never twice
       press(i); // a click with no pointerdown before it
     });
+
+    // the slot (board size / cols, gutter included: DECISIONS #40) decides aim mode; measured, never on a tap
+    let tapMin = 0;
+    const measureSlot = () => {
+      const r = board.getBoundingClientRect();
+      if (shape && !tall && !r.width) return; // hidden: measured again when it shows
+      tapMin ||= parseFloat(getComputedStyle(board).getPropertyValue('--tap-min')) || 44;
+      // a scrolling board keeps its slots big (it fits its width) and needs its swipes: never aim there
+      aim = !!shape && !tall && Math.min(r.width / shape.cols, r.height / shape.rows) < tapMin - 0.5;
+      setAttr(board, 'data-aim', aim ? 'true' : null);
+    };
+    const resizes = typeof ResizeObserver === 'function' ? new ResizeObserver(() => measureSlot()) : null;
+    resizes?.observe(board);
+    if (!resizes) addEventListener('resize', measureSlot);
     const rove = (i: number) => {
       if (i === focusIndex) return;
       if (cells[focusIndex]) cells[focusIndex]!.tabIndex = -1;
@@ -408,6 +449,7 @@ const playView: ModuleDef = {
         if (load) cell.removeAttribute('data-flip'); // a load is the intro's job (C4)
         else cell.setAttribute('data-flip', '');
       }
+      if (load && tall) board.scrollTop = 0; // a new level starts at the top of the Tower
       if (load) startIntro(lit);
       else if (cancelIntro || board.classList.contains('board--intro')) endIntro(); // the first press ends the intro
       const solved = b.status === 'solved';
@@ -425,13 +467,23 @@ const playView: ModuleDef = {
       disable(restart, b.status === 'empty' || b.moves === 0);
     };
 
+    /** boss levels from the levels slice, gathered once per slice (the header renders on every move) */
+    let bosses: { from: LevelsState | undefined; ids: Set<number> } | null = null;
+    const isBoss = (levels: LevelsState | undefined, id: number) => {
+      if (!bosses || bosses.from !== levels) bosses = { from: levels, ids: new Set(levels?.list.filter((l) => l.boss).map((l) => l.id)) };
+      return bosses.ids.has(id);
+    };
+
     const renderHeader = (b: BoardState | undefined, levels: LevelsState | undefined, progress: ProgressState | undefined) => {
       const id = b?.levelId ?? null;
       // a Variety level: the room's name over its place in the room; a classic level: its chapter over its number
       const pack = id === null ? undefined : levels?.packs?.find((p) => p.kind !== 'classic' && id >= p.first && id < p.first + p.count);
-      setText(levelEl, id === null ? '' : fmt(copy.level, { level: pack ? id - pack.first + 1 : id }));
+      setText(levelText, id === null ? '' : fmt(copy.level, { level: pack ? id - pack.first + 1 : id }));
       const chapter = id === null || pack ? -1 : (levels?.chapters ?? []).findIndex((c) => id >= c.from && id <= c.to);
-      setText(chapterEl, pack ? pack.name : chapter < 0 ? '' : fmt(copy.chapter, { chapter: chapter + 1 }));
+      const name = pack ? pack.name : chapter < 0 ? '' : fmt(copy.chapter, { chapter: chapter + 1 });
+      const boss = id !== null && isBoss(levels, id);
+      setText(chapterEl, boss ? fmt(copy.boss, { name }) : name);
+      setAttr(header, 'data-boss', boss ? 'true' : null);
 
       const scoring = progress?.scoring;
       tiersEl.hidden = !scoring || id === null;
@@ -469,9 +521,13 @@ const playView: ModuleDef = {
       const pointing = coaching && tutorial!.target !== null;
       // the tutorial's ring wins: a hint mark never shares the board with it (both draw on ::before)
       const showing = hints?.status === 'showing' && hints.cell !== null && b?.status === 'playing' && !pointing;
+      const before = [hintCell, pointerCell];
       if (pointing) hintCell = mark('data-hint', hintCell, -1);
       pointerCell = mark('data-pointer', pointerCell, pointing ? tutorial!.target! : -1);
       hintCell = mark('data-hint', hintCell, showing ? hints!.cell! : -1);
+      // on a scrolling board a new mark is brought into view (never on a normal board: no layout work on a tap)
+      const fresh = hintCell >= 0 && hintCell !== before[0] ? hintCell : pointerCell >= 0 && pointerCell !== before[1] ? pointerCell : -1;
+      if (tall && fresh >= 0) cells[fresh]!.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: view.reducedMotion() ? 'auto' : 'smooth' });
       hintLine.hidden = !showing;
       setAttr(line, 'data-hint', showing ? 'true' : 'false');
       // first-run focus: while the coach talks, only the board, the ring and one sentence
@@ -503,6 +559,9 @@ const playView: ModuleDef = {
     return {
       start: render,
       stop: () => {
+        aimer.destroy();
+        resizes?.disconnect();
+        removeEventListener('resize', measureSlot);
         cancelSweep?.();
         cancelIntro?.();
         cancelAnimationFrame(bumpFrame);
@@ -511,7 +570,7 @@ const playView: ModuleDef = {
         document.removeEventListener('keydown', onKey);
       },
       debug: () => ({
-        shape: shape ? shapeKey(shape) : null, hintCell, pointerCell, focusIndex,
+        shape: shape ? shapeKey(shape) : null, press: pointerMode() ?? 'instant', hintCell, pointerCell, focusIndex,
         reference: refOpen ? 'open' : 'closed', sweeping: board.classList.contains('board--sweep'), intro: board.classList.contains('board--intro'),
       }),
       commands: {

@@ -1,15 +1,16 @@
 // solved-sheet: the end-of-level moment. After the board's sweep, opens view.region('sheet:solved') with the
 // stars from progress (when present), moves vs par, and next / replay / levels. Works for the classic path and
-// for Variety rooms (levels:started says which pack, the index inside it and the next level).
+// for Variety rooms (levels:started says which pack, the index inside it, the next level and whether it is a boss).
 import * as v from 'valibot';
 import type { Events, LevelId, ModuleDef, Scoring } from '../../contracts';
 import { fmt, h, setAttr, setText } from '../../lib/dom';
+import { skull } from '../../lib/icons';
 import './solved-sheet.css';
 
 const Text = v.pipe(v.string(), v.minLength(1));
 const Rules = v.object({ delayMs: v.pipe(v.number(), v.minValue(0)) });
 const Copy = v.object({
-  eyebrow: Text, title: Text, moves: Text, move: Text, par: Text, stars: Text,
+  eyebrow: Text, title: Text, bossTitle: Text, moves: Text, move: Text, par: Text, stars: Text,
   atPar: Text, overPar: Text, hinted: Text,
   next: Text, replay: Text, levels: Text,
   allDoneTitle: Text, allDoneBody: Text, allDonePerfect: Text, backToLevels: Text, lastLevel: Text,
@@ -19,8 +20,8 @@ type CopyT = v.InferOutput<typeof Copy>;
 type Solved = Events['board:solved'];
 type Completed = Events['progress:level_completed'];
 type Started = Events['levels:started'];
-/** where a level sits: its pack, its 1-based place in it, and the level after it in the same pack (null after the last) */
-interface Place { pack: string; index: number; next: LevelId | null }
+/** where a level sits: its pack, its 1-based place in it, the level after it in the same pack (null after the last), boss or not */
+interface Place { pack: string; index: number; next: LevelId | null; boss: boolean }
 
 const MAX_STARS = 3;
 
@@ -56,6 +57,8 @@ const solvedSheet: ModuleDef = {
     const sheet = view.region('sheet:solved');
     sheet.setAttribute('aria-labelledby', 'solved-title');
     const eyebrow = h('span', { class: 'eyebrow' });
+    // after a boss: a skull over the title, which says "Boss beaten." (stars follow the same rules)
+    const mark = h('span', { class: 'solved__boss', hidden: true }, skull());
     const title = h('h2', { class: 'sheet__title', id: 'solved-title' });
     const stars = h('div', { class: 'stars stars--lg stars--reveal solved__stars', role: 'img' });
     const movesText = h('span');
@@ -71,7 +74,7 @@ const solvedSheet: ModuleDef = {
     const row = h('div', { class: 'solved__row' }, replay, levels);
     const actions = h('div', { class: 'sheet__actions' }, next, row);
     sheet.classList.add('solved');
-    sheet.replaceChildren(eyebrow, title, stars, result, note, extra, actions);
+    sheet.replaceChildren(mark, eyebrow, title, stars, result, note, extra, actions);
 
     /** classic levels on the path (the list also holds the Variety rooms' levels) */
     const classicCount = (): number | undefined => {
@@ -82,18 +85,19 @@ const solvedSheet: ModuleDef = {
     /** from levels:started when it was about this level; otherwise worked out from the levels slice (e.g. after a hot reload) */
     function placeOf(levelId: LevelId): Place {
       if (started && started.levelId === levelId && started.pack !== undefined && started.index !== undefined && started.next !== undefined) {
-        return { pack: started.pack, index: started.index, next: started.next };
+        return { pack: started.pack, index: started.index, next: started.next, boss: !!started.boss };
       }
       const lv = ctx.read('levels');
       const def = lv?.list.find((l) => l.id === levelId);
       const pack = def?.pack ?? 'classic';
+      const boss = !!def?.boss;
       if (pack === 'classic') {
         const count = classicCount();
-        return { pack, index: levelId, next: count === undefined || levelId < count ? levelId + 1 : null };
+        return { pack, index: levelId, next: count === undefined || levelId < count ? levelId + 1 : null, boss };
       }
       const p = lv?.packs?.find((x) => x.id === pack);
       const index = def?.index ?? (p ? levelId - p.first + 1 : 1);
-      return { pack, index, next: p && index < p.count ? p.first + index : null };
+      return { pack, index, next: p && index < p.count ? p.first + index : null, boss };
     }
 
     sheet.addEventListener('click', (e) => {
@@ -139,7 +143,9 @@ const solvedSheet: ModuleDef = {
       const roomDone = !!room && (progress?.packs?.[room.id]?.solved ?? 0) >= room.count;
 
       setText(eyebrow, room ? fmt(copy.roomEyebrow, { room: room.name, level: place.index }) : fmt(copy.eyebrow, { level: levelId }));
-      setText(title, allDone ? fmt(copy.allDoneTitle, { total: count ?? levelId }) : copy.title);
+      setText(title, allDone ? fmt(copy.allDoneTitle, { total: count ?? levelId }) : place.boss ? copy.bossTitle : copy.title);
+      mark.hidden = !place.boss;
+      setAttr(sheet, 'data-boss', place.boss ? 'true' : null);
 
       stars.hidden = !done;
       if (done) {

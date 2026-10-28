@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { beforeEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { bootModule, createFakeView } from '../../../test/fake-ctx';
 import type { BoardState, Cells, HintsState, LearnState, LevelsState, ProgressState, Shape, State, TutorialState } from '../../contracts';
 import { SEL } from '../../contracts';
@@ -434,5 +434,124 @@ describe('play-view', () => {
     t.kernel.seed('board', board({ levelId: 8 }));
     expect(el.classList.contains('board--sweep')).toBe(false);
     expect(el.dataset.status).toBe('playing');
+  });
+  describe('big boards: press modes by measured slot', () => {
+    const TOWER: Shape = { cols: 5, rows: 16, mask: null };
+    /** ResizeObserver stand-in: the test decides when the board "resized" */
+    let resized: (() => void)[] = [];
+    const real = globalThis.ResizeObserver;
+    beforeEach(() => {
+      resized = [];
+      globalThis.ResizeObserver = class { constructor(cb: () => void) { resized.push(cb); } observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver;
+    });
+    afterEach(() => { globalThis.ResizeObserver = real; });
+    /** lay the board out as `w`×`h` px (happy-dom has no layout) and let the observer measure it */
+    const layout = (w: number, h: number) => {
+      const el = document.querySelector<HTMLElement>(SEL.board)!;
+      el.getBoundingClientRect = () => ({ left: 0, top: 0, width: w, height: h, right: w, bottom: h, x: 0, y: 0, toJSON() {} }) as DOMRect;
+      for (const cb of resized) cb();
+      return el;
+    };
+    const ptr = (type: string, el: Element, x: number, y: number) =>
+      el.dispatchEvent(new PointerEvent(type, { bubbles: true, button: 0, pointerType: 'touch', pointerId: 1, isPrimary: true, clientX: x, clientY: y }));
+
+    test('slots under 44px aim: nothing on pointerdown, the cell under the lifted finger presses once', () => {
+      const { cell, presses } = boot({ board: shaped(square(10)) });
+      const el = layout(300, 300); // 30px slots
+      expect(el.dataset.aim).toBe('true');
+      ptr('pointerdown', cell(0), 15, 15);
+      expect(presses()).toEqual([]);
+      expect(cell(0).dataset.aimed).toBe('true');
+      ptr('pointermove', el, 45, 15); // slid one cell right
+      expect(cell(1).dataset.aimed).toBe('true');
+      expect(cell(0).hasAttribute('data-aimed')).toBe(false);
+      expect(document.querySelector('[data-aim-bubble]')!.getAttribute('data-open')).toBe('true');
+      ptr('pointerup', el, 45, 15);
+      click(cell(0), 1); // the trailing click, wherever it lands, never presses again
+      click(cell(1), 1);
+      expect(presses()).toEqual([1]);
+      expect(document.querySelectorAll('[data-aimed]')).toHaveLength(0);
+      // keyboard still presses at once
+      click(cell(5), 0);
+      expect(presses()).toEqual([1, 5]);
+    });
+
+    test('the same board with 44px slots or more keeps the instant press; the mode follows the measured size', () => {
+      const { cell, presses } = boot({ board: shaped(square(8)) });
+      const el = layout(400, 400); // 50px slots
+      expect(el.hasAttribute('data-aim')).toBe(false);
+      pointer(cell(9));
+      click(cell(9), 1);
+      expect(presses()).toEqual([9]);
+      layout(320, 320); // 40px: a narrow phone
+      expect(el.dataset.aim).toBe('true');
+      pointer(cell(9));
+      expect(presses()).toEqual([9]);
+    });
+
+    test('the Tower scrolls: a still tap presses on release, a swipe presses nothing', () => {
+      const { cell, presses } = boot({ board: shaped(TOWER) });
+      const el = layout(300, 400);
+      Object.defineProperty(el, 'scrollHeight', { value: 960 }); // 16 rows of 60px slots, scrolled inside 400px
+      expect(el.dataset.scroll).toBe('true');
+      expect(el.hasAttribute('data-aim')).toBe(false); // its slots are big: it fits its width
+      expect([el.dataset.cols, el.dataset.rows]).toEqual(['5', '16']);
+      ptr('pointerdown', cell(0), 30, 30);
+      expect(presses()).toEqual([]);
+      ptr('pointerup', el, 31, 31);
+      click(cell(0), 1);
+      expect(presses()).toEqual([0]);
+      ptr('pointerdown', cell(0), 30, 30);
+      ptr('pointermove', el, 30, 90); // a swipe
+      ptr('pointerup', el, 30, 150);
+      expect(presses()).toEqual([0]);
+      // the browser takes over a scroll with pointercancel: nothing either
+      ptr('pointerdown', cell(0), 30, 30);
+      el.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerId: 1 }));
+      expect(presses()).toEqual([0]);
+    });
+
+    test('the Tower: a new level starts at the top; a hint scrolls its cell into view', () => {
+      const { t, cell } = boot({ board: shaped(TOWER) });
+      const el = document.querySelector<HTMLElement>(SEL.board)!;
+      el.scrollTop = 500;
+      t.kernel.seed('board', shaped(TOWER, { levelId: 5002 }));
+      expect(el.scrollTop).toBe(0);
+      const seen = vi.fn();
+      cell(77).scrollIntoView = seen;
+      t.kernel.seed('hints', { status: 'showing', levelId: 5002, cell: 77 } satisfies HintsState);
+      expect(seen).toHaveBeenCalledWith(expect.objectContaining({ block: 'nearest' }));
+    });
+
+    test('a normal board never scrolls a mark into view (no layout work on a tap)', () => {
+      const { t, cell } = boot();
+      const seen = vi.fn();
+      cell(8).scrollIntoView = seen;
+      t.kernel.seed('hints', { status: 'showing', levelId: 7, cell: 8 } satisfies HintsState);
+      expect(seen).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('boss levels', () => {
+    const withBoss = (over: Partial<LevelsState> = {}): LevelsState => ({
+      ...roomLevels,
+      list: [{ id: 10, cells: START, par: 9, boss: true }, { id: 5010, cells: shaped(RING).cells, par: 9, pack: 'ring', index: 10, shape: RING, boss: true }],
+      ...over,
+    });
+
+    test('the header shows the skull and says Boss; other levels do not', () => {
+      const { t, q } = boot({ board: board({ levelId: 10 }), levels: withBoss() });
+      const header = q('.screen-header');
+      expect(header.dataset.boss).toBe('true');
+      expect(q('.screen-header__title .eyebrow').textContent).toBe('Chapter 2 · Boss');
+      expect(q('[data-level-label]').textContent).toBe('Level 10');
+      expect(q('[data-level-label] .skull')).not.toBeNull();
+      t.kernel.seed('board', board({ levelId: 9 }));
+      expect(header.hasAttribute('data-boss')).toBe(false);
+      expect(q('.screen-header__title .eyebrow').textContent).toBe('Chapter 2');
+      t.kernel.seed('board', shaped(RING, { levelId: 5010 }));
+      expect(header.dataset.boss).toBe('true');
+      expect(q('.screen-header__title .eyebrow').textContent).toBe('Ring · Boss');
+    });
   });
 });
