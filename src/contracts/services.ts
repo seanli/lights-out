@@ -28,8 +28,11 @@ export type Tone = 'info' | 'warn' | 'error';
 export interface ViewService {
   /**
    * A container element the module renders into. Created on first request.
-   * Names: 'screen:home', 'screen:play', 'sheet:<sheet>', 'overlay:<name>'.
+   * Names: 'screen:home', 'screen:play', 'sheet:<sheet>', 'overlay:<name>', 'slot:<name>'.
    * The shell shows the screen and sheet that the nav slice names.
+   * A slot is a detached element: one module fills it, another appends it where it belongs
+   * in its own layout (e.g. the tutorial fills 'slot:coach', the play view places it under the board).
+   * Every caller gets the same element for the same name.
    */
   region(name: string): HTMLElement;
   /** a short plain-words message in the shell's notice area; same id replaces */

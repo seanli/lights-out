@@ -41,6 +41,10 @@ export function createView(root: HTMLElement): ShellView {
       node.setAttribute('aria-modal', 'true');
       node.hidden = true;
       sheetHost.append(node);
+    } else if (kind === 'slot') {
+      // a detached container one module fills and another places in its layout
+      node = el('div', 'slot');
+      node.dataset.slot = id;
     } else {
       node = el('div', 'overlay');
       node.dataset.overlay = id || name;

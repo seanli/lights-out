@@ -39,8 +39,9 @@ export function createFakeView(): FakeView {
         const [kind, id] = name.split(':');
         if (kind === 'screen') el.dataset.screen = id;
         else if (kind === 'sheet') el.dataset.sheet = id;
+        else if (kind === 'slot') el.dataset.slot = id;
         else el.dataset.region = name;
-        document.body.appendChild(el);
+        if (kind !== 'slot') document.body.appendChild(el);
         regions.set(name, el);
       }
       return el;

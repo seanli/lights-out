@@ -13,6 +13,7 @@ export default defineConfig(({ mode }) => {
   };
   return {
     base: './',
+    cacheDir: '.cache/vite',
     define: { __BUILD_ID__: JSON.stringify(new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')) },
     plugins: [manifestLink, viteSingleFile()],
     build: { outDir: pwa ? 'dist-pwa' : 'dist', target: 'es2022', reportCompressedSize: true },
