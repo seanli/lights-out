@@ -55,7 +55,7 @@ describe('solved-sheet', () => {
     expect(q('[data-stars-earned]').dataset.starsEarned).toBe('2');
     expect(q('[data-stars-earned]').querySelectorAll('.star[data-state="on"]').length).toBe(2);
     expect(q('[data-result]').textContent).toBe('6 moves · par 5');
-    expect(q('.sheet__note').textContent).toBe('1 over par. Replay in 5 for three stars.');
+    expect(q('.sheet__note').textContent).toBe('Par 5 is the shortest way. Replay for more stars.');
     expect(q(SEL.action('next')).textContent).toBe('Next·Level 8');
     expect(sheet().querySelector('.sheet__handle')).toBeNull(); // nothing to drag
   });
@@ -199,7 +199,7 @@ describe('solved-sheet', () => {
     t.emit('progress:level_completed', completed({ levelId: COUNT, stars: 1, moves: 19, par: 15, unlocked: null, allSolved: true, firstSolve: false }));
     t.clock.advance(DELAY);
     expect(q('[data-result]').textContent).toMatch(/19 moves/);
-    expect(sheet().textContent).toMatch(/4 over par/);
+    expect(sheet().textContent).toMatch(/Par 15 is the shortest way/);
     expect(sheet().textContent).not.toMatch(/All \d+ levels solved/);
   });
 

@@ -86,7 +86,7 @@
     "par": " · par {par}",
     "stars": "{stars} of 3 stars",
     "atPar": "Solved at par.",
-    "overPar": "{over} over par. Replay in {par} for three stars.",
+    "overPar": "Par {par} is the shortest way. Replay for more stars.",
     "hinted": "Solve it without a hint for more stars.",
     "next": "Next",
     "replay": "Replay",
