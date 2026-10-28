@@ -1,4 +1,7 @@
 // Entry point: find modules, load data, boot the kernel, show the screen nav asks for.
+import './styles/fonts.css';
+import './styles/tokens.css';
+import './styles/components.css';
 import './shell.css';
 import { CONTRACT_VERSION, type NavState } from '../contracts/entities';
 import type { Snapshot } from '../contracts/kernel';

@@ -1,0 +1,27 @@
+/* Bundled fonts (no network): @fontsource/fraunces@5.3.0 + @fontsource/manrope@5.3.0, OFL-1.1.
+   Latin subset, woff2 only, three faces = 45.3 KB (Vite inlines them as base64).
+   We declare the faces ourselves instead of importing @fontsource/<x>/latin-600.css because
+   those files also list a .woff fallback that the single-file build would inline too (~+59 KB).
+   Paths are relative to this file so the same CSS works in the Vite build and in design/system.html.
+   Glyphs missing from these subsets (fall back to the system stack): ≤ (U+2264), ★ (U+2605), → (U+2192). */
+@font-face {
+  font-family: 'Fraunces';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../../../node_modules/@fontsource/fraunces/files/fraunces-latin-600-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('../../../node_modules/@fontsource/manrope/files/manrope-latin-500-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../../../node_modules/@fontsource/manrope/files/manrope-latin-700-normal.woff2') format('woff2');
+}

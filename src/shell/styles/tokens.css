@@ -1,0 +1,240 @@
+/* Lights Out design tokens. One committed dark look: no light theme, no media
+   colour blocks. Components read ONLY these custom properties. */
+:root {
+  color-scheme: dark;
+
+  /* ---- colour: room + surfaces ---- */
+  --c-page: #07080b;
+  --c-room: #0d1015;
+  --c-room-warm: #1b1710;
+  --c-surface: #151a21;
+  --c-surface-2: #1c222b;
+  --c-surface-3: #232a34;
+  --c-board: #11151b;
+  --c-line: #262d37;
+  --c-line-strong: #39424f;
+  --c-sheen: rgba(255, 255, 255, .05);
+  --c-scrim: rgba(4, 6, 9, .66);
+  --c-shadow: #000;
+
+  /* ---- colour: text ---- */
+  --c-text: #efe8da;
+  --c-text-dim: #8b93a0;
+  --c-text-faint: #5d6672;
+
+  /* ---- colour: tiles ---- */
+  --c-tile-off: #1d242d;
+  --c-tile-off-hi: #262e38;
+  --c-tile-off-shade: #07090c;
+  --c-tile-on-core: #fff5df;
+  --c-tile-on: #ffd27f;
+  --c-tile-on-rim: #e8953a;
+  --c-tile-on-edge: rgba(255, 226, 170, .75);
+  --c-tile-on-shade: rgba(150, 70, 8, .38);
+  --c-tile-on-sheen: rgba(255, 255, 255, .55);
+  --c-glow: rgba(255, 170, 64, .5);
+  --c-glow-none: rgba(255, 170, 64, 0);
+  --c-edge-none: rgba(255, 226, 170, 0);
+
+  /* ---- colour: accent, hint, pointer, stars, focus ---- */
+  --c-accent-hi: #ffc86a;
+  --c-accent: #f2a93f;
+  --c-accent-ink: #2a1903;
+  --c-hint: #7ae2ca;
+  --c-hint-glow: rgba(122, 226, 202, .45);
+  --c-pointer: #fff1d6;
+  --c-pointer-glow: rgba(255, 241, 214, .35);
+  --c-star: #f7c54f;
+  --c-star-off: #353c47;
+  --c-star-lost: #8a6a2c;
+  --c-focus: #efe8da;
+  --c-none: transparent;
+  --c-hint-bg: rgba(122, 226, 202, .10);
+  --c-pointer-none: rgba(255, 241, 214, 0);
+
+  /* ---- colour: status tones ---- */
+  --c-info: #9db7d6;
+  --c-warn: #f0a35a;
+  --c-error: #f2756a;
+  --c-ok: #6fcf8e;
+  --c-tone-bg-info: rgba(157, 183, 214, .10);
+  --c-tone-bg-warn: rgba(240, 163, 90, .10);
+  --c-tone-bg-error: rgba(242, 117, 106, .12);
+
+  /* ---- colour: debug console ---- */
+  --c-debug-bg: #080a0d;
+  --c-debug-text: #b9c3cf;
+  --c-debug-key: #7ae2ca;
+
+  /* ---- composite paints ---- */
+  --grad-room: radial-gradient(120% 70% at 50% 42%, var(--c-room-warm) 0%, var(--c-room) 62%);
+  --grad-tile-off: linear-gradient(180deg, var(--c-tile-off-hi), var(--c-tile-off));
+  --grad-tile-on: radial-gradient(circle at 50% 40%, var(--c-tile-on-core) 0%, var(--c-tile-on) 52%, var(--c-tile-on-rim) 100%);
+  --grad-primary: linear-gradient(180deg, var(--c-accent-hi), var(--c-accent));
+  --grad-sheet: linear-gradient(180deg, var(--c-surface-2), var(--c-surface));
+  --grad-halo: radial-gradient(closest-side, var(--c-glow), var(--c-glow-none));
+
+  /* shadows keep the same layer structure on/off so the glow can fade */
+  --shadow-tile-off: 0 0 0 var(--c-glow-none), 0 0 0 1px var(--c-edge-none), inset 0 3px 6px var(--c-tile-off-shade), inset 0 -1px 0 var(--c-sheen);
+  --shadow-tile-on: 0 0 22px var(--c-glow), 0 0 0 1px var(--c-tile-on-edge), inset 0 -4px 8px var(--c-tile-on-shade), inset 0 2px 1px var(--c-tile-on-sheen);
+  --shadow-raised: inset 0 1px 0 var(--c-sheen), 0 0 0 1px var(--c-line);
+  --shadow-outline: inset 0 0 0 1px var(--c-line);
+  --shadow-recessed: inset 0 2px 6px var(--c-tile-off-shade);
+  --shadow-primary: 0 10px 28px -10px var(--c-glow), inset 0 1px 0 var(--c-tile-on-sheen);
+  --shadow-board: inset 0 2px 10px var(--c-tile-off-shade), 0 0 0 1px var(--c-line);
+  --shadow-sheet: 0 -1px 0 var(--c-line), 0 -30px 60px -20px var(--c-shadow);
+  --shadow-hint: 0 0 16px var(--c-hint-glow);
+  --shadow-current: 0 0 26px var(--c-glow), 0 0 0 1px var(--c-tile-on-edge);
+  --shadow-star-glow: drop-shadow(0 0 12px var(--c-glow));
+
+  /* icon shapes (CSS masks, no network, no sprite needed) */
+  --shape-star: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2.6l2.9 6 6.5.8-4.8 4.5 1.2 6.5L12 17.2l-5.8 3.2 1.2-6.5L2.6 9.4l6.5-.8z'/%3E%3C/svg%3E");
+  --shape-star-outline: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linejoin='round'%3E%3Cpath d='M12 3.6l2.6 5.4 5.9.7-4.4 4.1 1.1 5.9L12 16.8l-5.2 2.9 1.1-5.9-4.4-4.1 5.9-.7z'/%3E%3C/svg%3E");
+  --shape-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  --shape-lock: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'%3E%3Crect x='5' y='11' width='14' height='10' rx='2'/%3E%3Cpath d='M8 11V7a4 4 0 018 0v4'/%3E%3C/svg%3E");
+
+  /* ---- type ---- */
+  --font-display: 'Fraunces', 'Iowan Old Style', 'Charter', 'Bitstream Charter', Georgia, serif;
+  --font-ui: 'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', monospace;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-bold: 700;
+  --fw-display: 600;
+  --text-2xs: 10px;
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-md: 15px;
+  --text-base: 16px;
+  --text-tile: 18px;
+  --text-lg: 20px;
+  --text-xl: 32px;
+  --text-2xl: 40px;
+  --text-mono: 12px;
+  --leading-tight: 1;
+  --leading-snug: 1.25;
+  --leading-body: 1.45;
+  --leading-num: .9;
+  --tracking-eyebrow: .14em;
+  --tracking-display: -.02em;
+
+  /* ---- space ---- */
+  --space-half: 2px;
+  --space-1: 4px;
+  --space-1-5: 6px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --gutter: 16px;
+
+  /* ---- shape ---- */
+  --hairline: 1px;
+  --ring-w: 2px;
+  --radius-xs: 5px;
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+  --radius-sheet: 28px;
+  --radius-pill: 999px;
+
+  /* ---- sizes ---- */
+  --tap-min: 44px;
+  --btn-h: 56px;
+  --chip-h: 28px;
+  --chip-h-lg: 36px;
+  --icon-sm: 14px;
+  --icon: 20px;
+  --icon-stroke: 2;
+  --dot: 8px;
+  --hint-dot: 12px;
+  --star-xs: 10px;
+  --star-sm: 12px;
+  --star-md: 16px;
+  --star-lg: 44px;
+  --star-lift: -8px;
+  --app-max: 480px;
+  --app-max-wide: 880px;
+  --board-max: 520px;
+  --board-pad: 12px;
+  --cell-gap: 8px;
+  --cell-radius: 12px;
+  --ring-offset: 5px;
+  --focus-offset: 3px;
+  --focus-offset-tight: 1px;
+  --hint-halo: 5px;
+  --pulse-spread: 10px;
+  --level-tile-h: 66px;
+  --line-h: 20px;
+  --handle-w: 40px;
+  --handle-h: 5px;
+  --console-max-h: 70%;
+  --console-time-w: 52px;
+  --side-w: clamp(220px, 34vw, 300px);
+  --board-chrome-y: calc(var(--chip-h) + var(--line-h) + 2 * var(--space-3));
+  --glyph-cell: 10px;
+  --glyph-cell-sm: 7px;
+  --glyph-gap: 3px;
+  --glyph-gap-sm: 2px;
+  --glyph-radius: 3px;
+  --level-gap: 10px;
+  --btn-h-compact: 48px;
+  --tone-bar: 3px;
+  --z-backdrop: 10;
+  --z-sheet: 20;
+  --z-console: 30;
+
+  /* ---- motion ---- */
+  --dur-press: 80ms;
+  --dur-fast: 120ms;
+  --dur-glow: 160ms;
+  --dur-sheet: 280ms;
+  --dur-star: 420ms;
+  --dur-sweep: 800ms;
+  --dur-sweep-cell: 320ms;
+  --sweep-step: 60ms;
+  --star-step: 140ms;
+  --dur-pulse: 1100ms;
+  --ease-out: cubic-bezier(.2, .8, .2, 1);
+  --ease-spring: cubic-bezier(.3, 1.5, .5, 1);
+  --press-scale: .94;
+  --press-scale-btn: .97;
+  --pulse-scale: 1.1;
+  --solved-dim: .55;
+  --disabled-opacity: .4;
+  --lost-opacity: .45;
+  --dim-opacity: .7;
+  --hover-brightness: 1.06;
+  --star-from-scale: .2;
+  --star-from-rotate: -40deg;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-press: 0ms;
+    --dur-fast: 0ms;
+    --dur-glow: 0ms;
+    --dur-sheet: 0ms;
+    --dur-star: 0ms;
+    --dur-sweep: 0ms;
+    --dur-sweep-cell: 0ms;
+    --sweep-step: 0ms;
+    --star-step: 0ms;
+    --dur-pulse: 0ms;
+    --press-scale: 1;
+    --press-scale-btn: 1;
+    --pulse-scale: 1;
+  }
+}
+
+html,
+body {
+  background-color: var(--c-room);
+  color: var(--c-text);
+}
+body {
+  background-image: var(--grad-room);
+  background-repeat: no-repeat;
+}

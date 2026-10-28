@@ -7,3 +7,4 @@ look-out/
 *.log
 lights-out-offline.zip
 .cache/
+design/*.png
