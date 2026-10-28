@@ -20,3 +20,4 @@
 | 16 | Sound on by default; pentatonic blips by lit count, chord on solve, mute remembered | lead default | Tactile feedback; synthesized so nothing is downloaded |
 | 17 | The progress slice carries the star rule (`scoring`) so views show tiers without owning the rule | lead default | One source of truth for the star thresholds |
 | 18 | Offline version hosted on GitHub Pages (seanli/lights-out), deployed by Actions on push | decided with the user | User created the repo |
+| 19 | Learn screen with 5 interactive lessons (shapes, order, chasing, bottom-row table, shortest solution) plus practice with optional assist; opened from home and the level header; back resumes the board untouched; practice never affects stars | decided with the user (form: lead default) | User asked for a place to learn pattern recognition; the bottom-row table and quiet patterns are computed from the solver so they can't be wrong |
