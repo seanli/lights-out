@@ -45,7 +45,9 @@
     "namespace": "lights-out:v1"
   },
   "console": {
-    "eventLimit": 200
+    "eventLimit": 200,
+    "logLimit": 200,
+    "snapshotLimit": 5
   },
   "learn": {
     "lessons": [

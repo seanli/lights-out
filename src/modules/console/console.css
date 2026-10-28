@@ -1,0 +1,83 @@
+/* console: only what components.css (.console*) doesn't cover. Tokens only. Nothing here applies without #debug,
+   because every rule hangs off [data-console], which is only rendered then. */
+.console { --console-bar-h: var(--tap-min); }
+.console__bar { min-height: var(--console-bar-h); cursor: pointer; user-select: none; }
+.console__bar .console__meta { margin-left: 0; }
+.console__title em { font-variant-numeric: tabular-nums; }
+.console[data-collapsed="true"] { box-shadow: var(--shadow-outline); }
+.console[data-collapsed="true"] .console__bar { border-bottom: 0; }
+.console [data-console-toggle] .icon { transition: rotate var(--dur-fast) var(--ease-out); }
+.console[data-collapsed="true"] [data-console-toggle] .icon { rotate: 180deg; }
+
+/* events: commands warm, facts teal; outside inputs (taps, console) get a marker */
+.console__row > :nth-child(2) [data-kind="command"] { color: var(--c-accent-hi); }
+.console__row[data-tone] > :nth-child(2) [data-kind] { color: var(--key); }
+.console__row[data-input="true"] > :nth-child(2)::before { content: "›"; margin-right: var(--space-1); color: var(--c-accent); }
+.console__row--event, .console__slice { cursor: pointer; }
+.console__row > :last-child { display: inline-flex; justify-content: flex-end; align-items: center; gap: var(--space-1-5); white-space: nowrap; }
+.console__count { color: var(--c-text); }
+.console__row--log > :nth-child(2) { white-space: normal; overflow-wrap: anywhere; color: var(--c-debug-text); }
+.console__row--log[data-tone] > :nth-child(2) { color: var(--key); }
+.console__row--log[data-level="debug"] > :nth-child(2) { color: var(--c-text-faint); }
+
+/* state: kv pairs beside a 5×5 grid of 0/1, then one line per slice (tap for JSON) */
+.console__boardrow { display: flex; gap: var(--space-4); align-items: flex-start; margin-bottom: var(--space-2); }
+.console__boardrow .console__kv { flex: 1; min-width: 0; }
+.console__grid { flex: none; font-variant-numeric: tabular-nums; letter-spacing: var(--space-1); line-height: var(--leading-snug); }
+.console__grid [data-on="true"] { color: var(--c-tile-on); }
+.console__grid [data-on="false"] { color: var(--c-text-faint); }
+.console__grid [data-hint="true"] { color: var(--c-hint); text-decoration: underline; }
+.console__slice {
+  display: grid; grid-template-columns: var(--console-time-w) minmax(0, 1fr); gap: var(--space-2); width: 100%; padding: 0;
+  border: 0; background: var(--c-none); font: inherit; color: var(--c-text-dim); text-align: left;
+}
+.console__slice > b { font-weight: inherit; color: var(--c-debug-key); }
+.console__slice > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.console__slice[aria-expanded="true"] > b { color: var(--c-text); }
+.console__pre {
+  margin: var(--space-1) 0 var(--space-2); padding: var(--space-2); max-height: calc(var(--level-tile-h) * 4); overflow: auto;
+  border-radius: var(--radius-xs); background: var(--c-surface); color: var(--c-debug-text); font: inherit; white-space: pre; tab-size: 2;
+}
+
+.console__empty, .console__detail { color: var(--c-text-faint); }
+.console__detail { margin: 0 0 var(--space-1) calc(var(--console-time-w) + var(--space-2)); overflow-wrap: anywhere; }
+.console__note { margin-top: var(--space-2); color: var(--c-text-dim); overflow-wrap: anywhere; }
+.console__note[data-status="failed"], .console__note[data-status="skipped"] { color: var(--c-warn); }
+.console__chip { border: 0; font: inherit; min-height: var(--chip-h); cursor: pointer; }
+.console__chip[aria-pressed="true"] { color: var(--c-text); box-shadow: var(--shadow-outline); }
+.console__chip[data-status="failed"]::before { background: var(--c-error); }
+.console__chip[data-status="skipped"]::before { background: var(--c-warn); }
+.console__act {
+  min-height: var(--chip-h); padding: 0 var(--space-2); border: 0; border-radius: var(--radius-xs);
+  background: var(--c-surface-2); box-shadow: var(--shadow-outline); font: inherit; color: var(--c-text); cursor: pointer;
+}
+.console__content > .console__act { margin-bottom: var(--space-2); }
+.console__row--snap { align-items: center; margin-bottom: var(--space-1); }
+
+/* command output: the last few results, above the input */
+.console__out { max-height: calc(var(--level-tile-h) * 2); overflow-y: auto; padding: var(--space-2) var(--space-4) 0; border-top: var(--hairline) solid var(--c-line); }
+.console__out:empty { display: none; }
+.console__line { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--c-debug-text); }
+.console__line + .console__line { margin-top: var(--space-1); }
+.console__line > b { font-weight: inherit; color: var(--c-text-faint); }
+.console__line[data-tone="warn"] > span { color: var(--c-warn); }
+.console__line[data-tone="error"] > span { color: var(--c-error); }
+.console__cmd { padding-bottom: var(--space-3); }
+/* iOS zooms into inputs under 16px */
+@media (pointer: coarse) { .console__input { font-size: var(--text-base); } }
+
+/* Phones and narrow windows: while collapsed, the game keeps clear of the bar (nothing is ever covered). */
+@media (max-width: 1179px) {
+  .app:has(.console[data-collapsed="true"]) { padding-bottom: calc(var(--tap-min) + var(--space-3) + env(safe-area-inset-bottom, 0px)); }
+  .app:has(.console[data-collapsed="true"]) .sheet { padding-bottom: calc(var(--tap-min) + var(--space-4) + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* Wide screens: dock to the right of the game column instead of covering it. */
+@media (min-width: 1180px) {
+  .console {
+    left: auto; right: var(--space-4); top: var(--space-4); bottom: var(--space-4); max-height: none; margin: 0;
+    width: min(calc(var(--app-max) - 2 * var(--space-8)), calc((100vw - var(--app-max)) / 2 - 2 * var(--space-4)));
+    border-radius: var(--radius-lg); box-shadow: var(--shadow-outline), var(--shadow-sheet);
+  }
+  .console[data-collapsed="true"] { top: auto; }
+}
