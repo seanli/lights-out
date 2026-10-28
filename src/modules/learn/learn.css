@@ -79,9 +79,14 @@
 .learn-nav .btn { min-height: var(--btn-h-compact); }
 
 /* ---------- the bottom-row table ---------- */
-.learn-stage--table { container-type: normal; }
 .learn-table {
-  --strip-cell: min(calc(var(--tap-min) / 2), 5cqh); width: 100%; max-width: var(--app-max);
+  /* 7 rows + a caption line must fit the stage height; 10 cells + arrow must fit its width */
+  --strip-cell: min(
+    var(--tap-min),
+    calc((100cqh - var(--line-h) - var(--space-1) - 6 * var(--space-1-5)) / 7 - 2 * var(--space-1)),
+    calc((100cqw - 12 * var(--space-1) - 2 * var(--space-3) - var(--space-4)) / 10)
+  );
+  width: 100%; max-width: var(--app-max);
   display: grid; grid-template-columns: auto auto auto; justify-content: center; align-content: center; column-gap: var(--space-3); row-gap: var(--space-1-5);
 }
 .learn-table__head, .learn-table__row { display: contents; }
@@ -119,5 +124,4 @@
   .learn-step > .learn-under { grid-row: 5; }
   .learn-step > .learn-stage { grid-column: 1; grid-row: 1 / -1; }
   .learn-lesson > .learn-nav { grid-column: 2; grid-row: 6; }
-  .learn-table { --strip-cell: min(calc(var(--tap-min) / 2), 6.5cqh); }
 }

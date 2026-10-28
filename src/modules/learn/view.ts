@@ -57,7 +57,6 @@ export function createLearnView(d: Deps) {
 
   const state = (): LearnState => ctx.read('learn')!;
   const visible = () => { const nav = ctx.read('nav'); return !nav || nav.screen === 'learn'; };
-  const emitInput = (fn: () => void) => fn();
 
   // ---------- mini boards ----------
 
@@ -98,7 +97,7 @@ export function createLearnView(d: Deps) {
       const i = indexOf(e);
       if (i < 0) return;
       pointerPressed = i;
-      emitInput(() => ctx.emit('learn:press', { index: i }));
+      ctx.emit('learn:press', { index: i });
     });
     board.addEventListener('click', (e) => {
       const i = indexOf(e);
