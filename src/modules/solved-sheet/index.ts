@@ -12,8 +12,8 @@ const Copy = v.object({
   eyebrow: Text, title: Text, moves: Text, move: Text, par: Text, stars: Text,
   atPar: Text, overPar: Text, hinted: Text,
   next: Text, replay: Text, levels: Text,
-  allDoneTitle: Text, allDoneBody: Text, allDonePerfect: Text, allDoneAction: Text, lastLevel: Text,
-  roomEyebrow: Text, backToRooms: Text, roomDone: Text, roomLast: Text, nextMeta: Text,
+  allDoneTitle: Text, allDoneBody: Text, allDonePerfect: Text, backToLevels: Text, lastLevel: Text,
+  roomEyebrow: Text, roomDone: Text, roomLast: Text, nextMeta: Text,
 });
 type CopyT = v.InferOutput<typeof Copy>;
 type Solved = Events['board:solved'];
@@ -101,12 +101,11 @@ const solvedSheet: ModuleDef = {
       if (!action || !solved) return;
       const id: LevelId = solved.levelId;
       const place = placeOf(id);
-      const room = place.pack === 'classic' ? null : place.pack;
       if (action === 'next' && place.next !== null) ctx.emit('levels:start', { levelId: place.next });
       else if (action === 'replay') ctx.emit('levels:start', { levelId: id });
       else if (action === 'levels') {
-        // a room's levels live in the Variety menu; the classic path is home
-        if (room) ctx.emit('variety:open', { room });
+        // back to this board's levels (the board screen); without the variety module, the menu
+        if (ctx.read('variety') !== undefined) ctx.emit('variety:open', { room: place.pack });
         else ctx.emit('nav:go', { screen: 'home' });
       }
     });
@@ -165,11 +164,11 @@ const solvedSheet: ModuleDef = {
       extra.hidden = !last || allDone;
       setText(extra, room ? (roomDone ? copy.roomDone : copy.roomLast) : copy.lastLevel);
 
-      // the last level has no next: the primary action goes back to the levels (or the room's level list)
+      // the last level has no next: the primary action goes back to the board's levels
       next.hidden = last;
       setText(nextLevel, place.next === null ? '' : fmt(copy.nextMeta, { level: room ? place.index + 1 : place.next }));
       levels.className = last ? 'btn btn--primary btn--block' : 'btn btn--ghost';
-      setText(levels, last ? (room ? copy.backToRooms : copy.allDoneAction) : copy.levels);
+      setText(levels, last ? copy.backToLevels : copy.levels);
       if (last) actions.prepend(levels); else row.append(levels);
       setAttr(next, 'data-autofocus', last ? null : '');
       setAttr(levels, 'data-autofocus', last ? '' : null);

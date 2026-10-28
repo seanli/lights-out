@@ -21,25 +21,20 @@
     "continue": "Continue",
     "start": "Start",
     "level": "Level {level}",
+    "roomLevel": "{room} {level}",
     "solvedCount": "{solved} of {total} solved",
     "savedNote": "Progress is saved on this device",
     "allSolved": "Every level solved. Replay any level to improve your stars.",
     "levelsError": "The levels couldn't be made, so there's nothing to play. Reload the page to try again.",
-    "starTotal": "{stars} of {max} stars",
-    "chapter": "Chapter {n} · {name}",
-    "chapterRange": "Levels {from}–{to}",
-    "chapterLocked": "Unlocks at level {level}",
-    "play": "Play",
-    "tileSolved": "Level {level}, {stars} of 3 stars",
-    "tileOpen": "Level {level}, not solved yet",
-    "tileLocked": "Level {level}, locked",
-    "starLegend": {
-      "three": "par",
-      "two": "par +{within}",
-      "one": "solved",
-      "hint": "hint −{cost}★"
-    },
+    "starTotal": "{stars} {stars|star|stars}",
+    "boards": "Boards",
+    "boardSize": "{cols}×{rows} · {count} levels",
+    "boardShape": "{count} levels",
+    "boardSolved": "{solved}/{count}",
+    "boardLocked": "Opens after level 20",
+    "boardLabel": "{name}: {solved} of {count} solved, {stars} {stars|star|stars}",
     "learn": "Learn the patterns",
+    "learnSub": "Lessons and a guide for each board",
     "learnNew": "New here? Learn the patterns",
     "soundOn": "Sound on",
     "soundOff": "Sound off",
@@ -48,11 +43,7 @@
     "resetTitle": "Reset all progress?",
     "resetBody": "This clears every star and locks all levels after level 1. It can't be undone.",
     "resetConfirm": "Reset progress",
-    "resetCancel": "Keep my progress",
-    "variety": "Variety",
-    "varietyLocked": "Variety opens after chapter 1",
-    "varietySub": "Same rule, new rooms",
-    "varietyLabel": "Variety: {solved} of {count} room levels solved"
+    "resetCancel": "Keep my progress"
   },
   "play-view": {
     "chapter": "Chapter {chapter}",
@@ -93,11 +84,10 @@
     "levels": "Levels",
     "allDoneTitle": "All {total} levels solved.",
     "allDoneBody": "Replay any level to collect the stars you missed.",
-    "allDoneAction": "Back to the levels",
+    "backToLevels": "Back to the levels",
     "lastLevel": "That was the last level. Earlier levels are waiting for their stars.",
     "allDonePerfect": "Every level at three stars. Nothing left to collect.",
     "roomEyebrow": "{room} · Level {level}",
-    "backToRooms": "Back to rooms",
     "roomDone": "Every level in this room is solved.",
     "roomLast": "That was the last level in this room.",
     "nextMeta": "Level {level}"
@@ -341,18 +331,24 @@
     "tableBottom": "Your row"
   },
   "variety": {
-    "title": "Variety",
-    "subtitle": "Same rule, new rooms",
     "back": "Back",
-    "backToRooms": "Back to the rooms",
-    "roomSolved": "{solved}/{count}",
-    "roomStars": "{stars}/{max}",
-    "roomLabel": "{name}: {solved} of {count} solved, {stars} of {max} stars",
-    "roomCount": "{solved} of {count} solved · {stars} of {max} stars",
+    "boardSize": "{cols}×{rows} · {count} levels",
+    "boardShape": "{count} levels",
+    "summary": "{solved} of {count} solved · {stars} of {max} stars",
+    "guide": "How to clear the {name}",
+    "guideClassic": "Learn the patterns",
+    "chapter": "Chapter {n} · {name}",
+    "chapterRange": "Levels {from}–{to}",
+    "chapterLocked": "Unlocks at level {level}",
     "play": "Play",
     "tileSolved": "Level {level}, {stars} of 3 stars",
     "tileOpen": "Level {level}, not solved yet",
     "tileLocked": "Level {level}, locked",
-    "empty": "No rooms yet."
+    "starLegend": {
+      "three": "par",
+      "two": "par +{within}",
+      "one": "solved",
+      "hint": "hint −{cost}★"
+    }
   }
 }

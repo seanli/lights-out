@@ -20,7 +20,7 @@ const DELAY = 640;
 function boot(state: Partial<State> = {}, reduced = false) {
   const view = createFakeView();
   view.reducedMotion = () => reduced;
-  return bootModule(solvedSheet, { services: { view }, state: { levels, progress, nav: { screen: 'play', sheet: null }, ...state } });
+  return bootModule(solvedSheet, { services: { view }, state: { levels, progress, nav: { screen: 'play', sheet: null }, variety: { room: null }, ...state } });
 }
 const sheet = () => document.querySelector<HTMLElement>(SEL.sheet('solved'))!;
 const q = <T extends HTMLElement = HTMLElement>(sel: string) => sheet().querySelector<T>(sel)!;
@@ -120,7 +120,7 @@ describe('solved-sheet', () => {
     expect(q('.sheet__note').hidden).toBe(true);
   });
 
-  test('next, replay and levels emit the right events', () => {
+  test('next, replay and levels emit the right events; levels opens this board', () => {
     const t = boot();
     t.emit('board:solved', { levelId: 7, moves: 6, par: 5 });
     t.clock.advance(DELAY);
@@ -129,7 +129,17 @@ describe('solved-sheet', () => {
     q<HTMLButtonElement>(SEL.action('replay')).click();
     expect(t.seen('levels:start')).toEqual({ levelId: 7 });
     q<HTMLButtonElement>(SEL.action('levels')).click();
+    expect(t.seen('variety:open')).toEqual({ room: 'classic' });
+    expect(t.all('nav:go')).toEqual([]);
+  });
+
+  test('without the variety module (no board screen), levels goes to the menu', () => {
+    const t = boot({ variety: undefined });
+    t.emit('board:solved', { levelId: 7, moves: 6, par: 5 });
+    t.clock.advance(DELAY);
+    q<HTMLButtonElement>(SEL.action('levels')).click();
     expect(t.seen('nav:go')).toEqual({ screen: 'home' });
+    expect(t.all('variety:open')).toEqual([]);
   });
 
   test('the last level shows the all-done copy and the primary action goes to the levels', () => {
@@ -143,8 +153,9 @@ describe('solved-sheet', () => {
     const levelsBtn = q<HTMLButtonElement>(SEL.action('levels'));
     expect(levelsBtn.classList.contains('btn--primary')).toBe(true);
     expect(levelsBtn.hasAttribute('data-autofocus')).toBe(true);
+    expect(levelsBtn.textContent).toBe('Back to the levels');
     levelsBtn.click();
-    expect(t.seen('nav:go')).toEqual({ screen: 'home' });
+    expect(t.seen('variety:open')).toEqual({ room: 'classic' });
     expect(t.all('levels:start')).toEqual([]);
   });
 
@@ -226,7 +237,7 @@ describe('solved-sheet', () => {
     expect(q('.sheet__title').textContent).toBe('All 50 levels solved.');
     expect(q(SEL.action('next')).hidden).toBe(true);
     q<HTMLButtonElement>(SEL.action('levels')).click();
-    expect(t.seen('nav:go')).toEqual({ screen: 'home' });
+    expect(t.seen('variety:open')).toEqual({ room: 'classic' });
   });
 
   test('a room level: eyebrow names the room, Next goes to levels:started.next, Levels opens the room', () => {
@@ -245,7 +256,7 @@ describe('solved-sheet', () => {
     expect(t.all('nav:go')).toEqual([]);
   });
 
-  test('the last level in a room: no Next; "Back to rooms" is the primary action and opens the room', () => {
+  test('the last level in a room: no Next; "Back to the levels" is the primary action and opens the room', () => {
     const t = boot({ levels: withRooms });
     t.emit('levels:started', { levelId: 1012, par: 6, count: 12, pack: '4x4', index: 12, next: null });
     t.emit('board:solved', { levelId: 1012, moves: 7, par: 6 });
@@ -254,7 +265,7 @@ describe('solved-sheet', () => {
     expect(q('.eyebrow').textContent).toBe('Small room · Level 12');
     expect(q(SEL.action('next')).hidden).toBe(true);
     const back = q<HTMLButtonElement>(SEL.action('levels'));
-    expect(back.textContent).toBe('Back to rooms');
+    expect(back.textContent).toBe('Back to the levels');
     expect(back.classList.contains('btn--primary')).toBe(true);
     expect(back.hasAttribute('data-autofocus')).toBe(true);
     expect(q('.sheet__title').textContent).toBe('Lights out.'); // the classic all-done copy never shows for a room
