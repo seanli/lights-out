@@ -138,7 +138,7 @@ describe('sound', () => {
     const win = played[1]!.buffer;
     expect(win.numberOfChannels).toBe(2);
     t.emit('levels:started', { levelId: 10, par: 9, count: 50, boss: true });
-    t.clock.advance(0);
+    t.clock.advance(150); // warm-up waits out the quiet window after a press
     t.emit('board:solved', { levelId: 10, moves: 9, par: 9 });
     const boss = played.at(-1)!.buffer;
     expect(boss).not.toBe(win);
@@ -149,6 +149,18 @@ describe('sound', () => {
     t.emit('levels:started', { levelId: 11, par: 3, count: 50 });
     t.emit('board:solved', { levelId: 11, moves: 3, par: 3 });
     expect(played.at(-1)!.buffer).toBe(win);
+  });
+
+  test('warm-up steps wait out a quiet window after each press, so taps keep their frames', () => {
+    const t = warm();
+    t.emit('levels:started', { levelId: 10, par: 9, count: 50, boss: true });
+    t.emit('board:pressed', press(0, true));
+    t.clock.advance(100);
+    t.emit('board:solved', { levelId: 10, moves: 9, par: 9 });
+    const early = played.at(-1)!.buffer;
+    t.clock.advance(60);
+    t.emit('board:solved', { levelId: 10, moves: 9, par: 9 });
+    expect(played.at(-1)!.buffer).not.toBe(early); // the boss win was built once the window passed
   });
 
   test('undo, restart and hint each have their own short sound', () => {

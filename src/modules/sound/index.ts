@@ -141,9 +141,14 @@ const sound: ModuleDef = {
       if (bossLevel !== null) jobs.push(winJob('bossWin', rules.bossWin));
       return jobs;
     }
+    /** taps own the frames right after them: warm-up steps wait out this quiet window after each press */
+    const QUIET_MS = 150;
+    let quietUntil = 0;
+    const now = () => (clock ? clock.now() : Date.now());
     const later = (fn: () => void) => {
-      if (clock) return clock.setTimeout(fn, 0);
-      const id = setTimeout(fn, 0);
+      const wait = Math.max(0, quietUntil - now());
+      if (clock) return clock.setTimeout(fn, wait);
+      const id = setTimeout(fn, wait);
       return () => clearTimeout(id);
     };
     function step() {
@@ -242,6 +247,7 @@ const sound: ModuleDef = {
     ctx.on('board:loaded', ({ shape }) => { cols = shape?.cols ?? 5; });
 
     ctx.on('board:pressed', ({ index, cells }) => {
+      quietUntil = now() + QUIET_MS;
       buzz(rules.haptics.tap);
       const centre = (cols - 1) / 2;
       const side = centre > 0 ? ((index % cols) - centre) / centre : 0; // -1 (left edge) … 1 (right edge)

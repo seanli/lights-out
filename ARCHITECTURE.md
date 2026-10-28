@@ -10,7 +10,7 @@ Shell: `src/shell` (entry, view service, design system in `src/shell/styles`). C
 | **board** | `board` | — | `solver?` | `board:loaded`, `board:pressed`, `board:undone`, `board:restarted`, `board:solved`, `board:refused`, `board:load`, `board:press` | `board:load`, `board:press`, `board:undo`, `board:restart` | — |
 | **console** | — | — | `view`, `debug`, `env`, `clock?` | — | — | `rules`, `copy`, `flags` |
 | **hints** | `hints` | — | `solver`, `rng` | `hints:shown`, `hints:cleared`, `hints:refused` | `hints:request`, `board:pressed`, `board:undone`, `board:restarted`, `board:loaded`, `board:solved` | `rules`, `flags` |
-| **home-view** | — | — | `view` | `levels:start`, `sound:set`, `learn:open`, `variety:open`, `nav:open_sheet`, `nav:close_sheet`, `progress:clear` | — | `copy` |
+| **home-view** | — | — | `view`, `env?` | `levels:start`, `sound:set`, `learn:open`, `variety:open`, `nav:open_sheet`, `nav:close_sheet`, `progress:clear` | — | `copy` |
 | **learn** | `learn` | — | `view`, `solver`, `rng`, `storage?`, `clock?` | `learn:lesson_opened`, `learn:lesson_completed`, `learn:practice_solved`, `learn:refused`, `nav:go`, `nav:back`, `learn:open`, `learn:step`, `learn:press`, `learn:new_practice`, `learn:set_assist` | `learn:open`, `learn:step`, `learn:press`, `learn:new_practice`, `learn:set_assist` | `rules`, `copy` |
 | **levels** | `levels` | — | `solver`, `rng` | `levels:start`, `levels:generated`, `levels:started`, `levels:refused`, `board:load` | `levels:start` | `rules`, `copy` |
 | **nav** | `nav` | — | — | `nav:changed` | `nav:go`, `nav:back`, `nav:open_sheet`, `nav:close_sheet`, `levels:started` | — |
@@ -19,7 +19,7 @@ Shell: `src/shell` (entry, view service, design system in `src/shell/styles`). C
 | **progress** | `progress` | — | `clock`, `storage?`, `view?` | `progress:loaded`, `progress:level_completed`, `progress:cleared`, `progress:save_failed`, `progress:clear` | `progress:clear`, `levels:started`, `levels:generated`, `hints:shown`, `board:solved` | `rules`, `copy` |
 | **solved-sheet** | — | — | `view`, `clock` | `nav:open_sheet`, `nav:close_sheet`, `nav:go`, `levels:start`, `variety:open` | `board:solved`, `progress:level_completed`, `levels:started`, `board:loaded`, `board:restarted`, `kernel:state_loaded` | `rules`, `copy` |
 | **solver** | — | `solver` | — | — | — | — |
-| **sound** | `sound` | — | `storage?`, `clock?`, `view?` | `sound:changed` | `sound:set`, `board:loaded`, `board:pressed`, `board:undone`, `board:restarted`, `board:solved`, `hints:shown`, `levels:started`, `progress:level_completed`, `nav:changed` | `rules`, `flags` |
+| **sound** | `sound` | — | `rng`, `storage?`, `clock?`, `view?` | `sound:changed` | `sound:set`, `board:loaded`, `board:pressed`, `board:undone`, `board:restarted`, `board:solved`, `hints:shown`, `levels:started`, `progress:level_completed`, `nav:changed` | `rules`, `flags` |
 | **storage** | `storage` | `storage` | `view?` | `storage:checked` | — | `rules`, `copy` |
 | **tutorial** | `tutorial` | — | `solver?`, `storage?`, `view?` | `tutorial:step_shown`, `tutorial:finished` | `board:loaded`, `board:pressed`, `board:undone`, `board:restarted`, `board:solved`, `tutorial:skip` | `rules`, `flags`, `copy` |
 | **variety** | `variety` | — | `view` | `variety:opened`, `variety:refused`, `nav:go`, `nav:back`, `levels:start`, `learn:open` | `variety:open`, `progress:level_completed` | `copy` |
