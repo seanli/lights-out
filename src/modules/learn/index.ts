@@ -4,7 +4,6 @@ import * as v from 'valibot';
 import { CELL_COUNT, type Cells, type LearnState, type ModuleDef } from '../../contracts';
 import { LESSONS } from './lessons';
 import { bottomRowTable, chaseSuggest, isClear, makeBoard, methodSuggest, quietPatterns, type TableEntry } from './method';
-import { ruleFor } from './lessons';
 import { emptySave, type DrillSave } from './drill';
 import { createReference } from './reference';
 import { createLearnView } from './view';
@@ -16,6 +15,7 @@ const RulesSchema = v.object({
   practicePresses: v.record(v.string(), v.pipe(v.tuple([v.pipe(int, v.minValue(1)), v.pipe(int, v.maxValue(CELL_COUNT))]), v.check(([a, b]) => a <= b, 'min must not exceed max'))),
   demoStartMs: v.pipe(int, v.minValue(0)),
   demoStepMs: v.pipe(int, v.minValue(50)),
+  demoHoldMs: v.pipe(int, v.minValue(50)),
   saveKey: v.pipe(v.string(), v.minLength(1)),
   drill: v.object({
     cards: v.pipe(int, v.minValue(1)),
@@ -28,20 +28,21 @@ export type LearnRules = v.InferOutput<typeof RulesSchema>;
 
 const text = v.pipe(v.string(), v.minLength(1));
 const CopySchema = v.looseObject({
-  title: text, subtitle: text, intro: text, back: text, backToLessons: text, stepOf: text, prev: text, next: text, finish: text,
-  done: text, assist: text, newBoard: text, another: text, practiceGoal: text, assistLine: text, moves: text, movesPar: text,
+  title: text, subtitle: text, back: text, backToLessons: text, stepOf: text, prev: text, next: text, finish: text,
+  done: text, assist: text, newBoard: text, another: text, assistLine: text, moves: text, movesPar: text,
   solved: text, solvedPar: text, solvedAtPar: text, demoPlay: text, demoReplay: text, demoStep: text, demoTap: text, demoDone: text,
   demoPhase: v.object({ chase: text, top: text, chase2: text }),
   captions: v.record(v.string(), text), cellOn: text, cellOff: text,
-  letters: v.pipe(v.string(), v.length(5)), echoJoin: text, deeper: text,
+  letters: v.pipe(v.string(), v.minLength(7)), echoJoin: text, deeper: text, echoMatch: text, echoTip: text, tableBottom: text, tableTop: text,
   echo: v.object({ pick: text, caption: text }),
   stack: v.object({ of: text, both: text, cancel: text }),
-  derive: v.object({ rule: text, row: text, echo: text, tip: text }),
+  derive: v.object({ row: text, echo: text }),
   rules: v.object({ three: text, allButMiddle: text, pairLoner: text, corners: text, gap: text, mirror: text }),
-  drill: v.object({ intro: text, start: text, again: text, prompt: text, check: text, next: text, card: text, right: text, wrong: text, score: text, scoreLine: text }),
+  drill: v.object({ check: text, next: text, again: text, card: text, right: text, wrong: text, score: text, scoreLine: text }),
   reference: v.object({
     yourRow: text, bottom: text, top: text, echo: text, lessons: text, shaped: text,
-    status: v.object({ start: text, chase: text, match: text, progress: text, clear: text, nomatch: text, rectBottom: text }),
+    status: v.object({ start: text, chase: text, match: text, progress: text, clear: text, nomatch: text, rectBottom: text, rectMatch: text }),
+    rect: v.object({ chaseClears: text, threeAbove: text, ownTaps: text }),
   }),
   lessons: v.record(v.string(), v.object({ title: text, summary: text, steps: v.array(text) })),
 });
@@ -71,7 +72,7 @@ const learn: ModuleDef = {
     const storage = ctx.service('storage');
 
     /** lessons opened from a "Go deeper" link, not shown in the list */
-    const extras = rules.lessons.flatMap((id) => (LESSONS[id]!.deeper ? [LESSONS[id]!.deeper!] : []));
+    const extras = rules.lessons.flatMap((id) => (LESSONS[id]?.deeper ? [LESSONS[id]!.deeper!] : []));
     const hasPractice = (id: string) => LESSONS[id]!.steps.some((s) => s.kind === 'practice');
     // every lesson needs its copy, one sentence per step, and a practice range if it has a practice step
     for (const id of [...rules.lessons, ...extras]) {
@@ -226,13 +227,7 @@ const learn: ModuleDef = {
     };
     const view = createLearnView({ ctx, rules, copy, solver, rng, drillStore, table: () => table, quiet: () => quiet });
     const letters = (cols: readonly number[]) => cols.map((c) => copy.letters[c]).join(copy.echoJoin);
-    const reference = createReference(ctx, solver, table, copy.reference, {
-      echo: letters,
-      rule: (bottom) => {
-        const r = ruleFor(bottom);
-        return r ? copy.rules[r.key as keyof LearnCopy['rules']] : '';
-      },
-    });
+    const reference = createReference(ctx, solver, table, copy.reference, { echo: letters, letters: copy.letters });
 
     const showTable = () => {
       const row = (cols: number[]) => [0, 1, 2, 3, 4].map((c) => (cols.includes(c) ? '●' : '○')).join('');

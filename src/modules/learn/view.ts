@@ -4,8 +4,8 @@ import { CELL_COUNT, SIZE, type Cells, type Ctx, type LearnState, type Rng, type
 import { fmt, h, setAttr, setText } from '../../lib/dom';
 import type { LearnCopy, LearnRules } from './index';
 import { LESSONS, type MiniSpec, type Step } from './lessons';
-import { blank, bottomColumns, chase, echoOf, lit, litIndexes, lookup, methodTaps, pressAll, type TableEntry } from './method';
-import { createDrill, deriveView, picker, rowText, rulesView, stackView, type DrillStore } from './echo-steps';
+import { BOTTOM, blank, bottomColumns, chase, lit, litIndexes, lookup, methodTaps, onlyBottom, pressAll, type TableEntry } from './method';
+import { createDrill, deriveView, names, picker, rulesView, stackView, tableList, type DrillStore } from './echo-steps';
 
 interface Deps {
   ctx: Ctx;
@@ -63,13 +63,15 @@ export function createLearnView(d: Deps) {
 
   // ---------- mini boards ----------
 
+  /** marks: on a practice board the tap pointer (data-suggest); on illustrations a quiet, non-interactive mark */
   function miniBoard(cells: readonly boolean[], kind: 'practice' | 'show' | 'demo' | 'glyph', marks: readonly number[] = []): HTMLElement {
     const board = h('div', { class: `board board--mini board--${kind}`, 'data-mini-board': kind, ...(kind === 'practice' ? { role: 'grid' } : { 'aria-hidden': 'true' }) });
+    const markAttr = kind === 'practice' ? 'data-suggest' : 'data-mark';
     for (let i = 0; i < CELL_COUNT; i++) {
       const attrs = {
         class: kind === 'glyph' ? 'mini-dot' : 'cell',
         'data-mini-cell': '', 'data-index': i, 'data-lit': String(!!cells[i]),
-        'data-suggest': marks.includes(i) ? 'true' : null,
+        [markAttr]: marks.includes(i) ? 'true' : null,
       };
       board.append(kind === 'practice' ? h('button', { ...attrs, type: 'button', tabindex: i === 0 ? 0 : -1 }) : h('span', attrs));
     }
@@ -78,9 +80,10 @@ export function createLearnView(d: Deps) {
   }
 
   function patchBoard(board: HTMLElement, cells: readonly boolean[], suggest: readonly number[]) {
+    const markAttr = board.dataset.miniBoard === 'practice' ? 'data-suggest' : 'data-mark';
     board.querySelectorAll<HTMLElement>('[data-mini-cell]').forEach((el, i) => {
       setAttr(el, 'data-lit', String(!!cells[i]));
-      setAttr(el, 'data-suggest', suggest.includes(i) ? 'true' : null);
+      setAttr(el, markAttr, suggest.includes(i) ? 'true' : null);
       if (el.tagName === 'BUTTON') {
         const row = Math.floor(i / SIZE) + 1, col = (i % SIZE) + 1;
         setAttr(el, 'aria-label', fmt(cells[i] ? copy.cellOn : copy.cellOff, { row, col }));
@@ -132,7 +135,6 @@ export function createLearnView(d: Deps) {
       h('div', { class: 'screen-header__title' }, h('span', { class: 'eyebrow' }, copy.subtitle), h('strong', {}, copy.title)),
       h('div', { class: 'screen-header__end' }),
     );
-    const intro = h('p', { class: 'muted learn-intro' }, copy.intro);
     const list = h('ol', { class: 'learn-list' });
     rules.lessons.forEach((id, k) => {
       const c = copy.lessons[id]!;
@@ -147,7 +149,7 @@ export function createLearnView(d: Deps) {
           h('span', { class: 'lesson-tile__done', 'aria-label': done ? copy.done : null }, done ? icon(CHECK) : null),
         )));
     });
-    return [header, intro, list];
+    return [header, list];
   }
 
   // ---------- a lesson ----------
@@ -180,7 +182,7 @@ export function createLearnView(d: Deps) {
   }
 
   function demoPlan(step: Extract<Step, { kind: 'demo' }>): Demo {
-    const start = pressAll(solver, blank(), step.from);
+    const start = step.bottom ? lit(step.bottom.map((c) => BOTTOM + c)) : pressAll(solver, blank(), step.from);
     let taps: number[];
     let phases: (Phase | null)[];
     if (step.play === 'chase') {
@@ -206,9 +208,9 @@ export function createLearnView(d: Deps) {
     const doneAll = demo.pos >= demo.taps.length;
     const phase = demo.phases[Math.min(demo.pos, demo.taps.length - 1)];
     const tap = fmt(copy.demoTap, { n: Math.min(demo.pos + 1, demo.taps.length), total: demo.taps.length });
-    const done = demoEls.echo !== null ? fmt(copy.echo.caption, { name: copy.letters[demoEls.echo]!, row: rowText(copy, bottomColumns(demo.cells)) }) : copy.demoDone;
+    const done = demoEls.echo !== null ? fmt(copy.echo.caption, { name: copy.letters[demoEls.echo]! }) : copy.demoDone;
     setText(demoEls.line, doneAll ? done : phase ? `${copy.demoPhase[phase]} · ${tap}` : tap);
-    setAttr(demoEls.line, 'data-tone', doneAll ? 'coach' : 'hint');
+    setAttr(demoEls.line, 'data-tone', 'coach');
     const auto = !view.reducedMotion();
     setText(demoEls.button, doneAll ? copy.demoReplay : auto ? copy.demoPlay : copy.demoStep);
     demoEls.button.hidden = auto && !doneAll;
@@ -226,8 +228,11 @@ export function createLearnView(d: Deps) {
     demo.cells = solver.press(demo.cells, demo.taps[demo.pos]!);
     demo.pos++;
     paintDemo();
-    if (demo.pos < demo.taps.length && clock) demo.cancel = clock.setTimeout(demoTick, rules.demoStepMs);
+    if (demo.pos < demo.taps.length && clock) demo.cancel = clock.setTimeout(demoTick, delayBefore(demo.pos));
   }
+
+  /** a top-row tap of the method is held a little longer, so the eye finds it before it happens */
+  const delayBefore = (pos: number) => (demo?.phases[pos] === 'top' ? rules.demoHoldMs : rules.demoStepMs);
 
   function restartDemo() {
     if (!demo) return;
@@ -235,7 +240,7 @@ export function createLearnView(d: Deps) {
     demo.pos = 0;
     demo.cells = demo.start;
     paintDemo();
-    if (!view.reducedMotion() && clock && visible() && demo.taps.length) demo.cancel = clock.setTimeout(demoTick, rules.demoStartMs);
+    if (!view.reducedMotion() && clock && visible() && demo.taps.length) demo.cancel = clock.setTimeout(demoTick, Math.max(rules.demoStartMs, delayBefore(0)));
   }
 
   function onDemoButton() {
@@ -288,9 +293,12 @@ export function createLearnView(d: Deps) {
       const board = miniBoard(demo.start, 'demo');
       const line = h('p', { class: 'tutorial-line', 'data-learn-line': 'demo', 'aria-live': 'polite' });
       const button = h('button', { class: 'btn btn--ghost learn-small', type: 'button', 'data-action': 'learn-demo', onclick: onDemoButton }, copy.demoPlay);
-      stage.append(board);
-      under.append(picker(copy, col, (c) => { if (!demoEls) return; demoEls.echo = c; demo = echoPlan(c); restartDemo(); }), line, h('div', { class: 'learn-controls' }, button));
+      // the A–E buttons sit over the board's columns
+      stage.append(h('div', { class: 'learn-echo' }, picker(copy, col, (c) => { if (!demoEls) return; demoEls.echo = c; demo = echoPlan(c); restartDemo(); }), board));
+      under.append(line, h('div', { class: 'learn-controls' }, button));
       demoEls = { board, line, button, echo: col };
+    } else if (step.kind === 'table') {
+      stage.append(tableList(copy, d.table()));
     } else if (step.kind === 'stack') {
       stage.append(stackView(copy, solver, step.pairs));
     } else if (step.kind === 'rules') {
@@ -307,11 +315,12 @@ export function createLearnView(d: Deps) {
       const line = h('p', { class: 'tutorial-line', 'data-learn-line': 'practice', 'aria-live': 'polite' });
       const moves = h('span', { class: 'learn-moves num', 'data-learn-moves': '' });
       const assist = lesson.assist
-        ? h('button', { class: 'btn btn--hint learn-small', type: 'button', 'data-action': 'learn-assist', 'aria-pressed': String(s.assist), onclick: () => ctx.emit('learn:set_assist', { on: !state().assist }) }, copy.assist)
+        ? h('button', { class: 'btn btn--ghost learn-small', type: 'button', 'data-action': 'learn-assist', 'aria-pressed': String(s.assist), onclick: () => ctx.emit('learn:set_assist', { on: !state().assist }) }, copy.assist)
         : null;
       const another = h('button', { class: 'btn btn--ghost learn-small', type: 'button', 'data-action': 'learn-practice', onclick: () => ctx.emit('learn:new_practice', {}) }, copy.newBoard);
       stage.append(board);
       under.append(line, h('div', { class: 'learn-controls' }, moves, assist, another));
+      if (lesson.echoHelp) under.append(h('p', { class: 'learn-caption' }, copy.echoTip));
       practiceEls = { board, line, moves, another, assist };
     }
 
@@ -342,22 +351,16 @@ export function createLearnView(d: Deps) {
     patchBoard(practiceEls.board, p.cells, p.suggest === null ? [] : [p.suggest]);
     setAttr(practiceEls.board, 'data-status', p.status);
     setText(practiceEls.moves, fmt(showPar ? copy.movesPar : copy.moves, { moves: p.moves, par }));
-    let line: string;
-    let tone: string;
-    if (p.status === 'solved') {
-      line = fmt(showPar ? (p.moves <= par ? copy.solvedAtPar : copy.solvedPar) : copy.solved, { moves: p.moves, par });
-      tone = 'coach';
-    } else if (p.suggest !== null) {
-      line = copy.assistLine;
-      tone = 'hint';
-    } else {
-      line = copy.practiceGoal;
-      tone = 'coach';
-    }
+    // once only the bottom row is left (lesson 4), name its echo: "That's B's echo: tap B, then chase again."
+    const echo = LESSONS[s.lessonId!]?.echoHelp && p.status === 'playing' && onlyBottom(p.cells) ? lookup(d.table(), bottomColumns(p.cells)) : undefined;
+    let line = '';
+    const tone = 'coach'; // teal is the paid Hint's colour only
+    if (p.status === 'solved') line = fmt(showPar ? (p.moves <= par ? copy.solvedAtPar : copy.solvedPar) : copy.solved, { moves: p.moves, par });
+    else if (echo) line = fmt(copy.echoMatch, { name: names(copy, echo.top) });
+    else if (p.suggest !== null) line = copy.assistLine;
     setText(practiceEls.line, line);
     setAttr(practiceEls.line, 'data-tone', tone);
     setText(practiceEls.another, p.status === 'solved' ? copy.another : copy.newBoard);
-    practiceEls.another.className = `btn ${p.status === 'solved' ? 'btn--primary' : 'btn--ghost'} learn-small`;
     if (practiceEls.assist) setAttr(practiceEls.assist, 'aria-pressed', String(s.assist));
   }
 

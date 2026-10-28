@@ -188,3 +188,53 @@ export function echoRows(col: number): { rows: number[][]; echo: number[] } {
   }
   return { rows, echo: columns(spread(cur) ^ prev) };
 }
+
+// ---------- full rectangles of any size (Variety rooms) ----------
+
+type ShapedPress = Pick<SolverService, 'press'>;
+interface Rect { cols: number; rows: number; mask: null }
+
+/** chase on any full rectangle: row by row, tap under every lit light */
+export function chaseRect(solver: ShapedPress, cells: Cells, shape: Rect): Cells {
+  let b = cells;
+  for (let r = 0; r < shape.rows - 1; r++) {
+    for (let c = 0; c < shape.cols; c++) if (b[r * shape.cols + c]) b = solver.press(b, (r + 1) * shape.cols + c, shape);
+  }
+  return b;
+}
+
+/**
+ * For each bottom-row light of a full rectangle: the fewest top-row taps that, after a chase, clear a board
+ * where only that light is lit (null when no top taps do). Worked out from the solver by trying every
+ * top-row set and recording the bottom row it leaves (its echo). On 4×4 every echo is dark: a chase alone
+ * clears any solvable board.
+ */
+export function rectTopSets(solver: ShapedPress, shape: Rect): { perLight: (number[] | null)[]; chaseClears: boolean } {
+  const { cols, rows } = shape;
+  const dark = new Array<boolean>(cols * rows).fill(false);
+  const best = new Map<number, number[]>();
+  let chaseClears = true;
+  for (let t = 0; t < 1 << cols; t++) {
+    let b = dark;
+    const top: number[] = [];
+    for (let c = 0; c < cols; c++) if ((t >> c) & 1) { b = solver.press(b, c, shape); top.push(c); }
+    const left = chaseRect(solver, b, shape);
+    let echo = 0;
+    for (let c = 0; c < cols; c++) if (left[(rows - 1) * cols + c]) echo |= 1 << c;
+    if (t && echo) chaseClears = false;
+    const had = best.get(echo);
+    if (!had || top.length < had.length) best.set(echo, top);
+  }
+  return { perLight: Array.from({ length: cols }, (_, c) => best.get(1 << c) ?? null), chaseClears };
+}
+
+/** the top-row taps for a lit bottom row: each light's set, overlaps cancel; null when a light has no set */
+export function rectTaps(perLight: readonly (number[] | null)[], bottom: readonly number[]): number[] | null {
+  const on = new Set<number>();
+  for (const c of bottom) {
+    const set = perLight[c];
+    if (!set) return null;
+    for (const t of set) if (!on.delete(t)) on.add(t);
+  }
+  return [...on].sort((a, b) => a - b);
+}

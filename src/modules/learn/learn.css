@@ -18,7 +18,7 @@
 .lesson-tile__title { display: flex; align-items: baseline; gap: var(--space-2); font: var(--fw-display) var(--text-lg) / var(--leading-snug) var(--font-display); }
 .lesson-tile__num { font: var(--fw-bold) var(--text-sm) / var(--leading-tight) var(--font-ui); color: var(--c-accent); }
 .lesson-tile__summary { font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--c-text-dim); }
-.lesson-tile__done { width: var(--icon); height: var(--icon); flex: none; color: var(--c-hint); }
+.lesson-tile__done { width: var(--icon); height: var(--icon); flex: none; color: var(--c-accent); }
 .lesson-tile__done .icon { display: block; }
 .lesson-tile[data-completed="true"] { background: var(--c-tile-solved, var(--c-surface-2)); box-shadow: var(--shadow-solved, inset 0 var(--hairline) 0 var(--c-sheen), 0 0 0 var(--hairline) var(--c-line-strong)); }
 @media (hover: hover) { .lesson-tile[data-completed="true"]:hover { background-color: var(--c-surface-3); } }
@@ -28,16 +28,18 @@
   --board-size: auto; --cell-gap: var(--space-1-5); --board-pad: var(--space-2); --cell-radius: var(--radius-sm);
   width: auto; border-radius: var(--radius-md);
 }
+/* "tap here" in lessons: the tutorial's pointer (warm-white dashed ring), steady. Teal ring + dot is Hint only. */
 .board--mini .cell[data-suggest="true"]::before {
   content: ""; position: absolute; inset: calc(-1 * var(--space-1)); pointer-events: none;
   border-radius: calc(var(--cell-radius) + var(--space-1));
-  border: var(--ring-w) solid var(--c-hint); box-shadow: var(--shadow-hint);
+  border: var(--ring-w) dashed var(--c-pointer); box-shadow: 0 0 var(--pulse-spread) var(--c-pointer-glow);
 }
-.board--mini .cell[data-suggest="true"]::after {
+/* illustrations: a quiet, non-interactive mark (a small warm-white dot), so nothing static looks tappable */
+.board--mini .cell[data-mark="true"]::after {
   content: ""; position: absolute; left: 50%; top: 50%; pointer-events: none;
-  width: var(--dot); height: var(--dot); translate: -50% -50%;
-  border-radius: var(--radius-pill); background: var(--c-hint); box-shadow: 0 0 0 var(--space-1) var(--c-hint-glow);
+  width: var(--dot); height: var(--dot); translate: -50% -50%; border-radius: var(--radius-pill); background: var(--c-pointer); opacity: .85;
 }
+.board--mini .cell[data-lit="true"][data-mark="true"]::after { background: var(--c-accent-ink); }
 .board--show, .board--demo { pointer-events: none; }
 .board--show .cell, .board--demo .cell { display: block; cursor: default; }
 .board--practice .cell { min-width: var(--tap-min); min-height: var(--tap-min); }
@@ -55,7 +57,18 @@
 /* ---------- a lesson ---------- */
 .learn-lesson { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--space-3); container-type: inline-size; }
 /* one board: as tall as it is wide (shrinking on short screens), so its line and buttons sit right under it */
-.learn-stage:is(.learn-stage--practice, .learn-stage--demo, .learn-stage--echo) { flex: 0 1 calc(min(100cqw, var(--board-max)) + var(--space-4)); }
+.learn-stage:is(.learn-stage--practice, .learn-stage--demo) { flex: 0 1 calc(min(100cqw, var(--board-max)) + var(--space-4)); }
+.learn-stage--echo { flex: 0 1 calc(min(100cqw, var(--board-max)) + var(--tap-min) + var(--space-6)); }
+
+/* lesson 4's list: 7 rows + a caption line must fit the stage; 10 cells + arrow its width */
+.learn-table {
+  --strip-cell: min(var(--tap-min),
+    calc((100cqh - var(--space-4) - var(--line-h) - var(--space-1) - 6 * var(--space-1-5)) / 7 - 2 * var(--space-1)),
+    calc((100cqw - 12 * var(--space-1) - 2 * var(--space-3) - var(--space-4)) / 10));
+  display: grid; grid-template-columns: auto auto auto; justify-content: center; align-content: start; column-gap: var(--space-3); row-gap: var(--space-1-5);
+}
+.learn-table__head, .learn-table__row { display: contents; }
+.learn-table__head .caption { text-align: center; }
 .learn-step { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--space-3); overflow-y: auto; overscroll-behavior: contain; }
 .learn-dots { display: flex; justify-content: center; gap: var(--space-1-5); }
 .learn-dots > i { width: var(--dot); height: var(--dot); border-radius: var(--radius-pill); background: var(--c-star-off); }
@@ -86,12 +99,17 @@
 /* ---------- strips: one row of five (echo steps, rules, drill, the in-game table) ---------- */
 .learn-screen { --strip-cell: min(var(--tap-min), calc((100cqw - 2 * var(--space-4)) / 7)); }
 .learn-table__arrow { align-self: center; color: var(--c-text-faint); }
-.learn-row { display: grid; grid-template-columns: repeat(5, var(--strip-cell)); gap: var(--space-1); padding: var(--space-1); border-radius: var(--radius-sm); background: var(--c-board); box-shadow: var(--shadow-board); }
+.learn-row { display: grid; grid-template-columns: repeat(var(--strip-n, 5), var(--strip-cell)); gap: var(--space-1); padding: var(--space-1); border-radius: var(--radius-sm); background: var(--c-board); box-shadow: var(--shadow-board); }
 .learn-row > .cell { width: var(--strip-cell); height: var(--strip-cell); border-radius: var(--radius-xs); cursor: default; }
-.learn-row > .cell[data-suggest="true"]::after {
-  content: ""; position: absolute; inset: 25%; border-radius: var(--radius-pill); background: var(--c-hint); box-shadow: 0 0 0 var(--space-half) var(--c-hint-glow);
+.learn-row > .cell[data-suggest="true"] { box-shadow: inset 0 0 0 var(--ring-w) var(--c-pointer); background: var(--c-surface-3); }
+.learn-row > .cell[data-suggest="true"]:not([data-letter])::after {
+  content: ""; position: absolute; inset: 30%; border-radius: var(--radius-pill); background: var(--c-pointer);
 }
-.learn-row > .cell[data-suggest="true"] { box-shadow: inset 0 0 0 var(--ring-w) var(--c-hint); }
+/* the light's letter on a top-row tap: "tap B" reads at a glance */
+.learn-row > .cell[data-letter]::after {
+  content: attr(data-letter); position: absolute; inset: 0; display: grid; place-items: center;
+  font: var(--fw-bold) calc(var(--strip-cell) * .6) / 1 var(--font-ui); color: var(--c-pointer);
+}
 /* a spot two echoes both light: they cancel, so it is dark with a struck ring */
 .learn-row > .cell[data-cancel="true"] { box-shadow: inset 0 0 0 var(--ring-w) var(--c-warn); }
 .learn-row > .cell[data-cancel="true"]::after {
@@ -100,9 +118,11 @@
 }
 .learn-cancel-key { display: inline-block; width: var(--icon-sm); height: var(--icon-sm); margin-right: var(--space-1-5); vertical-align: -2px; border-radius: var(--radius-xs); box-shadow: inset 0 0 0 var(--ring-w) var(--c-warn); }
 
-/* A–E picker */
-.learn-picker { display: flex; justify-content: center; gap: var(--space-1-5); }
-.learn-pick { min-width: var(--tap-min); min-height: var(--tap-min); padding: 0; font-size: var(--text-md); }
+/* A–E picker: one button over each column of the board under it */
+.learn-echo { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); width: min(100cqw, calc(100cqh - var(--tap-min) - var(--space-2) - var(--space-4)), var(--board-max)); }
+.learn-echo > .board--mini { width: 100%; height: auto; aspect-ratio: 1; }
+.learn-picker { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-1-5); width: 100%; padding-inline: var(--space-2); }
+.learn-pick { min-width: 0; min-height: var(--tap-min); padding: 0; font-size: var(--text-md); }
 
 /* two echoes stacked */
 .learn-stack { width: 100%; display: flex; flex-direction: column; align-items: center; gap: var(--space-4); }
@@ -195,16 +215,17 @@
 .reference__row > .learn-row { scroll-margin-top: calc(3 * var(--line-h)); scroll-margin-bottom: var(--space-6); }
 .reference__top > .reference__status { flex: 1; min-width: 0; }
 .reference__status { min-height: var(--line-h); font: var(--fw-bold) var(--text-sm) / var(--leading-snug) var(--font-ui); color: var(--c-text); text-wrap: balance; }
-.reference__status[data-tone="hint"] { color: var(--c-hint); }
+.reference__status[data-tone="match"] { color: var(--c-accent-hi); }
 .reference__status[data-tone="warn"] { color: var(--c-warn); }
-.reference__rule { font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--c-hint); }
+.reference__rule { font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--c-pointer); }
 /* more below: fade the bottom edge (data-overflow from a ResizeObserver + scroll) */
 .reference[data-overflow="true"] {
   -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--space-6)), transparent);
   mask-image: linear-gradient(to bottom, #000 calc(100% - var(--space-6)), transparent);
 }
 /* other boards: advice only (no live row, no table) */
-.reference:not([data-reference-kind="classic"]) :is(.reference__you, .reference__table, .reference__rule) { display: none; }
+.reference:not([data-reference-kind="classic"]) :is(.reference__you, .reference__table) { display: none; }
+.reference:not([data-reference-kind="classic"]) .reference__rule { color: var(--c-text-dim); }
 .reference__you { display: flex; align-items: center; gap: var(--space-2); }
 .reference__you > .caption { flex: none; }
 .reference__lessons { flex: none; min-height: var(--tap-min); padding-inline: var(--space-2); margin-right: calc(-1 * var(--space-2)); white-space: nowrap; }
@@ -216,18 +237,25 @@
 .reference__head > .caption { text-align: center; }
 .reference__head2 { display: none; }
 .reference .learn-row { padding: var(--space-half); gap: var(--space-half); border-radius: var(--radius-xs); }
+/* full rectangles: your bottom row over the top taps, cell for cell */
+.reference__rect { display: grid; grid-template-columns: auto auto; justify-content: start; align-items: center; column-gap: var(--space-2); row-gap: var(--space-1); }
+.reference__rect[hidden] { display: none; }
+.reference .reference__rect > .reference__you { display: contents; }
 .reference .learn-row > .cell { border-radius: var(--glyph-radius); }
-.reference__row[data-match="true"] > .learn-row { box-shadow: 0 0 0 var(--ring-w) var(--c-hint), var(--shadow-hint); }
+.reference__row[data-match="true"] > .learn-row { box-shadow: 0 0 0 var(--ring-w) var(--c-pointer), 0 0 var(--pulse-spread) var(--c-pointer-glow); }
 .reference .learn-row--top > .cell[data-suggest="true"]::after { inset: 28%; box-shadow: none; }
 /* short screens: smaller strips so the table stays readable next to the board */
 @media (max-height: 740px) {
   .reference { --strip-cell: var(--icon-sm); }
   .reference__table { row-gap: var(--space-half); }
-  /* little room: once a row matches, show just that row under its rule */
-  .reference[data-matched="true"] :is(.reference__you, .reference__head, .reference__row[data-match="false"]) { display: none; }
-  /* and the rule line carries the advice: the status is still announced, just not shown */
-  .reference[data-matched="true"] .reference__status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .reference[data-matched="true"] .reference__top > .reference__rule { order: -1; flex: 1 1 0; min-width: 0; }
+  /* little room: before a match the table stays folded (no half rows under a fade); */
+  .reference[data-matched="false"] .reference__table { display: none; }
+  /* once a row matches, show just that row under its line */
+  .reference[data-matched="true"] > :is(.reference__you, .reference__table > .reference__head, .reference__table > .reference__row[data-match="false"]) { display: none; }
+  .reference[data-matched="true"] .reference__table > :is(.reference__head, .reference__row[data-match="false"]) { display: none; }
+  /* full rectangles: the two strips matter more than the general rule line */
+  .reference[data-reference-kind="rect"][data-matched="true"] .reference__rule { display: none; }
+  .reference[data-matched="true"] .reference__pin { position: static; }
 }
 @container (min-width: 470px) {
   .reference__table { grid-template-columns: repeat(2, auto auto auto); justify-content: space-evenly; }
