@@ -87,6 +87,73 @@
   "learn": {
     "title": "Learn",
     "subtitle": "Patterns that solve any board",
-    "back": "Back"
+    "intro": "Five short lessons. Together they solve any board, one pattern at a time.",
+    "back": "Back",
+    "backToLessons": "Back to lessons",
+    "stepOf": "Step {step} of {total}",
+    "prev": "Back",
+    "next": "Next",
+    "finish": "Done",
+    "done": "Done",
+    "assist": "Assist",
+    "newBoard": "New board",
+    "another": "Another",
+    "practiceGoal": "Turn every light off.",
+    "assistLine": "Tap the ringed light.",
+    "moves": "{moves} taps",
+    "movesPar": "{moves} taps · par {par}",
+    "solved": "Well done: all dark in {moves} taps.",
+    "solvedPar": "Well done: {moves} taps, par {par}.",
+    "solvedAtPar": "Well done: {moves} taps. That's par.",
+    "demoPlay": "Play",
+    "demoReplay": "Replay",
+    "demoStep": "Next tap",
+    "demoTap": "Tap {n} of {total}",
+    "demoDone": "All dark.",
+    "demoPhase": {
+      "chase": "Chase down",
+      "top": "Tap the top row",
+      "chase2": "Chase again"
+    },
+    "tableBottom": "Bottom row",
+    "tableTop": "Tap in top row",
+    "captions": {
+      "middle": "Middle: a plus of five",
+      "edge": "Edge: a T of four",
+      "corner": "Corner: an L of three",
+      "set": "{n} taps, any order",
+      "quiet": "{n} taps, no change",
+      "method": "Chase method: {n} taps",
+      "shortest": "Shortest: {n} taps"
+    },
+    "cellOn": "Light {row}, {col}: on",
+    "cellOff": "Light {row}, {col}: off",
+    "lessons": {
+      "shapes": {
+        "title": "One tap, five lights",
+        "summary": "Spot the shape a tap makes, then tap its centre.",
+        "steps": ["A tap flips the light you touch and the four lights around it. That makes a plus of five.", "At an edge one neighbour is missing, so a tap makes a T of four. In a corner it makes an L of three.", "So when you see one of these shapes, tap its centre and the shape goes dark.", "Your turn. Each board is one tap away. Find the centre and tap it."]
+      },
+      "order": {
+        "title": "Order doesn't matter",
+        "summary": "Taps cancel out and can go in any order.",
+        "steps": ["Tap the same light twice and the board is back where it started. The second tap undoes the first.", "These two plus shapes overlap. Tap the ringed centres in either order: you get the same board.", "So an answer is just a set of lights to tap, each once. You never need to tap a light twice.", "Your turn. Each board takes two or three taps. Find the set."]
+      },
+      "chase": {
+        "title": "Chase the lights down",
+        "summary": "Push every light down to the bottom row.",
+        "steps": ["Start at the top row. For every lit light, tap the light directly below it. That turns the top light off.", "Then do the same for the next row, and the next. Each row goes dark and the lights move down. This is called chasing.", "Sometimes lights are left in the bottom row, with nothing below them to tap. The next lesson fixes that.", "Your turn. Chase from the top. Turn on Assist to ring the next tap."]
+      },
+      "bottom-row": {
+        "title": "Clear the bottom row",
+        "summary": "Seven leftover patterns, and the fix for each.",
+        "steps": ["After a chase, only the bottom row can still be lit. On a board that can be solved, it is one of just seven patterns.", "Find your bottom row on the left. Tap the ringed lights in the top row, then chase again. The board goes dark.", "Here is the whole method: chase down, tap the top row from the table, then chase again.", "Your turn. Use the whole method. Assist rings each next tap."]
+      },
+      "shortest": {
+        "title": "The shortest answer",
+        "summary": "Every board has four answers. Par is the shortest.",
+        "steps": ["Tapping all the ringed lights changes nothing, because every light flips an even number of times. Patterns like these are called quiet.", "Add a quiet pattern to an answer and you get another answer, so every board has four. Par is the shortest of the four.", "Your turn. Try to solve it in par. Taps that show up in both an answer and a quiet pattern cancel out."]
+      }
+    }
   }
 }

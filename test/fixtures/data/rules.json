@@ -48,19 +48,16 @@
     "eventLimit": 200
   },
   "learn": {
-    "lessons": [
-      "shapes",
-      "order",
-      "chase",
-      "bottom-row",
-      "shortest"
-    ],
+    "lessons": ["shapes", "order", "chase", "bottom-row", "shortest"],
     "practicePresses": {
       "shapes": [1, 1],
       "order": [2, 3],
       "chase": [4, 8],
       "bottom-row": [6, 10],
       "shortest": [8, 12]
-    }
+    },
+    "demoStartMs": 700,
+    "demoStepMs": 650,
+    "saveKey": "learn"
   }
 }
