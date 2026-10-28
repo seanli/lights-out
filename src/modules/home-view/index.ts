@@ -339,7 +339,8 @@ const homeView: ModuleDef = {
     /** a level unlocked by a solve lights up once when home next shows it */
     let unlockedId: number | null = null;
     function powerOn() {
-      if (unlockedId === null || region.hidden) return;
+      // the nav slice decides, not region.hidden: the shell may un-hide home after this watcher; the animation starts on display
+      if (unlockedId === null) return;
       const nav = ctx.read('nav');
       if (nav && (nav.screen !== 'home' || nav.sheet)) return;
       const el = tiles[unlockedId]?.el;

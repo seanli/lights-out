@@ -8,6 +8,8 @@
 .sheet .solved__stars .star:nth-child(3) { animation-delay: calc(var(--dur-sheet) + 2 * var(--star-step)); }
 .sheet.solved .sheet__actions { margin-top: var(--space-2); }
 .solved__row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
+/* on a last level the row holds only Replay: let it take the row */
+.solved__row > :only-child { grid-column: 1 / -1; }
 @media (orientation: landscape) and (max-height: 540px) {
   .sheet.solved { padding-top: var(--space-4); }
   .solved__stars { margin-block: 0; }

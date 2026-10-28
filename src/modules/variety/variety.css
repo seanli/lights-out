@@ -1,17 +1,22 @@
 /* variety layout only. Level tiles, stars, buttons and the screen header come from the design system; tokens only. */
-.variety { gap: var(--space-4); padding-bottom: var(--space-4); }
+.variety {
+  gap: var(--space-4); padding-bottom: var(--space-4);
+  --v-solved: var(--c-tile-solved, color-mix(in srgb, var(--c-accent) 6%, var(--c-room-warm)));
+  --v-edge: inset 0 0 0 var(--hairline) color-mix(in srgb, var(--c-tile-on) 10%, transparent), var(--shadow-raised);
+}
 /* the scroll box would clip tile glows and focus rings at the gutters: give them room (as home does) */
 .screen.variety { margin-inline: calc(-1 * var(--space-2)); padding-inline: var(--space-2); }
+.screen.variety > * { flex-shrink: 0; }
 
 /* a room's shape as dots: gaps stay empty, cells light up as the room is solved */
-.room-glyph {
+.variety .room-glyph {
   --glyph-box: calc(var(--space-8) * 2);
   display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: calc(var(--glyph-box) / 22);
   width: var(--glyph-box); aspect-ratio: 1; flex: none;
 }
-.room-glyph > i { aspect-ratio: 1; border-radius: 28%; background: var(--c-tile-off-hi); box-shadow: var(--shadow-recessed); }
-.room-glyph > i[data-lit="true"] { background: var(--c-tile-on); box-shadow: 0 0 var(--space-1-5) var(--c-glow); }
-.room-glyph > i[data-gap] { visibility: hidden; }
+.variety .room-glyph > i { aspect-ratio: 1; border-radius: 28%; background: var(--c-line-strong); }
+.variety .room-glyph > i[data-lit="true"] { background: var(--c-tile-on); box-shadow: 0 0 var(--space-1-5) var(--c-glow); }
+.variety .room-glyph > i[data-gap] { visibility: hidden; }
 
 /* room list */
 .room-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--level-gap); }
@@ -29,24 +34,19 @@
 .room-tile__stars { display: inline-flex; align-items: center; gap: var(--space-1); }
 .room-tile__stars .star { --star-size: var(--star-sm); }
 /* a room with stars in it is warm, like a solved level tile */
-.room-tile:not([data-solved="0"]) { background: var(--c-tile-solved, color-mix(in srgb, var(--c-accent) 6%, var(--c-room-warm))); box-shadow: inset 0 0 0 var(--hairline) color-mix(in srgb, var(--c-tile-on) 10%, transparent), var(--shadow-raised); }
+.room-tile:not([data-solved="0"]) { background: var(--v-solved); box-shadow: var(--v-edge); }
 .variety__empty { padding-block: var(--space-4); text-align: center; }
 
 /* one room */
 .variety__room { display: flex; flex-direction: column; gap: var(--space-4); }
 .variety__room-top { display: flex; align-items: center; gap: var(--space-4); }
-.variety__room-top .room-glyph { --glyph-box: var(--space-8); }
+.variety__room-top .room-glyph { --glyph-box: calc(var(--space-8) + var(--space-2)); }
 .variety__levels { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 
 /* level tiles: dark sockets when locked, warm when solved (the same language as home) */
 .variety .level-tile[data-locked="true"]::before { content: none; }
-.variety .level-tile[data-stars]:not([data-stars="0"]):not([data-current="true"]) {
-  background: var(--c-tile-solved, color-mix(in srgb, var(--c-accent) 6%, var(--c-room-warm)));
-  box-shadow: inset 0 0 0 var(--hairline) color-mix(in srgb, var(--c-tile-on) 10%, transparent), var(--shadow-raised);
-}
-.variety .level-tile[data-stars="3"]:not([data-current="true"]) {
-  box-shadow: inset 0 0 0 var(--hairline) color-mix(in srgb, var(--c-tile-on) 10%, transparent), var(--shadow-raised), 0 0 var(--space-4) color-mix(in srgb, var(--c-glow) 24%, transparent);
-}
+.variety .level-tile:not([data-stars="0"]):not([data-current="true"]) { background: var(--v-solved); box-shadow: var(--v-edge); }
+.variety .level-tile[data-stars="3"]:not([data-current="true"]) { box-shadow: var(--v-edge), 0 0 var(--space-4) color-mix(in srgb, var(--c-glow) 24%, transparent); }
 
 @media (orientation: landscape) and (max-height: 540px) {
   .room-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }

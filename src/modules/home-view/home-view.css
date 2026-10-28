@@ -9,6 +9,8 @@
 }
 /* the scroll box would clip the tiles' outline and the current tile's glow at the gutters: give them room */
 .screen.home { margin-inline: calc(-1 * var(--space-2)); padding-inline: var(--space-2); }
+/* a scrolling column: nothing in it may shrink to fit */
+.screen.home > * { flex-shrink: 0; }
 .home__top { display: flex; flex-wrap: nowrap; align-items: center; justify-content: space-between; gap: var(--space-3); padding-top: var(--space-3); }
 .home__logo { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
 .home__logo .display { white-space: nowrap; font-size: clamp(24px, 7.5vw, var(--text-xl)); }
@@ -65,7 +67,7 @@
 .home__variety-title { font: var(--fw-display) var(--text-lg) / var(--leading-snug) var(--font-display); }
 .home__variety-sub { font-size: var(--text-sm); color: var(--c-text-dim); }
 .home__variety[data-locked="true"] {
-  cursor: default; padding: var(--space-3) 0 0; min-height: 0; background: none; border-radius: 0;
+  justify-content: center; cursor: default; padding: var(--space-2) 0 0; background: none; border-radius: 0;
   box-shadow: none; border-top: var(--hairline) solid var(--c-line);
 }
 .home__variety[data-locked="true"] .chapter__meta { color: var(--c-text-faint); }
@@ -75,7 +77,7 @@
   display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: calc(var(--glyph-box) / 22);
   width: var(--glyph-box); aspect-ratio: 1; flex: none;
 }
-.home .room-glyph > i { aspect-ratio: 1; border-radius: 28%; background: var(--c-tile-off-hi); box-shadow: var(--shadow-recessed); }
+.home .room-glyph > i { aspect-ratio: 1; border-radius: 28%; background: var(--c-line-strong); }
 .home .room-glyph > i[data-lit="true"] { background: var(--c-tile-on); box-shadow: 0 0 var(--space-1-5) var(--c-glow); }
 .home .room-glyph > i[data-gap] { visibility: hidden; }
 
