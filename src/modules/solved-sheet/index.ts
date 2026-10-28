@@ -1,5 +1,6 @@
 // solved-sheet: the end-of-level moment. After the board's sweep, opens view.region('sheet:solved') with the
-// stars from progress (when present), moves vs par, and next / replay / levels.
+// stars from progress (when present), moves vs par, and next / replay / levels. Works for the classic path and
+// for Variety rooms (levels:started says which pack, the index inside it and the next level).
 import * as v from 'valibot';
 import type { Events, LevelId, ModuleDef, Scoring } from '../../contracts';
 import { fmt, h, setAttr, setText } from '../../lib/dom';
@@ -12,10 +13,14 @@ const Copy = v.object({
   atPar: Text, overPar: Text, hinted: Text,
   next: Text, replay: Text, levels: Text,
   allDoneTitle: Text, allDoneBody: Text, allDonePerfect: Text, allDoneAction: Text, lastLevel: Text,
+  roomEyebrow: Text, backToRooms: Text, roomDone: Text, roomLast: Text, nextMeta: Text,
 });
 type CopyT = v.InferOutput<typeof Copy>;
 type Solved = Events['board:solved'];
 type Completed = Events['progress:level_completed'];
+type Started = Events['levels:started'];
+/** where a level sits: its pack, its 1-based place in it, and the level after it in the same pack (null after the last) */
+interface Place { pack: string; index: number; next: LevelId | null }
 
 const MAX_STARS = 3;
 
@@ -28,7 +33,7 @@ function baseStars(moves: number, par: number, s: Scoring): number {
 const solvedSheet: ModuleDef = {
   manifest: {
     name: 'solved-sheet',
-    emits: ['nav:open_sheet', 'nav:close_sheet', 'nav:go', 'levels:start'],
+    emits: ['nav:open_sheet', 'nav:close_sheet', 'nav:go', 'levels:start', 'variety:open'],
     listens: ['board:solved', 'progress:level_completed', 'levels:started', 'board:loaded', 'board:restarted', 'kernel:state_loaded'],
     owns: [],
     uses: ['view', 'clock'],
@@ -43,6 +48,8 @@ const solvedSheet: ModuleDef = {
     /** the solve on show (or about to be), and progress's verdict for it, whichever arrives first */
     let solved: Solved | null = null;
     let completed: Completed | null = null;
+    /** the latest levels:started, kept so the sheet knows the pack, index and next level of the solve */
+    let started: Started | null = null;
     let cancelTimer: (() => void) | null = null;
 
     // ---- DOM, built once ----
@@ -56,22 +63,52 @@ const solvedSheet: ModuleDef = {
     const result = h('p', { class: 'sheet__result', 'data-result': '' }, movesText, parText);
     const note = h('p', { class: 'sheet__note' });
     const extra = h('p', { class: 'sheet__note', hidden: true });
-    const nextLevel = h('span', { class: 'num' });
+    const nextLevel = h('span');
     const next = h('button', { type: 'button', class: 'btn btn--primary btn--block', 'data-action': 'next' },
       copy.next, h('span', { class: 'btn__meta', 'aria-hidden': 'true' }, '·'), nextLevel);
     const replay = h('button', { type: 'button', class: 'btn btn--ghost', 'data-action': 'replay' }, copy.replay);
     const levels = h('button', { type: 'button', class: 'btn btn--ghost', 'data-action': 'levels' }, copy.levels);
     const row = h('div', { class: 'solved__row' }, replay, levels);
     const actions = h('div', { class: 'sheet__actions' }, next, row);
-    sheet.replaceChildren(h('div', { class: 'sheet__handle', 'aria-hidden': 'true' }), eyebrow, title, stars, result, note, extra, actions);
+    sheet.classList.add('solved');
+    sheet.replaceChildren(eyebrow, title, stars, result, note, extra, actions);
+
+    /** classic levels on the path (the list also holds the Variety rooms' levels) */
+    const classicCount = (): number | undefined => {
+      const lv = ctx.read('levels');
+      if (lv?.status !== 'ready') return undefined;
+      return lv.packs?.find((p) => p.kind === 'classic')?.count ?? lv.list.filter((l) => (l.pack ?? 'classic') === 'classic').length;
+    };
+    /** from levels:started when it was about this level; otherwise worked out from the levels slice (e.g. after a hot reload) */
+    function placeOf(levelId: LevelId): Place {
+      if (started && started.levelId === levelId && started.pack !== undefined && started.index !== undefined && started.next !== undefined) {
+        return { pack: started.pack, index: started.index, next: started.next };
+      }
+      const lv = ctx.read('levels');
+      const def = lv?.list.find((l) => l.id === levelId);
+      const pack = def?.pack ?? 'classic';
+      if (pack === 'classic') {
+        const count = classicCount();
+        return { pack, index: levelId, next: count === undefined || levelId < count ? levelId + 1 : null };
+      }
+      const p = lv?.packs?.find((x) => x.id === pack);
+      const index = def?.index ?? (p ? levelId - p.first + 1 : 1);
+      return { pack, index, next: p && index < p.count ? p.first + index : null };
+    }
 
     sheet.addEventListener('click', (e) => {
       const action = (e.target as Element).closest<HTMLElement>('[data-action]')?.dataset.action;
       if (!action || !solved) return;
       const id: LevelId = solved.levelId;
-      if (action === 'next') ctx.emit('levels:start', { levelId: id + 1 });
+      const place = placeOf(id);
+      const room = place.pack === 'classic' ? null : place.pack;
+      if (action === 'next' && place.next !== null) ctx.emit('levels:start', { levelId: place.next });
       else if (action === 'replay') ctx.emit('levels:start', { levelId: id });
-      else if (action === 'levels') ctx.emit('nav:go', { screen: 'home' });
+      else if (action === 'levels') {
+        // a room's levels live in the Variety menu; the classic path is home
+        if (room) ctx.emit('variety:open', { room });
+        else ctx.emit('nav:go', { screen: 'home' });
+      }
     });
 
     function paintStars(earned: number, lost: number) {
@@ -90,19 +127,24 @@ const solvedSheet: ModuleDef = {
       if (!solved) return;
       const { levelId, moves, par } = solved;
       const done = completed && completed.levelId === levelId ? completed : null;
-      const count = ctx.read('levels')?.list.length;
-      const last = count !== undefined && levelId >= count;
-      // only the solve that finished the set celebrates it; later replays get the normal note
-      const allDone = !!done && done.allSolved && done.firstSolve;
-      const results = Object.values(ctx.read('progress')?.save.results ?? {});
-      const perfect = count !== undefined && results.length >= count && results.every((r) => r.stars === MAX_STARS);
+      const place = placeOf(levelId);
+      const lv = ctx.read('levels');
+      const room = place.pack === 'classic' ? null : (lv?.packs?.find((p) => p.id === place.pack) ?? { id: place.pack, name: place.pack, count: place.index });
+      const progress = ctx.read('progress');
+      const count = classicCount();
+      const last = place.next === null;
+      // only the solve that finished the classic set celebrates it; later replays get the normal note
+      const allDone = !room && !!done && done.allSolved && done.firstSolve;
+      const classicResults = Object.entries(progress?.save.results ?? {}).filter(([k]) => count === undefined || Number(k) <= count).map(([, r]) => r);
+      const perfect = count !== undefined && classicResults.length >= count && classicResults.every((r) => r.stars === MAX_STARS);
+      const roomDone = !!room && (progress?.packs?.[room.id]?.solved ?? 0) >= room.count;
 
-      setText(eyebrow, fmt(copy.eyebrow, { level: levelId }));
+      setText(eyebrow, room ? fmt(copy.roomEyebrow, { room: room.name, level: place.index }) : fmt(copy.eyebrow, { level: levelId }));
       setText(title, allDone ? fmt(copy.allDoneTitle, { total: count ?? levelId }) : copy.title);
 
       stars.hidden = !done;
       if (done) {
-        const scoring = ctx.read('progress')?.scoring;
+        const scoring = progress?.scoring;
         const lost = scoring && done.hintsUsed > 0 ? Math.max(0, Math.min(MAX_STARS, baseStars(moves, par, scoring)) - done.stars) : 0;
         setAttr(stars, 'data-stars-earned', String(done.stars));
         setAttr(stars, 'aria-label', fmt(copy.stars, { stars: done.stars }));
@@ -113,18 +155,21 @@ const solvedSheet: ModuleDef = {
 
       setText(movesText, fmt(moves === 1 ? copy.move : copy.moves, { moves }));
       setText(parText, fmt(copy.par, { par }));
+      // the note speaks only when it tells the player something to do (over par, or hinted)
       const line = done && done.hintsUsed > 0 ? copy.hinted
-        : moves <= par ? copy.atPar
-        : fmt(copy.overPar, { over: moves - par, par });
-      setText(note, allDone ? (perfect ? copy.allDonePerfect : copy.allDoneBody) : line);
+        : moves > par ? fmt(copy.overPar, { over: moves - par, par })
+        : '';
+      const text = allDone ? (perfect ? copy.allDonePerfect : copy.allDoneBody) : line;
+      setText(note, text);
+      note.hidden = !text;
       extra.hidden = !last || allDone;
-      setText(extra, copy.lastLevel);
+      setText(extra, room ? (roomDone ? copy.roomDone : copy.roomLast) : copy.lastLevel);
 
-      // the last level has no next: the primary action goes back to the levels
+      // the last level has no next: the primary action goes back to the levels (or the room's level list)
       next.hidden = last;
-      setText(nextLevel, String(levelId + 1));
+      setText(nextLevel, place.next === null ? '' : fmt(copy.nextMeta, { level: room ? place.index + 1 : place.next }));
       levels.className = last ? 'btn btn--primary btn--block' : 'btn btn--ghost';
-      setText(levels, last ? copy.allDoneAction : copy.levels);
+      setText(levels, last ? (room ? copy.backToRooms : copy.allDoneAction) : copy.levels);
       if (last) actions.prepend(levels); else row.append(levels);
       setAttr(next, 'data-autofocus', last ? null : '');
       setAttr(levels, 'data-autofocus', last ? '' : null);
@@ -161,7 +206,7 @@ const solvedSheet: ModuleDef = {
     });
     // a new board (next, replay, restart, another level) cancels a sheet that hasn't opened yet
     const reset = () => { cancel(); solved = null; completed = null; };
-    ctx.on('levels:started', reset);
+    ctx.on('levels:started', (p) => { reset(); started = p; });
     ctx.on('board:loaded', reset);
     ctx.on('board:restarted', reset);
     ctx.watch('nav', (nav) => { if (nav && nav.screen !== 'play') cancel(); });
@@ -183,7 +228,7 @@ const solvedSheet: ModuleDef = {
 
     return {
       stop: cancel,
-      debug: () => ({ solved, completed, pending: !!cancelTimer }),
+      debug: () => ({ solved, completed, started, pending: !!cancelTimer }),
     };
   },
 };

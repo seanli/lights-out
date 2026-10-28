@@ -40,15 +40,19 @@
       "hint": "hint −{cost}★"
     },
     "learn": "Learn the patterns",
+    "learnNew": "New here? Learn the patterns",
     "soundOn": "Sound on",
     "soundOff": "Sound off",
+    "sound": "Sound",
     "reset": "Reset progress",
     "resetTitle": "Reset all progress?",
     "resetBody": "This clears every star and locks all levels after level 1. It can't be undone.",
     "resetConfirm": "Reset progress",
     "resetCancel": "Keep my progress",
     "variety": "Variety",
-    "varietyLocked": "Variety opens after chapter 1"
+    "varietyLocked": "Variety opens after chapter 1",
+    "varietySub": "Same rule, new rooms",
+    "varietyLabel": "Variety: {solved} of {count} room levels solved"
   },
   "play-view": {
     "chapter": "Chapter {chapter}",
@@ -74,7 +78,7 @@
     "tierOverAria": "{moves} moves or more: {stars} of 3 stars"
   },
   "solved-sheet": {
-    "eyebrow": "Level {level} · solved",
+    "eyebrow": "Level {level}",
     "title": "Lights out.",
     "moves": "{moves} moves",
     "move": "{moves} move",
@@ -83,14 +87,19 @@
     "atPar": "Solved at par.",
     "overPar": "{over} over par. Replay in {par} for three stars.",
     "hinted": "Solve it without a hint for more stars.",
-    "next": "Next level",
+    "next": "Next",
     "replay": "Replay",
     "levels": "Levels",
     "allDoneTitle": "All {total} levels solved.",
     "allDoneBody": "Replay any level to collect the stars you missed.",
     "allDoneAction": "Back to the levels",
     "lastLevel": "That was the last level. Earlier levels are waiting for their stars.",
-    "allDonePerfect": "Every level at three stars. Nothing left to collect."
+    "allDonePerfect": "Every level at three stars. Nothing left to collect.",
+    "roomEyebrow": "{room} · Level {level}",
+    "backToRooms": "Back to rooms",
+    "roomDone": "Every level in this room is solved.",
+    "roomLast": "That was the last level in this room.",
+    "nextMeta": "Level {level}"
   },
   "tutorial": {
     "1": [
@@ -276,6 +285,16 @@
   "variety": {
     "title": "Variety",
     "subtitle": "Same rule, new rooms",
-    "back": "Back"
+    "back": "Back",
+    "backToRooms": "Back to the rooms",
+    "roomSolved": "{solved}/{count}",
+    "roomStars": "{stars}/{max}",
+    "roomLabel": "{name}: {solved} of {count} solved, {stars} of {max} stars",
+    "roomCount": "{solved} of {count} solved · {stars} of {max} stars",
+    "play": "Play",
+    "tileSolved": "Level {level}, {stars} of 3 stars",
+    "tileOpen": "Level {level}, not solved yet",
+    "tileLocked": "Level {level}, locked",
+    "empty": "No rooms yet."
   }
 }
