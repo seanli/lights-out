@@ -1,5 +1,9 @@
 /* Lights Out design tokens. One committed dark look: no light theme, no media
    colour blocks. Components read ONLY these custom properties. */
+
+/* the lit paint's opacity, animatable (browsers without @property swap instantly) */
+@property --lit { syntax: '<number>'; inherits: false; initial-value: 0; }
+
 :root {
   color-scheme: dark;
 
@@ -14,13 +18,13 @@
   --c-line: #262d37;
   --c-line-strong: #39424f;
   --c-sheen: rgba(255, 255, 255, .05);
-  --c-scrim: rgba(4, 6, 9, .66);
+  --c-scrim: rgba(4, 6, 9, .5);
   --c-shadow: #000;
 
   /* ---- colour: text ---- */
   --c-text: #efe8da;
   --c-text-dim: #8b93a0;
-  --c-text-faint: #5d6672;
+  --c-text-faint: #808995; /* AA: 4.5:1 on surface-2, more on darker */
 
   /* ---- colour: tiles ---- */
   --c-tile-off: #1d242d;
@@ -29,10 +33,19 @@
   --c-tile-on-core: #fff5df;
   --c-tile-on: #ffd27f;
   --c-tile-on-rim: #e8953a;
+  --rgb-tile-on-core: 255 245 223; /* the same three as channels, faded by --lit */
+  --rgb-tile-on: 255 210 127;
+  --rgb-tile-on-rim: 232 149 58;
+  --c-tile-solved: #262016;
+  --c-tile-solved-edge: rgba(255, 210, 127, .10);
   --c-tile-on-edge: rgba(255, 226, 170, .75);
   --c-tile-on-shade: rgba(150, 70, 8, .38);
   --c-tile-on-sheen: rgba(255, 255, 255, .55);
   --c-glow: rgba(255, 170, 64, .5);
+  --c-glow-strong: rgba(255, 180, 80, .75);
+  --c-glow-faint: rgba(255, 170, 64, .12);
+  --c-afterglow: rgba(255, 170, 64, .28);
+  --c-afterglow-out: rgba(255, 170, 64, .18);
   --c-glow-none: rgba(255, 170, 64, 0);
   --c-edge-none: rgba(255, 226, 170, 0);
 
@@ -50,6 +63,7 @@
   --c-focus: #efe8da;
   --c-none: transparent;
   --c-hint-bg: rgba(122, 226, 202, .10);
+  --c-hint-edge: rgba(122, 226, 202, .45);
   --c-pointer-none: rgba(255, 241, 214, 0);
 
   /* ---- colour: status tones ---- */
@@ -76,7 +90,8 @@
 
   /* shadows keep the same layer structure on/off so the glow can fade */
   --shadow-tile-off: 0 0 0 var(--c-glow-none), 0 0 0 1px var(--c-edge-none), inset 0 3px 6px var(--c-tile-off-shade), inset 0 -1px 0 var(--c-sheen);
-  --shadow-tile-on: 0 0 22px var(--c-glow), 0 0 0 1px var(--c-tile-on-edge), inset 0 -4px 8px var(--c-tile-on-shade), inset 0 2px 1px var(--c-tile-on-sheen);
+  /* afterglow: a filament cooling (same 4 layers as off/on so it interpolates) */
+  --shadow-afterglow: 0 0 10px var(--c-afterglow-out), 0 0 0 1px var(--c-edge-none), inset 0 0 18px var(--c-afterglow), inset 0 -1px 0 var(--c-sheen);
   --shadow-raised: inset 0 1px 0 var(--c-sheen), 0 0 0 1px var(--c-line);
   --shadow-outline: inset 0 0 0 1px var(--c-line);
   --shadow-recessed: inset 0 2px 6px var(--c-tile-off-shade);
@@ -85,13 +100,14 @@
   --shadow-sheet: 0 -1px 0 var(--c-line), 0 -30px 60px -20px var(--c-shadow);
   --shadow-hint: 0 0 16px var(--c-hint-glow);
   --shadow-current: 0 0 26px var(--c-glow), 0 0 0 1px var(--c-tile-on-edge);
+  --shadow-solved: inset 0 0 0 1px var(--c-tile-solved-edge), var(--shadow-raised);
+  --shadow-solved-3: inset 0 0 0 1px var(--c-tile-solved-edge), var(--shadow-raised), 0 0 14px var(--c-glow-faint);
   --shadow-star-glow: drop-shadow(0 0 12px var(--c-glow));
 
   /* icon shapes (CSS masks, no network, no sprite needed) */
   --shape-star: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2.6l2.9 6 6.5.8-4.8 4.5 1.2 6.5L12 17.2l-5.8 3.2 1.2-6.5L2.6 9.4l6.5-.8z'/%3E%3C/svg%3E");
   --shape-star-outline: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linejoin='round'%3E%3Cpath d='M12 3.6l2.6 5.4 5.9.7-4.4 4.1 1.1 5.9L12 16.8l-5.2 2.9 1.1-5.9-4.4-4.1 5.9-.7z'/%3E%3C/svg%3E");
   --shape-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-  --shape-lock: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'%3E%3Crect x='5' y='11' width='14' height='10' rx='2'/%3E%3Cpath d='M8 11V7a4 4 0 018 0v4'/%3E%3C/svg%3E");
 
   /* ---- type ---- */
   --font-display: 'Fraunces', 'Iowan Old Style', 'Charter', 'Bitstream Charter', Georgia, serif;
@@ -101,8 +117,8 @@
   --fw-medium: 500;
   --fw-bold: 700;
   --fw-display: 600;
-  --text-2xs: 10px;
-  --text-xs: 11px;
+  --text-2xs: 11px; /* nothing the player reads is smaller */
+  --text-xs: 12px;
   --text-sm: 13px;
   --text-md: 15px;
   --text-base: 16px;
@@ -161,7 +177,14 @@
   --board-pad: 12px;
   --cell-gap: 8px;
   --cell-radius: 12px;
+  --glow-blur: 22px;
+  /* per board side (.board[data-n]); n ≤ 5 uses the two above */
+  --cell-gap-6: 6px;
+  --board-pad-6: 10px;
+  --cell-gap-7: 4px;
+  --board-pad-7: 6px;
   --ring-offset: 5px;
+  --ring-offset-tight: 3px;
   --focus-offset: 3px;
   --focus-offset-tight: 1px;
   --hint-halo: 5px;
@@ -197,6 +220,19 @@
   --sweep-step: 60ms;
   --star-step: 140ms;
   --dur-pulse: 1100ms;
+  --dur-flip: 90ms;
+  --flip-stagger: 24ms;
+  --dur-bloom: 260ms;
+  --dur-afterglow: 300ms;
+  --dur-power-on: 120ms;
+  --power-step: 30ms;
+  --dur-bump: 160ms;
+  --dur-screen: 200ms;
+  --sweep-wash: .16;
+  --ease-glow: cubic-bezier(.2, .9, .3, 1);
+  --press-brightness: 1.08;
+  --bump-scale: 1.12;
+  --enter-shift: 12px;
   --ease-out: cubic-bezier(.2, .8, .2, 1);
   --ease-spring: cubic-bezier(.3, 1.5, .5, 1);
   --press-scale: .94;
@@ -223,10 +259,26 @@
     --sweep-step: 0ms;
     --star-step: 0ms;
     --dur-pulse: 0ms;
+    --dur-flip: 0ms;
+    --flip-stagger: 0ms;
+    --dur-bloom: 0ms;
+    --dur-afterglow: 0ms;
+    --dur-power-on: 0ms;
+    --power-step: 0ms;
+    --dur-bump: 0ms;
+    --dur-screen: 0ms;
     --press-scale: 1;
     --press-scale-btn: 1;
     --pulse-scale: 1;
   }
+}
+
+/* tile shadows whose glow scales with the cell: declared on .cell too so var(--glow-blur) resolves per board */
+:root, .cell {
+  --shadow-tile-on: 0 0 var(--glow-blur) var(--c-glow), 0 0 0 1px var(--c-tile-on-edge), inset 0 -4px 8px var(--c-tile-on-shade), inset 0 2px 1px var(--c-tile-on-sheen);
+  --shadow-bloom: 0 0 calc(var(--glow-blur) * 1.6) var(--c-glow-strong), 0 0 0 1px var(--c-tile-on-edge), inset 0 -4px 8px var(--c-tile-on-shade), inset 0 2px 1px var(--c-tile-on-sheen);
+  /* win sweep: a warm wave through a dark board, not a relit one */
+  --shadow-sweep: 0 0 calc(var(--glow-blur) * .8) var(--c-glow), 0 0 0 1px var(--c-tile-on-edge), inset 0 3px 6px var(--c-tile-off-shade), inset 0 -1px 0 var(--c-sheen);
 }
 
 html,
