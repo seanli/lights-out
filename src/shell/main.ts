@@ -8,6 +8,7 @@ import type { Snapshot } from '../contracts/kernel';
 import type { Env } from '../contracts/services';
 import { createKernel, DataError, type Kernel } from '../kernel';
 import { discoverModules, liveData } from './registry';
+import { bindHistory } from './history';
 import { createView } from './view';
 
 function detectEnv(): Env {
@@ -76,6 +77,7 @@ function start(hotData: HotData = {}) {
     return;
   }
   syncNav();
+  bindHistory(k, env);
   if (env.debug) window.__lightsOut = { debug: k.debug, kernel: k };
   requestAnimationFrame(() => requestAnimationFrame(() => performance.mark('lo:interactive')));
 }
