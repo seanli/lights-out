@@ -369,14 +369,35 @@ button, input { font: inherit; color: inherit; }
   }
 }
 
-/* room glyph (src/lib/glyph.ts): a board's shape as dots, gaps empty, lit as it is solved. Size with --glyph-box. */
+/* room glyph (src/lib/glyph.ts): a board's shape as dots, gaps empty, lit as it is solved. Size with --glyph-box.
+   The box is always square (rows of a menu line up); the picture keeps the board's proportions inside it: the longer
+   side (--n dots) fills the box and every dot keeps the same gap ratio, so 10×10 is fine dots and 5×16 a tall sliver.
+   A tower ([data-tall]: twice as tall as wide or more) may reach --glyph-tall high, centred on the box, where its
+   context has the room (a menu row's padding); the box's footprint never changes. */
 .room-glyph {
   --glyph-box: var(--space-8);
-  display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: calc(var(--glyph-box) / 22);
-  width: var(--glyph-box); aspect-ratio: 1; flex: none;
+  --glyph-long: var(--glyph-box);
+  --glyph-gap-ratio: .3;
+  --glyph-dot: calc(var(--glyph-long) / (var(--n, var(--cols)) + (var(--n, var(--cols)) - 1) * var(--glyph-gap-ratio)));
+  --glyph-dot-gap: calc(var(--glyph-dot) * var(--glyph-gap-ratio));
+  display: grid; grid-template-columns: repeat(var(--cols), var(--glyph-dot)); grid-auto-rows: var(--glyph-dot);
+  gap: var(--glyph-dot-gap); place-content: center;
+  width: var(--glyph-box); height: var(--glyph-box); flex: none;
 }
-.room-glyph > i { aspect-ratio: 1; border-radius: 28%; background: var(--c-line-strong); }
-.room-glyph > i[data-lit="true"] { background: var(--c-tile-on); box-shadow: 0 0 var(--space-1-5) var(--c-glow); }
+.room-glyph[data-tall] { --glyph-long: var(--glyph-tall, var(--glyph-box)); }
+/* whole-pixel dots and gaps where the browser can round: fractional ones shimmer into stripes on dense boards.
+   The nearest whole dot, unless that would spill more than a pixel past each side of the box; the picture stays centred */
+@supports (width: round(down, 1.5px, 1px)) {
+  .room-glyph {
+    --glyph-dot-gap: max(1px, round(var(--glyph-dot) * var(--glyph-gap-ratio), 1px));
+    --glyph-dot-px: min(
+      round((var(--glyph-long) - (var(--n, var(--cols)) - 1) * var(--glyph-dot-gap)) / var(--n, var(--cols)), 1px),
+      round(down, (var(--glyph-long) + 2px - (var(--n, var(--cols)) - 1) * var(--glyph-dot-gap)) / var(--n, var(--cols)), 1px));
+    grid-template-columns: repeat(var(--cols), var(--glyph-dot-px)); grid-auto-rows: var(--glyph-dot-px);
+  }
+}
+.room-glyph > i { border-radius: 28%; background: var(--c-line-strong); }
+.room-glyph > i[data-lit="true"] { background: var(--c-tile-on); box-shadow: 0 0 var(--glyph-dot) var(--c-glow); }
 .room-glyph > i[data-gap] { visibility: hidden; }
 
 /* aim bubble (src/lib/aim.ts): magnifies the aimed cell and its neighbours above the finger on boards with small cells */

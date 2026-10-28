@@ -17,4 +17,20 @@ describe('roomGlyph', () => {
     expect(half.children[4].getAttribute('data-lit')).toBe('true');
     expect(roomGlyph(cross, 9).querySelectorAll('[data-lit="true"]')).toHaveLength(5);
   });
+  it('sizes dots by the longer side, so a big square is fine dots in the same box', () => {
+    const g = roomGlyph({ shape: { cols: 10, rows: 10, mask: null }, count: 30 }, 0);
+    expect(g.children).toHaveLength(100);
+    expect(g.style.getPropertyValue('--cols')).toBe('10');
+    expect(g.style.getPropertyValue('--n')).toBe('10');
+    expect(g.hasAttribute('data-tall')).toBe(false);
+  });
+  it('a tower (twice as tall as wide or more) keeps its proportions: 5 columns, sized by its 16 rows, marked tall', () => {
+    const g = roomGlyph({ shape: { cols: 5, rows: 16, mask: null }, count: 30 }, 15);
+    expect(g.children).toHaveLength(80);
+    expect(g.style.getPropertyValue('--cols')).toBe('5');
+    expect(g.style.getPropertyValue('--n')).toBe('16');
+    expect(g.dataset.tall).toBe('true');
+    expect(g.querySelectorAll('[data-lit="true"]')).toHaveLength(40);
+    expect(roomGlyph({ shape: { cols: 5, rows: 6, mask: null }, count: 40 }, 0).hasAttribute('data-tall')).toBe(false);
+  });
 });
