@@ -37,4 +37,26 @@ describe('nav', () => {
     t.emit('nav:back', {});
     expect(t.state('nav').screen).toBe('home');
   });
+
+  test('back walks the whole trail: a level opened from a board returns there even after a trip to Learn', () => {
+    const t = bootModule(nav);
+    t.emit('nav:go', { screen: 'variety' });
+    t.emit('levels:started', { levelId: 5001, par: 2, count: 12, pack: 'ring', index: 1, next: 5002 });
+    t.emit('nav:go', { screen: 'learn' });
+    const back = () => { t.emit('nav:back', {}); return t.state('nav'); };
+    expect(back()).toMatchObject({ screen: 'play', previous: 'variety' });
+    expect(back()).toMatchObject({ screen: 'variety', previous: 'home' });
+    expect(back()).toMatchObject({ screen: 'home', previous: null });
+    expect(back()).toMatchObject({ screen: 'home', previous: null });
+  });
+
+  test('going to a screen already on the trail drops what came after it', () => {
+    const t = bootModule(nav);
+    t.emit('nav:go', { screen: 'variety' });
+    t.emit('levels:started', { levelId: 5001, par: 2, count: 12, pack: 'ring', index: 1, next: 5002 });
+    t.emit('nav:go', { screen: 'variety' }); // the solved sheet's "Levels"
+    expect(t.state('nav')).toMatchObject({ screen: 'variety', previous: 'home' });
+    t.emit('nav:go', { screen: 'home' });
+    expect(t.state('nav')).toMatchObject({ screen: 'home', previous: null });
+  });
 });

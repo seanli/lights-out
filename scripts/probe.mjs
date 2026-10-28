@@ -583,7 +583,12 @@ async function varietyRooms() {
             await tapAction(page, 'variety-back');
           }
           if (!(await isVisible(page, '[data-action="continue"]'))) { await emit(page, 'nav:close_sheet', {}); await emit(page, 'nav:go', { screen: 'home' }); }
-        } else await tapAction(page, 'back');
+        } else {
+          // Back from a level returns to the board it was opened from, and the board's Back to the menu
+          await tapAction(page, 'back');
+          if (!(await boardShows(page, pack.id).then(() => true, () => false))) out.push(`${pack.id}@${size.width}: Back from the level didn't return to its board`);
+          await tapAction(page, 'variety-back');
+        }
       }
     } finally {
       await context.close();

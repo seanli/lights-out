@@ -189,10 +189,10 @@ describe('play-view', () => {
     expect(q('.play-tiers').hidden).toBe(true);
   });
 
-  test('back goes home', () => {
+  test('back returns to where the level was opened from', () => {
     const { t, q } = boot();
     q(SEL.action('back')).click();
-    expect(t.seen('nav:go')).toEqual({ screen: 'home' });
+    expect(t.seen('nav:back')).toEqual({});
   });
 
   test('the hint button is disabled while the tutorial coaches; its ring wins over a hint mark', () => {

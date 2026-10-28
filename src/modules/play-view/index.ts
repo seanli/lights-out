@@ -58,7 +58,7 @@ function sameGrid(a: Shape, b: Shape): boolean {
 const playView: ModuleDef = {
   manifest: {
     name: 'play-view',
-    emits: ['board:press', 'board:undo', 'board:restart', 'hints:request', 'nav:go'],
+    emits: ['board:press', 'board:undo', 'board:restart', 'hints:request', 'nav:back'],
     listens: [],
     owns: [],
     uses: ['view'],
@@ -251,7 +251,8 @@ const playView: ModuleDef = {
 
     const onAction = (el: HTMLButtonElement, fn: () => void) =>
       el.addEventListener('click', () => { if (el.getAttribute('aria-disabled') !== 'true') fn(); });
-    onAction(back, () => ctx.emit('nav:go', { screen: 'home' }));
+    // back to where the level was opened from: the menu (Continue) or the board's level screen
+    onAction(back, () => ctx.emit('nav:back', {}));
     onAction(undo, () => ctx.emit('board:undo', {}));
     onAction(restart, () => ctx.emit('board:restart', {}));
     onAction(hintBtn, () => ctx.emit('hints:request', {}));
