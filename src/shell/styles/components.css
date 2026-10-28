@@ -385,12 +385,14 @@ button, input { font: inherit; color: inherit; }
   width: var(--glyph-box); height: var(--glyph-box); flex: none;
 }
 .room-glyph[data-tall] { --glyph-long: var(--glyph-tall, var(--glyph-box)); }
-/* whole-pixel dots and gaps where the browser can round: fractional ones shimmer into stripes on dense boards
-   (the picture may come out a pixel or two inside its box; it stays centred) */
+/* whole-pixel dots and gaps where the browser can round: fractional ones shimmer into stripes on dense boards.
+   The nearest whole dot, unless that would spill more than a pixel past each side of the box; the picture stays centred */
 @supports (width: round(down, 1.5px, 1px)) {
   .room-glyph {
     --glyph-dot-gap: max(1px, round(var(--glyph-dot) * var(--glyph-gap-ratio), 1px));
-    --glyph-dot-px: round(down, (var(--glyph-long) - (var(--n, var(--cols)) - 1) * var(--glyph-dot-gap)) / var(--n, var(--cols)), 1px);
+    --glyph-dot-px: min(
+      round((var(--glyph-long) - (var(--n, var(--cols)) - 1) * var(--glyph-dot-gap)) / var(--n, var(--cols)), 1px),
+      round(down, (var(--glyph-long) + 2px - (var(--n, var(--cols)) - 1) * var(--glyph-dot-gap)) / var(--n, var(--cols)), 1px));
     grid-template-columns: repeat(var(--cols), var(--glyph-dot-px)); grid-auto-rows: var(--glyph-dot-px);
   }
 }

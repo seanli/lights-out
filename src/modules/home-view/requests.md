@@ -13,3 +13,6 @@
 5. **`src/lib`: one board tally.** `tally(pack, progress)` (open, highest startable index, solved, stars) is the same 15 lines in
    home-view and variety (modules can't share code). Proposed `src/lib/boards.ts`.
 6. **Design system: a menu row.** `.home__row` (64px, hairlines between, glyph · name + meta · score) could become `.menu-row` in components.css.
+7. **Levels: say which boards scroll.** The Tower's meta reads "5×16 · scrolls · 30 levels"; the note is `copy.json → home-view.boardNotes`
+   keyed by pack id (variety has the same). If `Pack` carried `note?: string` (or `scrolls?: true`, set by levels from the rule play-view
+   uses), the menu and the board screen would follow the data and never drift. `metaOf()` is also duplicated in both modules (see #5).
