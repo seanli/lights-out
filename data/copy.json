@@ -64,6 +64,7 @@
   },
   "progress": {
     "recovered": "Your saved progress couldn't be read, so the game started fresh.",
+    "partlyRecovered": "Part of your saved progress couldn't be read. Everything else is kept.",
     "saveFailed": "Your latest progress couldn't be saved."
   },
   "offline": {
