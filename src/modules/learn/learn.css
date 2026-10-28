@@ -125,3 +125,43 @@
   .learn-step > .learn-stage { grid-column: 1; grid-row: 1 / -1; }
   .learn-lesson > .learn-nav { grid-column: 2; grid-row: 6; }
 }
+
+/* ---------- in-game pattern reference (slot:reference, placed by play-view) ----------
+   One column of 7 rows on a phone; two columns once the panel is wide enough (container query). */
+.reference {
+  --strip-cell: calc(var(--tap-min) / 2 - var(--space-1));
+  container-type: inline-size;
+  max-height: 100%; overflow-y: auto; overscroll-behavior: contain;
+  display: flex; flex-direction: column; gap: var(--space-1-5);
+  padding: var(--space-2) var(--space-3) var(--space-3); border-radius: var(--radius-md); background: var(--c-surface); box-shadow: var(--shadow-outline);
+}
+.reference__top { display: flex; align-items: center; gap: var(--space-2); }
+.reference__top > .reference__status { flex: 1; min-width: 0; }
+.reference__status { min-height: var(--line-h); font: var(--fw-bold) var(--text-sm) / var(--leading-snug) var(--font-ui); color: var(--c-text); text-wrap: balance; }
+.reference__status[data-tone="hint"] { color: var(--c-hint); }
+.reference__status[data-tone="warn"] { color: var(--c-warn); }
+.reference__chase { font-size: var(--text-xs); line-height: var(--leading-snug); color: var(--c-text-dim); }
+.reference__you { display: flex; align-items: center; gap: var(--space-2); }
+.reference__you > .caption { flex: none; }
+.reference__lessons { flex: none; min-height: var(--tap-min); padding-inline: var(--space-3); font-size: var(--text-sm); white-space: nowrap; }
+.reference__table {
+  display: grid; grid-template-columns: auto auto auto; justify-content: center; align-items: center;
+  column-gap: var(--space-2); row-gap: var(--space-1);
+}
+.reference__head, .reference__row { display: contents; }
+.reference__head > .caption { text-align: center; }
+.reference__head2 { display: none; }
+.reference .learn-row { padding: var(--space-half); gap: var(--space-half); border-radius: var(--radius-xs); }
+.reference .learn-row > .cell { border-radius: var(--glyph-radius); }
+.reference__row[data-match="true"] > .learn-row { box-shadow: 0 0 0 var(--ring-w) var(--c-hint), var(--shadow-hint); }
+.reference .learn-row--top > .cell[data-suggest="true"]::after { inset: 28%; box-shadow: none; }
+/* short screens: smaller strips so the table stays readable next to the board */
+@media (max-height: 740px) {
+  .reference { --strip-cell: var(--icon-sm); }
+  .reference__table { row-gap: var(--space-half); }
+  .reference__lessons { min-height: var(--btn-h-compact); }
+}
+@container (min-width: 470px) {
+  .reference__table { grid-template-columns: repeat(2, auto auto auto); justify-content: space-evenly; }
+  .reference__head2 { display: block; }
+}

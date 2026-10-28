@@ -200,3 +200,76 @@ describe('learn: module', () => {
     expect(table.some((e) => e.bottom.join() === left.join())).toBe(true);
   });
 });
+
+describe('learn: in-game pattern reference', () => {
+  const table = bottomRowTable(solver);
+  const boardState = (cells: Cells, status: 'playing' | 'solved' | 'empty' = 'playing') =>
+    ({ status, levelId: status === 'empty' ? null : 3, start: cells, cells, par: 5, moves: 0, history: [] });
+  const panel = (t: ReturnType<typeof boot>) => t.view!.region('slot:reference');
+  const statusOf = (t: ReturnType<typeof boot>) => panel(t).querySelector<HTMLElement>('[data-reference-status]')!;
+
+  test('with no board: the static table and the chase line, status chase', () => {
+    const t = boot();
+    expect(panel(t).querySelectorAll('[data-reference]')).toHaveLength(1);
+    expect(panel(t).querySelectorAll('[data-pattern-row]')).toHaveLength(7);
+    expect(statusOf(t).dataset.referenceStatus).toBe('chase');
+  });
+
+  test('chase while rows 1–4 have lights, naming the highest lit row', () => {
+    const cells = pressAll(solver, blank(), [12, 17]);
+    const t = boot({ state: { board: boardState(cells) } });
+    expect(statusOf(t).dataset.referenceStatus).toBe('chase');
+    expect(statusOf(t).textContent).toMatch(/Row 2/);
+    expect(panel(t).querySelectorAll('[data-match="true"]')).toHaveLength(0);
+  });
+
+  test('match when only the bottom row is lit: the matched row is the computed table entry', () => {
+    for (const entry of table) {
+      const cells = lit(entry.bottom.map((c) => BOTTOM + c));
+      const t = boot({ state: { board: boardState(cells) } });
+      expect(statusOf(t).dataset.referenceStatus).toBe('match');
+      const matched = panel(t).querySelectorAll<HTMLElement>('[data-pattern-row][data-match="true"]');
+      expect(matched).toHaveLength(1);
+      expect(matched[0]!.dataset.pattern).toBe(entry.bottom.join(','));
+      const ringed = [...matched[0]!.querySelectorAll<HTMLElement>('[data-suggest="true"]')].map((e) => Number(e.dataset.index));
+      expect(ringed).toEqual(entry.top);
+      const live = [...panel(t).querySelectorAll<HTMLElement>('[data-reference-bottom] [data-mini-cell]')].map((e) => e.dataset.lit === 'true');
+      expect(live).toEqual([0, 1, 2, 3, 4].map((c) => entry.bottom.includes(c)));
+    }
+  });
+
+  test('the panel follows the board slice tap by tap through to clear, and never marks the main board', () => {
+    const entry = table.find((e) => e.top.length === 2)!;
+    const start = lit(entry.bottom.map((c) => BOTTOM + c));
+    const t = boot({ state: { board: boardState(start) } });
+    // tap one of the ringed top-row lights: still matched (part-way), then the second
+    let cells = solver.press(start, entry.top[0]!);
+    t.kernel.seed('board', boardState(cells));
+    t.emit('learn:set_assist', { on: false }); // any event flushes watchers
+    expect(statusOf(t).dataset.referenceStatus).toBe('match');
+    expect(panel(t).querySelector('[data-match="true"]')!.getAttribute('data-pattern')).toBe(entry.bottom.join(','));
+    cells = solver.press(cells, entry.top[1]!);
+    t.kernel.seed('board', boardState(cells));
+    t.emit('learn:set_assist', { on: false });
+    expect(statusOf(t).dataset.referenceStatus).toBe('chase');
+    cells = chase(solver, cells).cells;
+    t.kernel.seed('board', boardState(cells, 'solved'));
+    t.emit('learn:set_assist', { on: false });
+    expect(statusOf(t).dataset.referenceStatus).toBe('clear');
+    expect(document.querySelectorAll('[data-cell]')).toHaveLength(0);
+  });
+
+  test('nomatch is handled in words', () => {
+    const cells = lit([BOTTOM]); // a single bottom-left light can't be solved
+    const t = boot({ state: { board: boardState(cells) } });
+    expect(statusOf(t).dataset.referenceStatus).toBe('nomatch');
+    expect(statusOf(t).textContent!.length).toBeGreaterThan(10);
+  });
+
+  test('"All lessons" opens the lesson list', () => {
+    const t = boot();
+    panel(t).querySelector<HTMLElement>('[data-action="learn"]')!.click();
+    expect(t.seen('learn:open')).toEqual({});
+    expect(t.seen('nav:go', { screen: 'learn' })).toBeTruthy();
+  });
+});

@@ -4,6 +4,7 @@ import * as v from 'valibot';
 import { CELL_COUNT, type Cells, type LearnState, type ModuleDef } from '../../contracts';
 import { LESSONS } from './lessons';
 import { bottomRowTable, chaseSuggest, isClear, makeBoard, methodSuggest, quietPatterns, type TableEntry } from './method';
+import { createReference } from './reference';
 import { createLearnView } from './view';
 import './learn.css';
 
@@ -24,6 +25,10 @@ const CopySchema = v.looseObject({
   solved: text, solvedPar: text, solvedAtPar: text, demoPlay: text, demoReplay: text, demoStep: text, demoTap: text, demoDone: text,
   demoPhase: v.object({ chase: text, top: text, chase2: text }),
   tableBottom: text, tableTop: text, captions: v.record(v.string(), text), cellOn: text, cellOff: text,
+  reference: v.object({
+    chase: text, yourRow: text, bottom: text, top: text, lessons: text,
+    status: v.object({ start: text, chase: text, match: text, progress: text, clear: text, nomatch: text }),
+  }),
   lessons: v.record(v.string(), v.object({ title: text, summary: text, steps: v.array(text) })),
 });
 export type LearnCopy = v.InferOutput<typeof CopySchema>;
@@ -182,6 +187,7 @@ const learn: ModuleDef = {
     });
 
     const view = createLearnView({ ctx, rules, copy, solver, table: () => table, quiet: () => quiet });
+    createReference(ctx, solver, table, copy.reference);
 
     const showTable = () => {
       const row = (cols: number[]) => [0, 1, 2, 3, 4].map((c) => (cols.includes(c) ? '●' : '○')).join('');
