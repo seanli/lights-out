@@ -4,6 +4,8 @@ import * as v from 'valibot';
 import { CELL_COUNT, type Cells, type LearnState, type ModuleDef } from '../../contracts';
 import { LESSONS } from './lessons';
 import { bottomRowTable, chaseSuggest, isClear, makeBoard, methodSuggest, quietPatterns, type TableEntry } from './method';
+import { ruleFor } from './lessons';
+import { emptySave, type DrillSave } from './drill';
 import { createReference } from './reference';
 import { createLearnView } from './view';
 import './learn.css';
@@ -15,6 +17,12 @@ const RulesSchema = v.object({
   demoStartMs: v.pipe(int, v.minValue(0)),
   demoStepMs: v.pipe(int, v.minValue(50)),
   saveKey: v.pipe(v.string(), v.minLength(1)),
+  drill: v.object({
+    cards: v.pipe(int, v.minValue(1)),
+    boxes: v.pipe(int, v.minValue(2)),
+    missGap: v.pipe(int, v.minValue(1)),
+    saveKey: v.pipe(v.string(), v.minLength(1)),
+  }),
 });
 export type LearnRules = v.InferOutput<typeof RulesSchema>;
 
@@ -24,16 +32,23 @@ const CopySchema = v.looseObject({
   done: text, assist: text, newBoard: text, another: text, practiceGoal: text, assistLine: text, moves: text, movesPar: text,
   solved: text, solvedPar: text, solvedAtPar: text, demoPlay: text, demoReplay: text, demoStep: text, demoTap: text, demoDone: text,
   demoPhase: v.object({ chase: text, top: text, chase2: text }),
-  tableBottom: text, tableTop: text, captions: v.record(v.string(), text), cellOn: text, cellOff: text,
+  captions: v.record(v.string(), text), cellOn: text, cellOff: text,
+  letters: v.pipe(v.string(), v.length(5)), echoJoin: text, deeper: text,
+  echo: v.object({ pick: text, caption: text }),
+  stack: v.object({ of: text, both: text, cancel: text }),
+  derive: v.object({ rule: text, row: text, echo: text, tip: text }),
+  rules: v.object({ three: text, allButMiddle: text, pairLoner: text, corners: text, gap: text, mirror: text }),
+  drill: v.object({ intro: text, start: text, again: text, prompt: text, check: text, next: text, card: text, right: text, wrong: text, score: text, scoreLine: text }),
   reference: v.object({
-    chase: text, yourRow: text, bottom: text, top: text, lessons: text,
-    status: v.object({ start: text, chase: text, match: text, progress: text, clear: text, nomatch: text }),
+    yourRow: text, bottom: text, top: text, echo: text, lessons: text, shaped: text,
+    status: v.object({ start: text, chase: text, match: text, progress: text, clear: text, nomatch: text, rectBottom: text }),
   }),
   lessons: v.record(v.string(), v.object({ title: text, summary: text, steps: v.array(text) })),
 });
 export type LearnCopy = v.InferOutput<typeof CopySchema>;
 
 const SaveSchema = v.object({ completed: v.array(v.string()) });
+const DrillSaveSchema = v.object({ boxes: v.record(v.string(), v.number()), rounds: v.number() });
 
 const learn: ModuleDef = {
   manifest: {
@@ -55,12 +70,16 @@ const learn: ModuleDef = {
     const rng = ctx.need('rng');
     const storage = ctx.service('storage');
 
-    // every listed lesson needs its copy, one sentence per step, and a practice range
-    for (const id of rules.lessons) {
+    /** lessons opened from a "Go deeper" link, not shown in the list */
+    const extras = rules.lessons.flatMap((id) => (LESSONS[id]!.deeper ? [LESSONS[id]!.deeper!] : []));
+    const hasPractice = (id: string) => LESSONS[id]!.steps.some((s) => s.kind === 'practice');
+    // every lesson needs its copy, one sentence per step, and a practice range if it has a practice step
+    for (const id of [...rules.lessons, ...extras]) {
       const c = copy.lessons[id];
+      if (!LESSONS[id]) throw new Error(`lessons.ts has no "${id}" lesson`);
       if (!c) throw new Error(`copy.json → learn.lessons has no "${id}" lesson`);
       if (c.steps.length !== LESSONS[id]!.steps.length) throw new Error(`copy.json → learn.lessons.${id}.steps needs ${LESSONS[id]!.steps.length} sentences, not ${c.steps.length}`);
-      if (!rules.practicePresses[id]) throw new Error(`rules.json → learn.practicePresses has no range for "${id}"`);
+      if (hasPractice(id) && !rules.practicePresses[id]) throw new Error(`rules.json → learn.practicePresses has no range for "${id}"`);
     }
 
     const read = (): LearnState => ctx.read('learn')!;
@@ -88,7 +107,7 @@ const learn: ModuleDef = {
     };
     write({ status: error ? 'error' : 'ready', lessonId: null, step: 0, completed: loadCompleted(), practice: null, assist: false, ...(error ? { error } : {}) });
 
-    const lessonOf = (id: string | null) => (id && rules.lessons.includes(id) ? LESSONS[id] : undefined);
+    const lessonOf = (id: string | null) => (id && (rules.lessons.includes(id) || extras.includes(id)) ? LESSONS[id] : undefined);
     const practiceStep = (id: string) => LESSONS[id]!.steps.findIndex((s) => s.kind === 'practice');
 
     const suggestFor = (s: Pick<LearnState, 'lessonId' | 'assist'>, cells: Cells): number | null => {
@@ -114,7 +133,7 @@ const learn: ModuleDef = {
 
     const complete = (id: string) => {
       const s = read();
-      if (s.completed.includes(id)) return;
+      if (s.completed.includes(id) || !rules.lessons.includes(id)) return;
       const completed = rules.lessons.filter((l) => l === id || s.completed.includes(l));
       write({ ...s, completed });
       try {
@@ -157,6 +176,7 @@ const learn: ModuleDef = {
       const s = read();
       if (!lessonOf(s.lessonId)) return ctx.emit('learn:refused', { command: 'learn:new_practice', reason: 'no_practice' });
       const step = practiceStep(s.lessonId!);
+      if (step < 0) return ctx.emit('learn:refused', { command: 'learn:new_practice', reason: 'no_practice' });
       write(step === s.step ? newPractice(s) : atStep(s, step));
     });
 
@@ -186,8 +206,33 @@ const learn: ModuleDef = {
       write({ ...s, assist, practice });
     });
 
-    const view = createLearnView({ ctx, rules, copy, solver, table: () => table, quiet: () => quiet });
-    createReference(ctx, solver, table, copy.reference);
+    const drillStore = {
+      load: (): DrillSave => {
+        try {
+          const saved = v.safeParse(DrillSaveSchema, storage?.get(rules.drill.saveKey));
+          return saved.success ? saved.output : emptySave();
+        } catch (err) {
+          ctx.log.warn('Saved drill progress could not be read', err);
+          return emptySave();
+        }
+      },
+      save: (save: DrillSave) => {
+        try {
+          if (storage && !storage.set(rules.drill.saveKey, save)) ctx.log.info('Drill progress is only kept until the page closes');
+        } catch (err) {
+          ctx.log.warn('Drill progress could not be saved', err);
+        }
+      },
+    };
+    const view = createLearnView({ ctx, rules, copy, solver, rng, drillStore, table: () => table, quiet: () => quiet });
+    const letters = (cols: readonly number[]) => cols.map((c) => copy.letters[c]).join(copy.echoJoin);
+    const reference = createReference(ctx, solver, table, copy.reference, {
+      echo: letters,
+      rule: (bottom) => {
+        const r = ruleFor(bottom);
+        return r ? copy.rules[r.key as keyof LearnCopy['rules']] : '';
+      },
+    });
 
     const showTable = () => {
       const row = (cols: number[]) => [0, 1, 2, 3, 4].map((c) => (cols.includes(c) ? '●' : '○')).join('');
@@ -195,7 +240,7 @@ const learn: ModuleDef = {
     };
 
     return {
-      stop: () => view.stop(),
+      stop: () => { view.stop(); reference.stop(); },
       debug: () => ({ table: showTable(), quiet, demo: view.debug() }),
       commands: {
         /** open [lessonId]: show the lesson list, or a lesson */

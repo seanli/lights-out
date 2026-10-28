@@ -165,11 +165,11 @@
   "learn": {
     "title": "Learn",
     "subtitle": "Patterns that solve any board",
-    "intro": "Five short lessons. Together they solve any board, one pattern at a time.",
+    "intro": "Five short lessons. Together they clear any board.",
     "back": "Back",
     "backToLessons": "Back to lessons",
     "stepOf": "Step {step} of {total}",
-    "prev": "Back",
+    "prev": "Previous",
     "next": "Next",
     "finish": "Done",
     "done": "Done",
@@ -193,8 +193,6 @@
       "top": "Tap the top row",
       "chase2": "Chase again"
     },
-    "tableBottom": "Bottom row",
-    "tableTop": "Tap in top row",
     "captions": {
       "middle": "Middle: a plus of five",
       "edge": "Edge: a T of four",
@@ -207,7 +205,6 @@
     "cellOn": "Light {row}, {col}: on",
     "cellOff": "Light {row}, {col}: off",
     "reference": {
-      "chase": "Chase: row by row from the top, tap under every lit light.",
       "yourRow": "Your bottom row",
       "bottom": "Bottom row",
       "top": "Tap in top row",
@@ -215,63 +212,115 @@
       "status": {
         "start": "Start a level, then chase the lights down.",
         "chase": "Row {row}: tap under each lit light.",
-        "match": "Bottom row found below. Tap the ringed top-row lights, then chase again.",
-        "progress": "Keep going: finish the ringed top-row taps, then chase again.",
+        "match": "Found it below. Tap the ringed top lights, then chase again.",
+        "progress": "Finish the ringed top taps, then chase again.",
         "clear": "All dark. Solved.",
-        "nomatch": "This bottom row isn't in the table, so the board can't be finished this way. Restart and chase again."
-      }
+        "nomatch": "This bottom row can't be cleared. Restart and chase again.",
+        "rectBottom": "Only the bottom row is left. Its top-row taps must be worked out: Hint shows one, then chase again."
+      },
+      "shaped": "Chasing needs a full rectangle. Here, find a lit plus, T or L and tap its centre.",
+      "echo": "Echo of"
     },
     "lessons": {
       "shapes": {
         "title": "One tap, five lights",
         "summary": "Spot the shape a tap makes, then tap its centre.",
         "steps": [
-          "A tap flips the light you touch and the four lights around it. That makes a plus of five.",
-          "At an edge one neighbour is missing, so a tap makes a T of four. In a corner it makes an L of three.",
-          "So when you see one of these shapes, tap its centre and the shape goes dark.",
-          "Your turn. Each board is one tap away. Find the centre and tap it."
+          "A tap flips the light you touch and the four around it: a plus of five.",
+          "At an edge a tap makes a T of four. In a corner, an L of three.",
+          "See one of these shapes? Tap its centre and it goes dark.",
+          "Your turn. Each board needs one tap: find the centre."
         ]
       },
       "order": {
         "title": "Order doesn't matter",
         "summary": "Taps cancel out and can go in any order.",
         "steps": [
-          "Tap the same light twice and the board is back where it started. The second tap undoes the first.",
-          "These two plus shapes overlap. Tap the ringed centres in either order: you get the same board.",
-          "So an answer is just a set of lights to tap, each once. You never need to tap a light twice.",
-          "Your turn. Each board takes two or three taps. Find the set."
+          "Tap the same light twice and nothing has changed. The second tap undoes the first.",
+          "These two pluses overlap. Tap the ringed centres in either order: same board.",
+          "So an answer is a set of lights, each tapped once. Order doesn't matter.",
+          "Your turn. Each board takes two or three taps."
         ]
       },
       "chase": {
         "title": "Chase the lights down",
         "summary": "Push every light down to the bottom row.",
         "steps": [
-          "Start at the top row. For every lit light, tap the light directly below it. That turns the top light off.",
-          "Then do the same for the next row, and the next. Each row goes dark and the lights move down. This is called chasing.",
-          "Sometimes lights are left in the bottom row, with nothing below them to tap. The next lesson fixes that.",
-          "Your turn. Chase from the top. Turn on Assist to ring the next tap."
+          "Start at the top row. Under every lit light, tap the light below it.",
+          "Do the same for each row below. The lights move down: this is chasing.",
+          "Sometimes lights are left in the bottom row. The next lesson clears them.",
+          "Your turn: chase from the top. Assist rings the next tap."
         ]
       },
       "bottom-row": {
         "title": "Clear the bottom row",
-        "summary": "Seven leftover patterns, and the fix for each.",
+        "summary": "Every top-row light has an echo.",
         "steps": [
-          "After a chase, only the bottom row can still be lit. On a board that can be solved, it is one of just seven patterns.",
-          "Find your bottom row on the left. Tap the ringed lights in the top row, then chase again. The board goes dark.",
-          "Here is the whole method: chase down, tap the top row from the table, then chase again.",
-          "Your turn. Use the whole method. Assist rings each next tap."
+          "After a chase, only the bottom row is left. There is nothing below it to tap.",
+          "Tap one top-row light, then chase down. The bottom row it leaves is its echo.",
+          "Your bottom row is an echo. Tap that top light and chase again: the echo lands twice and cancels.",
+          "Some rows are two echoes stacked. Tap both top lights; where the echoes overlap, they cancel.",
+          "Your turn: chase, tap the top light of the echo you see, chase again. Assist rings each tap."
         ]
       },
       "shortest": {
         "title": "The shortest answer",
         "summary": "Every board has four answers. Par is the shortest.",
         "steps": [
-          "Tapping all the ringed lights changes nothing, because every light flips an even number of times. Patterns like these are called quiet.",
-          "Add a quiet pattern to an answer and you get another answer, so every board has four. Par is the shortest of the four.",
-          "Your turn. Try to solve it in par. Taps that show up in both an answer and a quiet pattern cancel out."
+          "Tap all the ringed lights and nothing changes: every light flips an even number of times.",
+          "Add these taps to an answer and you get another answer. Par is the shortest.",
+          "Your turn. Try to solve it in par."
+        ]
+      },
+      "echo-more": {
+        "title": "Echoes, deeper",
+        "summary": "Rules to remember, how an echo forms, and a drill.",
+        "steps": [
+          "Five rules cover every bottom row.",
+          "How an echo forms: pick a light and follow the chase, row by row.",
+          "Whose echo is this? Tap the top-row lights that cancel it."
         ]
       }
-    }
+    },
+    "letters": "ABCDE",
+    "echoJoin": " + ",
+    "echo": {
+      "pick": "Pick a top-row light to see its echo.",
+      "caption": "{name} echoes as {row}"
+    },
+    "stack": {
+      "of": "Echo of {name}",
+      "both": "{a} and {b} together",
+      "cancel": "Lit in both: cancels"
+    },
+    "rules": {
+      "three": "Three in a row: tap above the middle one.",
+      "allButMiddle": "All but the middle: tap the top middle.",
+      "pairLoner": "A pair and a loner: tap the top corner over the dark end.",
+      "corners": "Both corners: tap a top corner and its neighbour.",
+      "gap": "Two with a gap: tap above one, and the corner past the other.",
+      "mirror": "Each rule works mirrored, left for right."
+    },
+    "drill": {
+      "start": "Start",
+      "check": "Check",
+      "next": "Next",
+      "again": "Again",
+      "card": "{n} of {total}",
+      "prompt": "Tap the top-row lights that cancel this row.",
+      "right": "Yes: that cancels it.",
+      "wrong": "Not quite: {taps} cancels it.",
+      "score": "{n} of {total}",
+      "scoreLine": "Rows you missed come back sooner.",
+      "intro": "Ten rows. Rows you miss come back sooner."
+    },
+    "derive": {
+      "rule": "Each row's taps: the row above, spread one step left and right, then cancelled against the row two above.",
+      "row": "Row {n}",
+      "echo": "Echo",
+      "tip": "Not sure? Tap a guess and chase. If it's wrong, tap it again and chase: its echo cancels."
+    },
+    "deeper": "Go deeper"
   },
   "variety": {
     "title": "Variety",

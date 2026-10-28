@@ -148,3 +148,43 @@ export function makeBoard(solver: Press, pick: (n: number) => number, count: num
   }
   return pressAll(solver, blank(), [pool[0]!]);
 }
+
+// ---------- echoes: why the bottom-row table works ----------
+
+/** the bottom row one top-row tap leaves on a dark board after a chase (its "echo"), as columns */
+export function echoOf(solver: Press, col: number): number[] {
+  return bottomColumns(chase(solver, solver.press(blank(), col)).cells);
+}
+
+/** the echo of a set of top-row taps: echoes stack, and a light lit by two of them cancels */
+export function echoOfSet(solver: Press, cols: readonly number[]): number[] {
+  return bottomColumns(chase(solver, pressAll(solver, blank(), cols)).cells);
+}
+
+/** true when these top-row taps clear a board whose only lights are this bottom row (tap, then chase) */
+export function clearsBottom(solver: Press, bottom: readonly number[], top: readonly number[]): boolean {
+  const board = lit(bottom.map((c) => BOTTOM + c));
+  return isClear(chase(solver, pressAll(solver, board, top)).cells);
+}
+
+const FULL_ROW = (1 << SIZE) - 1;
+/** a row of taps lights itself and its left and right neighbours */
+const spread = (m: number) => (m ^ (m << 1) ^ (m >> 1)) & FULL_ROW;
+
+/**
+ * How an echo is made, by the row rule alone (no board): the taps in each row are the row above
+ * spread, cancelled against the row two above. Row 1 is the one top-row tap; the echo is what a
+ * sixth row would need. learn.test.ts checks this equals the real chase.
+ */
+export function echoRows(col: number): { rows: number[][]; echo: number[] } {
+  let prev = 0;
+  let cur = 1 << col;
+  const rows = [columns(cur)];
+  for (let r = 1; r < SIZE; r++) {
+    const next = spread(cur) ^ prev;
+    prev = cur;
+    cur = next;
+    rows.push(columns(cur));
+  }
+  return { rows, echo: columns(spread(cur) ^ prev) };
+}

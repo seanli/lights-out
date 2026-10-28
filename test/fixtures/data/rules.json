@@ -151,6 +151,7 @@
     },
     "demoStartMs": 700,
     "demoStepMs": 650,
-    "saveKey": "learn"
+    "saveKey": "learn",
+    "drill": { "cards": 10, "boxes": 3, "missGap": 3, "saveKey": "learn-drill" }
   }
 }
