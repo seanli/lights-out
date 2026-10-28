@@ -1,6 +1,7 @@
 // Pure maths for the lessons, derived from the solver service (press / isSolvable / solve).
 // Nothing here is hard-coded: the bottom-row table and the quiet patterns are found by trying.
-import { CELL_COUNT, SIZE, type Cells, type SolverService } from '../../contracts';
+import { CELL_COUNT, SIZE, type Cells, type Shape, type SolverService } from '../../contracts';
+import { cellIndexes, emptyCells, gridSize, isCell } from '../../lib/shape';
 
 type Press = Pick<SolverService, 'press'>;
 
@@ -22,9 +23,10 @@ export const isClear = (cells: readonly boolean[]): boolean => cells.every((on) 
 /** set bits of a 5-bit row mask as column numbers */
 export const columns = (mask: number): number[] => [...Array(SIZE).keys()].filter((c) => (mask >> c) & 1);
 
-export function pressAll(solver: Press, cells: Cells, presses: readonly number[]): Cells {
+/** press each in turn; shape absent = the classic board */
+export function pressAll(solver: Press, cells: Cells, presses: readonly number[], shape?: Shape): Cells {
   let b = cells;
-  for (const p of presses) b = solver.press(b, p);
+  for (const p of presses) b = shape ? solver.press(b, p, shape) : solver.press(b, p);
   return b;
 }
 
@@ -137,16 +139,17 @@ export function methodTaps(solver: Press, table: readonly TableEntry[], cells: C
   return [...counts].filter(([, n]) => n % 2 === 1).map(([i]) => i).sort((a, b2) => a - b2);
 }
 
-/** a board made from `count` distinct taps chosen from `pool`; never dark */
-export function makeBoard(solver: Press, pick: (n: number) => number, count: number, pool: readonly number[]): Cells {
+/** a board made from `count` distinct taps chosen from `pool`; never dark. shape absent = classic */
+export function makeBoard(solver: Press, pick: (n: number) => number, count: number, pool: readonly number[], shape?: Shape): Cells {
+  const dark = shape ? emptyCells(shape) : blank();
   for (let attempt = 0; attempt < 50; attempt++) {
     const bag = [...pool];
     const taps: number[] = [];
     for (let k = 0; k < count && bag.length; k++) taps.push(bag.splice(pick(bag.length), 1)[0]!);
-    const board = pressAll(solver, blank(), taps);
+    const board = pressAll(solver, dark, taps, shape);
     if (!isClear(board)) return board;
   }
-  return pressAll(solver, blank(), [pool[0]!]);
+  return pressAll(solver, dark, [pool[0]!], shape);
 }
 
 // ---------- echoes: why the bottom-row table works ----------
@@ -195,13 +198,7 @@ type ShapedPress = Pick<SolverService, 'press'>;
 interface Rect { cols: number; rows: number; mask: null }
 
 /** chase on any full rectangle: row by row, tap under every lit light */
-export function chaseRect(solver: ShapedPress, cells: Cells, shape: Rect): Cells {
-  let b = cells;
-  for (let r = 0; r < shape.rows - 1; r++) {
-    for (let c = 0; c < shape.cols; c++) if (b[r * shape.cols + c]) b = solver.press(b, (r + 1) * shape.cols + c, shape);
-  }
-  return b;
-}
+export const chaseRect = (solver: ShapedPress, cells: Cells, shape: Rect): Cells => chaseShape(solver, cells, shape).cells;
 
 /**
  * For each bottom-row light of a full rectangle: the fewest top-row taps that, after a chase, clear a board
@@ -237,4 +234,114 @@ export function rectTaps(perLight: readonly (number[] | null)[], bottom: readonl
     for (const t of set) if (!on.delete(t)) on.add(t);
   }
   return [...on].sort((a, b) => a - b);
+}
+
+// ---------- any shape (every room): chase, start and end cells, the start-cell fix ----------
+// A chase leaves lights only on "end" cells (nothing below). Taps on "start" cells (nothing above) are the
+// only taps a chase can't make, so the leftover is fixed there: tap the fewest start cells whose own chase
+// leaves exactly that leftover, then chase again. learn.test.ts proves chase + fix + chase clears every room.
+
+/** true when grid position i is a real cell with a real cell below it */
+export const hasBelow = (shape: Shape, i: number): boolean => isCell(shape, i) && i + shape.cols < gridSize(shape) && isCell(shape, i + shape.cols);
+const hasAbove = (shape: Shape, i: number): boolean => isCell(shape, i) && i >= shape.cols && isCell(shape, i - shape.cols);
+
+/** cells with nothing above: where the fix goes ("top-edge lights") */
+export const startCells = (shape: Shape): number[] => cellIndexes(shape).filter((i) => !hasAbove(shape, i));
+/** cells with nothing below: where a chase collects lights */
+export const endCells = (shape: Shape): number[] => cellIndexes(shape).filter((i) => !hasBelow(shape, i));
+/** true when every lit light sits on an end cell (a chase has nothing left to do) */
+export const onlyEnds = (cells: readonly boolean[], shape: Shape): boolean => cells.every((on, i) => !on || !hasBelow(shape, i));
+
+/** Chase on any shape: row by row from the top, tap the cell under each lit light, if there is one. */
+export function chaseShape(solver: ShapedPress, cells: Cells, shape: Shape): { taps: number[]; cells: Cells } {
+  let b = cells;
+  const taps: number[] = [];
+  // row-major order is row by row; a tap only changes its own row, the one above and the ones below
+  for (let i = 0; i < gridSize(shape); i++) {
+    if (!b[i] || !hasBelow(shape, i)) continue;
+    b = solver.press(b, i + shape.cols, shape);
+    taps.push(i + shape.cols);
+  }
+  return { taps, cells: b };
+}
+
+/** the next chase tap: under the first lit light (row by row) that has a cell below, or null */
+export function chaseShapeSuggest(cells: readonly boolean[], shape: Shape): number | null {
+  for (let i = 0; i < cells.length; i++) if (cells[i] && hasBelow(shape, i)) return i + shape.cols;
+  return null;
+}
+
+/** more start cells than this and the 2^n look-up gets slow; no room comes close (the most is 10) */
+export const MAX_FIX_STARTS = 14;
+
+const toBits = (cells: readonly boolean[]): bigint => {
+  let m = 0n;
+  for (let i = cells.length - 1; i >= 0; i--) m = (m << 1n) | (cells[i] ? 1n : 0n);
+  return m;
+};
+const lowBit = (m: number): number => 31 - Math.clz32(m & -m);
+
+export interface Fixer {
+  starts: number[];
+  ends: number[];
+  /** the fewest start taps whose chase leaves exactly this board (so tapping them, then chasing, clears it), or null */
+  fixFor(leftover: readonly boolean[]): number[] | null;
+  /** part-way through a fix: the board is a leftover plus some (not all) of its fix taps */
+  progress(cells: readonly boolean[]): { fix: number[]; done: number[] } | null;
+}
+
+/** Works out, once per shape, what each set of start taps leaves after a chase (from the solver, by trying). */
+export function createFixer(solver: ShapedPress, shape: Shape): Fixer {
+  const starts = startCells(shape);
+  const ends = endCells(shape);
+  if (starts.length > MAX_FIX_STARTS) throw new Error(`This board has ${starts.length} top-edge cells; at most ${MAX_FIX_STARTS} can be looked up`);
+  const dark = emptyCells(shape);
+  const n = 1 << starts.length;
+  const echo = starts.map((s) => toBits(chaseShape(solver, solver.press(dark, s, shape), shape).cells));
+  const pressed = starts.map((s) => toBits(solver.press(dark, s, shape)));
+  /** by subset of starts (bit k = starts[k]): what its chase leaves, and what its taps light */
+  const leaves: bigint[] = new Array<bigint>(n).fill(0n);
+  const lights: bigint[] = new Array<bigint>(n).fill(0n);
+  const size = new Uint8Array(n);
+  const best = new Map<bigint, number>();
+  for (let m = 1; m < n; m++) {
+    const k = lowBit(m), rest = m & (m - 1);
+    leaves[m] = leaves[rest]! ^ echo[k]!;
+    lights[m] = lights[rest]! ^ pressed[k]!;
+    size[m] = size[rest]! + 1;
+    const had = best.get(leaves[m]!);
+    if (leaves[m] !== 0n && (had === undefined || size[m]! < size[had]!)) best.set(leaves[m]!, m);
+  }
+  let nonEnd = 0n;
+  for (let i = 0; i < gridSize(shape); i++) if (hasBelow(shape, i)) nonEnd |= 1n << BigInt(i);
+  const list = (m: number) => starts.filter((_, k) => (m >> k) & 1);
+  return {
+    starts,
+    ends,
+    fixFor(leftover) {
+      const m = best.get(toBits(leftover));
+      return m === undefined ? null : list(m);
+    },
+    progress(cells) {
+      const b = toBits(cells);
+      for (let m = 1; m < n; m++) {
+        const before = b ^ lights[m]!;
+        if (before === 0n || (before & nonEnd) !== 0n) continue;
+        const f = best.get(before);
+        if (f !== undefined && (m & ~f) === 0 && m !== f) return { fix: list(f), done: list(m) };
+      }
+      return null;
+    },
+  };
+}
+
+/** the fewest start taps whose chase leaves exactly `leftover`, or null (works the table out each call) */
+export const fixFor = (solver: ShapedPress, shape: Shape, leftover: readonly boolean[]): number[] | null => createFixer(solver, shape).fixFor(leftover);
+
+/** the next tap of chase → fix → chase on any shape, from the board alone (survives reloads) */
+export function fixSuggest(fixer: Fixer, cells: readonly boolean[], shape: Shape): number | null {
+  if (isClear(cells)) return null;
+  const part = fixer.progress(cells);
+  if (part) return part.fix.find((c) => !part.done.includes(c))!;
+  return chaseShapeSuggest(cells, shape) ?? fixer.fixFor(cells)?.[0] ?? null;
 }

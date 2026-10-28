@@ -3,9 +3,17 @@
 
 .learn-screen { --learn-practice-min: calc(5 * var(--tap-min) + 4 * var(--space-1-5) + 2 * var(--space-2)); }
 
-/* ---------- lesson list ---------- */
+/* ---------- lesson list: Basics, then Board guides ---------- */
 .learn-intro { text-align: center; text-wrap: balance; }
+.learn-section { display: flex; flex-direction: column; gap: var(--space-2); }
+.learn-section__title { margin: 0; padding-inline: var(--space-1); }
+.learn-section + .learn-section { margin-top: var(--space-2); }
 .learn-list { list-style: none; margin: 0; padding: 0 0 var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
+/* a guide's tile: the room's own picture (src/lib/glyph.ts) on the same small board as a lesson's */
+.lesson-tile .room-glyph {
+  --glyph-box: calc(5 * var(--glyph-cell-sm) + 4 * var(--glyph-gap-sm));
+  box-sizing: content-box; padding: var(--space-1-5); border-radius: var(--radius-sm); background: var(--c-board); box-shadow: var(--shadow-board);
+}
 .lesson-tile {
   width: 100%; min-height: var(--level-tile-h); display: flex; align-items: center; gap: var(--space-3);
   padding: var(--space-3) var(--space-4) var(--space-3) var(--space-3); border: 0; border-radius: var(--radius-md); cursor: pointer; text-align: left;
@@ -28,6 +36,13 @@
   --board-size: auto; --cell-gap: var(--space-1-5); --board-pad: var(--space-2); --cell-radius: var(--radius-sm);
   width: auto; border-radius: var(--radius-md);
 }
+/* a room's board (data-mini-n = its side): tighter on 6 and 7 so the lights stay big; a gap keeps its slot, empty */
+.board--mini[data-mini-n="6"] { --cell-gap: var(--space-1); --board-pad: var(--space-1-5); --cell-radius: var(--radius-xs); }
+.board--mini[data-mini-n="7"] { --cell-gap: var(--space-1); --board-pad: var(--space-1-5); --cell-radius: var(--radius-xs); }
+.board--mini > .mini-gap { visibility: hidden; }
+/* three small boards side by side (a room's tap shapes): tighter still */
+.learn-figs[style*="--n:3"] .board--mini { --cell-gap: var(--space-half); --board-pad: var(--space-1); }
+.learn-figs[style*="--n:3"] { gap: var(--space-2); }
 /* "tap here" in lessons: the tutorial's pointer (warm-white dashed ring), steady. Teal ring + dot is Hint only. */
 .board--mini .cell[data-suggest="true"]::before {
   content: ""; position: absolute; inset: calc(-1 * var(--space-1)); pointer-events: none;
@@ -43,6 +58,9 @@
 .board--show, .board--demo { pointer-events: none; }
 .board--show .cell, .board--demo .cell { display: block; cursor: default; }
 .board--practice .cell { min-width: var(--tap-min); min-height: var(--tap-min); }
+/* 6×6 and 7×7 can't keep 44px lights on a phone; the board fills the width instead (as on the play screen) */
+.board--practice[data-mini-n="6"] .cell, .board--practice[data-mini-n="7"] .cell { min-width: 0; min-height: 0; }
+.learn-stage--practice > .board--mini:is([data-mini-n="6"], [data-mini-n="7"]) { min-width: 0; }
 .board--practice[data-status="solved"] .cell { pointer-events: none; opacity: var(--solved-dim); }
 
 /* tiny 5×5 picture on a lesson tile */
@@ -96,13 +114,36 @@
 .learn-nav { display: grid; grid-template-columns: 1fr 1.6fr; gap: var(--space-2); }
 .learn-nav .btn { min-height: var(--btn-h-compact); }
 
+/* ---------- a full rectangle's lights: each bottom light → its top taps; tap a row to play it on the board below ---------- */
+.learn-stage--lights { padding-top: var(--space-2); }
+.learn-lights {
+  /* rows of two strips + an arrow, then the board in what is left */
+  --strip-cell: min(var(--icon), calc((100cqw - 2 * var(--space-3) - var(--space-4) - 4 * var(--strip-n) * var(--space-1)) / (2 * var(--strip-n))));
+  width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; gap: var(--space-2);
+}
+.learn-lights__list { display: grid; grid-template-columns: auto; justify-items: center; gap: var(--space-half); flex: none; }
+.learn-lights__row {
+  display: grid; grid-template-columns: auto auto auto; align-items: center; column-gap: var(--space-2);
+  padding: var(--space-half) var(--space-2); border: 0; border-radius: var(--radius-sm); background: none; color: inherit; cursor: pointer; touch-action: manipulation;
+}
+.learn-lights__row[aria-pressed="true"] { background: var(--c-surface-2); box-shadow: 0 0 0 var(--ring-w) var(--c-pointer); }
+@media (hover: hover) { .learn-lights__row:hover { background: var(--c-surface-2); } }
+.learn-lights__row .learn-row { padding: var(--space-half); gap: var(--space-half); }
+.learn-lights > .board--mini { flex: 1 1 auto; min-height: 0; width: auto; height: auto; max-width: 100%; aspect-ratio: 1; }
+/* short phones: no room for both, so the step scrolls (picking a row brings the board into view) */
+@media (max-height: 700px) {
+  .learn-stage--lights { container-type: inline-size; flex: none; }
+  .learn-lights { height: auto; }
+  .learn-lights > .board--mini { flex: none; width: min(100%, calc(var(--board-max) / 2)); }
+}
+
 /* ---------- strips: one row of five (echo steps, rules, drill, the in-game table) ---------- */
 .learn-screen { --strip-cell: min(var(--tap-min), calc((100cqw - 2 * var(--space-4)) / 7)); }
 .learn-table__arrow { align-self: center; color: var(--c-text-faint); }
 .learn-row { display: grid; grid-template-columns: repeat(var(--strip-n, 5), var(--strip-cell)); gap: var(--space-1); padding: var(--space-1); border-radius: var(--radius-sm); background: var(--c-board); box-shadow: var(--shadow-board); }
 .learn-row > .cell { width: var(--strip-cell); height: var(--strip-cell); border-radius: var(--radius-xs); cursor: default; }
-.learn-row > .cell[data-suggest="true"] { box-shadow: inset 0 0 0 var(--ring-w) var(--c-pointer); background: var(--c-surface-3); }
-.learn-row > .cell[data-suggest="true"]:not([data-letter])::after {
+.learn-row:not(.learn-row--shape) > .cell[data-suggest="true"] { box-shadow: inset 0 0 0 var(--ring-w) var(--c-pointer); background: var(--c-surface-3); }
+.learn-row:not(.learn-row--shape) > .cell[data-suggest="true"]:not([data-letter])::after {
   content: ""; position: absolute; inset: 30%; border-radius: var(--radius-pill); background: var(--c-pointer);
 }
 /* the light's letter on a top-row tap: "tap B" reads at a glance */
@@ -161,6 +202,13 @@
 /* quiet text link ("Go deeper", "All lessons"): 44px hit height, no outline */
 .learn-link, .reference__lessons { box-shadow: none; color: var(--c-text-dim); font-size: var(--text-sm); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--c-line-strong); }
 .learn-link { align-self: center; min-height: var(--tap-min); padding-inline: var(--space-3); }
+
+/* a room's shape in the Patterns panel: the board's lights, the top-edge fix ringed with the tap pointer (dashed) */
+.learn-row--shape > .learn-row__gap { width: var(--strip-cell); height: var(--strip-cell); visibility: hidden; }
+.learn-row--shape > .cell[data-suggest="true"] { outline: var(--ring-w) dashed var(--c-pointer); outline-offset: var(--hairline); z-index: 1; }
+.learn-row--shape > .cell[data-suggest="true"]:not([data-lit="true"])::after {
+  content: ""; position: absolute; inset: 32%; border-radius: var(--radius-pill); background: var(--c-pointer);
+}
 
 /* ---------- short phones: drop the dots (the header says "Step N of M") and tighten the gaps ---------- */
 @media (max-height: 620px) {
@@ -225,6 +273,17 @@
 }
 /* other boards: advice only (no live row, no table) */
 .reference:not([data-reference-kind="classic"]) :is(.reference__you, .reference__table) { display: none; }
+/* shaped rooms: the board's picture with the fix ringed, beside the advice (so the board above keeps its room) */
+.reference__shape { display: flex; justify-content: center; }
+.reference__shape[hidden] { display: none; }
+.reference .learn-row--shape { --strip-cell: var(--icon-sm); gap: var(--space-half); padding: var(--space-1); }
+.reference[data-reference-kind="shaped"][data-matched="true"] {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--space-3); align-items: center;
+}
+.reference[data-reference-kind="shaped"][data-matched="true"] > .reference__pin { position: static; margin: 0; padding: 0; }
+.reference[data-reference-kind="shaped"][data-matched="true"] .reference__top { flex-direction: column; align-items: flex-start; }
+.reference[data-reference-kind="shaped"][data-matched="true"] .reference__top > .reference__status { flex: none; }
+.reference[data-reference-kind="shaped"] > .reference__shape { grid-column: 2; grid-row: 1; }
 .reference:not([data-reference-kind="classic"]) .reference__rule { color: var(--c-text-dim); }
 .reference__you { display: flex; align-items: center; gap: var(--space-2); }
 .reference__you > .caption { flex: none; }
@@ -247,6 +306,7 @@
 /* short screens: smaller strips so the table stays readable next to the board */
 @media (max-height: 740px) {
   .reference { --strip-cell: var(--icon-sm); }
+  .reference .learn-row--shape { --strip-cell: var(--glyph-cell); }
   .reference__table { row-gap: var(--space-half); }
   /* little room: before a match the table stays folded (no half rows under a fade); */
   .reference[data-matched="false"] .reference__table { display: none; }

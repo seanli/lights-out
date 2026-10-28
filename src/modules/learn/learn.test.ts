@@ -1,11 +1,13 @@
 // @vitest-environment happy-dom
 import { describe, expect, test } from 'vitest';
-import type { Cells, SolverService } from '../../contracts';
+import type { Cells, LevelDef, LevelsState, Pack, Shape, SolverService } from '../../contracts';
 import { createMemoryStorage, bootModule, fixtureData } from '../../../test/fake-ctx';
 import { refPress, refSolve } from '../../../test/ref-solver';
+import { cellIndexes, emptyCells, fitsShape, parseShape, pressTargets } from '../../lib/shape';
 import learn from './index';
-import { BOTTOM, blank, bottomColumns, bottomRowTable, chase, chaseRect, chaseSuggest, clearsBottom, echoOf, echoOfSet, echoRows, isClear, lit, methodTaps, onlyBottom, pressAll, quietPatterns, rectTaps, rectTopSets } from './method';
+import { BOTTOM, blank, bottomColumns, bottomRowTable, chase, chaseRect, chaseShape, chaseSuggest, clearsBottom, createFixer, echoOf, echoOfSet, echoRows, endCells, fixFor, fixSuggest, isClear, lit, methodTaps, onlyBottom, onlyEnds, pressAll, quietPatterns, rectTaps, rectTopSets, startCells } from './method';
 import { RULES } from './lessons';
+import { buildGuide, footprint, guideKind, spot } from './guides';
 import { createAdvisor, kindOf } from './reference';
 import { answer, emptySave, finished, nextCard, planRound, type Round } from './drill';
 
@@ -14,6 +16,71 @@ const solver: SolverService = {
   solve: (cells) => refSolve(cells),
   isSolvable: (cells) => refSolve(cells) !== null,
 };
+
+/** independent reference for any shape: presses from the geometry, BigInt elimination, then the lightest solution */
+function refShapedSolve(shape: Shape, cells: readonly boolean[]): number[] | null {
+  const vars = cellIndexes(shape);
+  if (!fitsShape(shape, cells)) return null;
+  const n = vars.length, B = BigInt(n);
+  const pos = new Map(vars.map((g, j) => [g, j]));
+  const rows = vars.map((g) => pressTargets(shape, g).reduce((row, t) => row | (1n << BigInt(pos.get(t)!)), cells[g] ? 1n << B : 0n));
+  const pivots: number[] = [];
+  for (let col = 0; col < n; col++) {
+    const bit = 1n << BigInt(col), rank = pivots.length;
+    const p = rows.findIndex((row, i) => i >= rank && (row & bit) !== 0n);
+    if (p < 0) continue;
+    [rows[rank], rows[p]] = [rows[p]!, rows[rank]!];
+    for (let r = 0; r < n; r++) if (r !== rank && rows[r]! & bit) rows[r]! ^= rows[rank]!;
+    pivots.push(col);
+  }
+  for (let r = pivots.length; r < n; r++) if (rows[r]! >> B) return null;
+  const free = [...Array(n).keys()].filter((c) => !pivots.includes(c));
+  let best: number[] | null = null;
+  for (let combo = 0; combo < 1 << free.length; combo++) {
+    const x = new Set<number>(free.filter((_, k) => combo & (1 << k)));
+    pivots.forEach((pv, r) => {
+      let bit = (rows[r]! >> B) & 1n;
+      for (const f of free) if (x.has(f) && rows[r]! & (1n << BigInt(f))) bit ^= 1n;
+      if (bit) x.add(pv);
+    });
+    if (!best || x.size < best.length) best = [...x];
+  }
+  return best!.map((j) => vars[j]!).sort((a, b) => a - b);
+}
+/** classic through the 5×5 reference, any other shape through the shaped one (modules never import each other) */
+const roomSolver: SolverService = {
+  press: (cells, i, shape) => {
+    if (!shape) return refPress(cells, i);
+    const out = cells.slice();
+    for (const t of pressTargets(shape, i)) out[t] = !out[t];
+    return out;
+  },
+  solve: (cells, shape) => (shape ? refShapedSolve(shape, cells) : refSolve(cells)),
+  isSolvable: (cells, shape) => (shape ? refShapedSolve(shape, cells) : refSolve(cells)) !== null,
+};
+
+/** every room in the frozen data, as the levels module would make it */
+type RoomData = { id: string; kind: 'size' | 'shape'; cols?: number; rows?: number; picture?: string[]; idBase: number; pars: number[] };
+const ROOM_DATA = (fixtureData.rules as { levels: { rooms: RoomData[] } }).levels.rooms;
+const ROOM_NAMES = (fixtureData.copy as { levels: { rooms: Record<string, string> } }).levels.rooms;
+const roomShape = (r: RoomData): Shape => (r.picture ? parseShape(r.picture) : { cols: r.cols!, rows: r.rows!, mask: null });
+const PACKS: Pack[] = ROOM_DATA.map((r) => ({ id: r.id, name: ROOM_NAMES[r.id]!, kind: r.kind, shape: roomShape(r), first: r.idBase + 1, count: r.pars.length }));
+const ROOM = Object.fromEntries(PACKS.map((p) => [p.id, p.shape])) as Record<string, Shape>;
+/** a levels slice with the classic pack and every room, one level per room (enough for the panel's pack lookup) */
+const levelsState = (): LevelsState => ({
+  status: 'ready', chapters: [],
+  packs: [{ id: 'classic', name: 'Classic', kind: 'classic', shape: { cols: 5, rows: 5, mask: null }, first: 1, count: 50 }, ...PACKS],
+  list: PACKS.map((p): LevelDef => ({ id: p.first, cells: emptyCells(p.shape), par: 1, pack: p.id, index: 1, shape: p.shape })),
+});
+/** a board from random taps on a shape (always solvable), never dark */
+function randomBoard(shape: Shape, seed: number, taps = 8): Cells {
+  const real = cellIndexes(shape);
+  let x = seed * 2654435761 >>> 0;
+  const next = () => { x = (x * 1103515245 + 12345) >>> 0; return x >>> 8; };
+  let b = emptyCells(shape);
+  for (let k = 0; k < taps; k++) b = roomSolver.press(b, real[next() % real.length]!, shape);
+  return isClear(b) ? roomSolver.press(b, real[0]!, shape) : b;
+}
 const boot = (opts: Parameters<typeof bootModule>[1] = {}) => {
   document.body.replaceChildren();
   return bootModule(learn, { ...opts, services: { solver, ...opts.services } });
@@ -438,20 +505,15 @@ describe('learn: in-game pattern reference', () => {
 });
 
 describe('learn: the reference on Variety boards', () => {
-  /** presses on any full rectangle; solving stays classic (all the reference needs) */
-  const shapedSolver = { ...solver, press: (cells: boolean[], i: number, shape?: { cols: number; rows: number }) => {
-    const s = shape ?? { cols: 5, rows: 5 };
-    const out = cells.slice();
-    const r = Math.floor(i / s.cols), c = i % s.cols;
-    const flip = (k: number) => { out[k] = !out[k]; };
-    flip(i); if (r > 0) flip(i - s.cols); if (r < s.rows - 1) flip(i + s.cols); if (c > 0) flip(i - 1); if (c < s.cols - 1) flip(i + 1);
-    return out;
-  } } as unknown as SolverService;
+  const shapedSolver = roomSolver;
   const table = bottomRowTable(solver);
-  const status = { start: 'start', chase: 'Row {row}: tap under each lit light.', match: 'match', progress: 'progress', clear: 'clear', nomatch: 'nomatch', rectBottom: 'Only the bottom row is left.', rectMatch: 'rect match' };
-  const advise = createAdvisor(shapedSolver, table, status, 'shaped line');
+  const status = {
+    start: 'start', chase: 'Row {row}: tap under each lit light.', match: 'match', progress: 'progress', clear: 'clear', nomatch: 'nomatch',
+    rectBottom: 'Only the bottom row is left.', rectMatch: 'rect match', shapedFix: 'fix {n}', shapedProgress: 'finish {n}', shapedNomatch: 'no fix',
+  };
+  const advise = createAdvisor(shapedSolver, table, status, (shape) => createFixer(roomSolver, shape));
   const rect = (n: number) => ({ cols: n, rows: n, mask: null });
-  const ring = { cols: 7, rows: 7, mask: [...'XXXXXXXXXXXXXXXX...XXXX...XXXX...XXXXXXXXXXXXXXXX'].map((ch) => ch === 'X') };
+  const ring = ROOM.ring!;
   const on = (n: number, idx: number[]) => { const c = new Array<boolean>(n).fill(false); for (const i of idx) c[i] = true; return c; };
   const boardState = (cells: boolean[], shape?: { cols: number; rows: number; mask: boolean[] | null }) =>
     ({ status: 'playing' as const, levelId: 3001, start: cells, cells, par: 5, moves: 0, history: [], ...(shape ? { shape } : {}) });
@@ -505,12 +567,23 @@ describe('learn: the reference on Variety boards', () => {
     expect(advise.rectLine(rect(6) as never, lines)).toBe('own');
   });
 
-  test('shaped rooms: one calm line, whatever is lit', () => {
-    expect(advise({ status: 'playing', cells: on(49, [0, 48]), shape: ring })).toMatchObject({ text: 'shaped line', match: -1 });
+  test('shaped rooms: chase by the row of the first light above an end cell, then the start-cell fix ringed, then progress', () => {
+    // (0,0) lit: row 1 has a light with a cell below it
+    expect(advise({ status: 'playing', cells: on(49, [0, 48]), shape: ring })).toMatchObject({ status: 'chase', text: 'Row 1: tap under each lit light.' });
+    // lights only on end cells (row 2 above the hole, bottom row): the fix, ringed
+    const fx = createFixer(roomSolver, ring);
+    let seed = 1;
+    while ((fx.fixFor(chaseShape(roomSolver, randomBoard(ring, seed), ring).cells)?.length ?? 0) < 2) seed++;
+    const left = chaseShape(roomSolver, randomBoard(ring, seed), ring).cells;
+    const fix = fx.fixFor(left)!;
+    expect(advise({ status: 'playing', cells: left, shape: ring })).toMatchObject({ status: 'match', text: `fix ${fix.length}`, shaped: { ring: fix } });
+    // one of the fix taps done: finish the rest (not "chase row 1", which would undo it)
+    const p = advise({ status: 'playing', cells: roomSolver.press(left, fix[0]!, ring), shape: ring });
+    expect(p).toMatchObject({ status: 'match', text: `finish ${fix.length - 1}`, shaped: { ring: fix.slice(1) } });
     expect(advise({ status: 'solved', cells: on(49, []), shape: ring }).status).toBe('clear');
   });
 
-  test('on a 7×7 board the panel shows chase advice, then the strip pair; on a Ring the shape line; classic is unchanged', () => {
+  test('on a 7×7 board the panel shows chase advice, then the strip pair; on a Ring chase advice; classic is unchanged', () => {
     const t = boot({ state: { board: boardState(on(49, [9]), rect(7)) }, services: { solver: shapedSolver } });
     const root = panel(t).querySelector<HTMLElement>('[data-reference]')!;
     expect(root.dataset.referenceKind).toBe('rect');
@@ -530,8 +603,9 @@ describe('learn: the reference on Variety boards', () => {
     t.kernel.seed('board', boardState(on(49, [0]), ring));
     t.emit('learn:set_assist', { on: false });
     expect(root.dataset.referenceKind).toBe('shaped');
-    expect(root.querySelector('[data-reference-status]')!.textContent).toMatch(/doesn't fit this shape/);
+    expect(root.querySelector('[data-reference-status]')!.textContent).toBe('Row 1: tap under each lit light.');
     expect(root.querySelector<HTMLElement>('[data-reference-rule]')!.hidden).toBe(true);
+    expect(root.querySelector<HTMLElement>('[data-reference-shape]')!.hidden).toBe(true);
     expect(root.querySelector('[data-reference-status]')!.getAttribute('data-tone')).toBe('coach');
 
     t.kernel.seed('board', boardState(lit([BOTTOM, BOTTOM + 1, BOTTOM + 2])));
@@ -540,5 +614,368 @@ describe('learn: the reference on Variety boards', () => {
     expect(root.querySelector('[data-reference-status]')!.getAttribute('data-reference-status')).toBe('match');
     expect(root.querySelectorAll('[data-pattern-row][data-match="true"]')).toHaveLength(1);
     expect(document.querySelectorAll('[data-cell]')).toHaveLength(0);
+  });
+});
+
+describe('learn: any shape — chase, start and end cells, the start-cell fix', () => {
+  const ROOM_IDS = PACKS.map((p) => p.id);
+
+  test('start cells have nothing above, end cells nothing below', () => {
+    expect(startCells(ROOM['4x4']!)).toEqual([0, 1, 2, 3]);
+    expect(endCells(ROOM['4x4']!)).toEqual([12, 13, 14, 15]);
+    expect([startCells(ROOM.cross!).length, endCells(ROOM.cross!).length]).toEqual([7, 7]);
+    expect([startCells(ROOM.ring!).length, endCells(ROOM.ring!).length]).toEqual([10, 10]);
+    expect([startCells(ROOM.diamond!).length, endCells(ROOM.diamond!).length]).toEqual([7, 7]);
+    // the Ring's row above the hole collects lights; the row under it starts them
+    expect(endCells(ROOM.ring!)).toEqual(expect.arrayContaining([9, 10, 11]));
+    expect(startCells(ROOM.ring!)).toEqual(expect.arrayContaining([37, 38, 39]));
+  });
+
+  test('classic and full rectangles keep their chase: the any-shape chase gives the same taps and board', () => {
+    const classic = { cols: 5, rows: 5, mask: null };
+    for (let k = 1; k <= 40; k++) {
+      const b = randomBoard(classic, k, 7);
+      expect(chaseShape(roomSolver, b, classic)).toEqual(chase(solver, b));
+    }
+    // the fewest start taps on 5×5 are as short as the bottom-row table's top taps
+    for (const e of bottomRowTable(solver)) expect(fixFor(roomSolver, classic, lit(e.bottom.map((c) => BOTTOM + c)))!.length).toBe(e.top.length);
+  });
+
+  test.each(ROOM_IDS)('%s: a chase leaves lights only on end cells; chase → fix → chase clears random boards', (id) => {
+    const shape = ROOM[id]!;
+    const fx = createFixer(roomSolver, shape);
+    for (let k = 1; k <= 80; k++) {
+      const board = randomBoard(shape, k, 2 + (k % 12));
+      const c1 = chaseShape(roomSolver, board, shape);
+      expect(onlyEnds(c1.cells, shape)).toBe(true);
+      if (isClear(c1.cells)) continue;
+      const fix = fx.fixFor(c1.cells);
+      expect(fix, `${id} board ${k}`).not.toBeNull();
+      expect(fix!.every((i) => fx.starts.includes(i))).toBe(true);
+      expect(isClear(chaseShape(roomSolver, pressAll(roomSolver, c1.cells, fix!, shape), shape).cells), `${id} board ${k}`).toBe(true);
+    }
+  });
+
+  test.each(ROOM_IDS)('%s: the fix is the fewest start taps (checked against every smaller set)', (id) => {
+    const shape = ROOM[id]!;
+    const fx = createFixer(roomSolver, shape);
+    const leaves = (set: number[]) => chaseShape(roomSolver, pressAll(roomSolver, emptyCells(shape), set, shape), shape).cells.join();
+    for (let k = 1; k <= 12; k++) {
+      const left = chaseShape(roomSolver, randomBoard(shape, k * 7, 6), shape).cells;
+      const fix = fx.fixFor(left);
+      if (!fix) continue;
+      for (let m = 0; m < 1 << fx.starts.length; m++) {
+        const set = fx.starts.filter((_, b) => (m >> b) & 1);
+        if (set.length < fix.length) expect(leaves(set)).not.toBe(left.join());
+      }
+    }
+  });
+
+  test.each(ROOM_IDS)('%s: the assist (chase → fix → chase, from the board alone) reaches dark', (id) => {
+    const shape = ROOM[id]!;
+    const fx = createFixer(roomSolver, shape);
+    for (let k = 1; k <= 25; k++) {
+      let b = randomBoard(shape, k * 13, 3 + (k % 8));
+      for (let n = 0; n < 200 && !isClear(b); n++) b = roomSolver.press(b, fixSuggest(fx, b, shape)!, shape);
+      expect(isClear(b), `${id} board ${k}`).toBe(true);
+    }
+  });
+});
+
+describe('learn: what the board guides say (proved from the solver)', () => {
+  const rect = (n: number) => ({ cols: n, rows: n, mask: null });
+  const letters = (sets: (number[] | null)[]) => sets.map((x) => (x ? x.map((c) => 'ABCDEFG'[c]).join('') : '-'));
+
+  test('4×4: a chase alone clears every solvable board', () => {
+    expect(rectTopSets(roomSolver, rect(4)).chaseClears).toBe(true);
+    for (let k = 1; k <= 60; k++) expect(isClear(chaseShape(roomSolver, randomBoard(rect(4), k, 1 + (k % 9)), rect(4)).cells)).toBe(true);
+  });
+
+  test('6×6: one bottom light → the top lights two to each side of it; A and F also the one above', () => {
+    const rule = (c: number, n: number) => [c - 2, c, c + 2].filter((x) => x >= 0 && x < n && (x !== c || c === 0 || c === n - 1));
+    expect(rectTopSets(roomSolver, rect(6)).perLight).toEqual([0, 1, 2, 3, 4, 5].map((c) => rule(c, 6)));
+    expect(letters(rectTopSets(roomSolver, rect(6)).perLight)).toEqual(['AC', 'D', 'AE', 'BF', 'C', 'DF']);
+  });
+
+  test('7×7: one bottom light → the three top lights above it, two at an edge', () => {
+    expect(rectTopSets(roomSolver, rect(7)).perLight).toEqual([0, 1, 2, 3, 4, 5, 6].map((c) => [c - 1, c, c + 1].filter((x) => x >= 0 && x < 7)));
+  });
+
+  test('several bottom lights: each one\'s top taps in turn (twice cancels), then a chase, clears every bottom row', () => {
+    for (const n of [6, 7]) {
+      const { perLight } = rectTopSets(roomSolver, rect(n));
+      for (let p = 1; p < 1 << n; p++) {
+        const bottom = [...Array(n).keys()].filter((c) => (p >> c) & 1);
+        let b = emptyCells(rect(n)).map((_, i) => i >= (n - 1) * n && bottom.includes(i - (n - 1) * n));
+        for (const c of bottom) b = pressAll(roomSolver, b, perLight[c]!, rect(n));
+        expect(isClear(chaseShape(roomSolver, b, rect(n)).cells), `${n}×${n} ${bottom}`).toBe(true);
+      }
+    }
+  });
+
+  test('Cross and Ring: lone end lights mostly can\'t be fixed from the top edge; Diamond: each takes 5–7 taps (no table to learn)', () => {
+    const lone = (id: string) => {
+      const fx = createFixer(roomSolver, ROOM[id]!);
+      return fx.ends.map((e) => fx.fixFor(emptyCells(ROOM[id]!).map((_, i) => i === e))?.length ?? null);
+    };
+    expect(lone('cross').every((x) => x === null)).toBe(true);
+    expect(lone('ring').filter((x) => x === null).length).toBeGreaterThan(5);
+    expect(lone('diamond').every((x) => x !== null && x >= 5 && x <= 7)).toBe(true);
+  });
+});
+
+describe('learn: board guides', () => {
+  const guideCopy = (fixtureData.copy as { learn: { guides: Record<string, { summary: string; steps: string[] }> } }).learn.guides;
+  const bootRooms = (opts: Parameters<typeof bootModule>[1] = {}) => boot({ ...opts, services: { solver: roomSolver, ...opts.services }, state: { levels: levelsState(), ...opts.state } });
+  const KIND: Record<string, string> = { '4x4': 'chase', '6x6': 'lights', '7x7': 'lights', cross: 'shapes', ring: 'shapes', diamond: 'shapes' };
+
+  test('each room gets the guide its maths calls for, with one sentence per step', () => {
+    for (const p of PACKS) {
+      expect(guideKind(roomSolver, p.shape), p.id).toBe(KIND[p.id]);
+      const g = buildGuide(roomSolver, p);
+      expect(guideCopy[p.id]!.steps).toHaveLength(g.lesson.steps.length);
+      expect(g.lesson.steps.length).toBeLessThanOrEqual(5);
+      expect(g.lesson.steps.at(-1)!.kind).toBe('practice');
+      expect(g.lesson.steps.filter((s) => s.kind !== 'practice').length).toBeLessThanOrEqual(4);
+    }
+  });
+
+  test.each(PACKS.map((p) => p.id))('%s: every example sits on the real shape and every demo does what its words say', (id) => {
+    const shape = ROOM[id]!;
+    const g = buildGuide(roomSolver, PACKS.find((p) => p.id === id)!);
+    const fx = createFixer(roomSolver, shape);
+    g.lesson.steps.forEach((step, k) => {
+      if (step.kind === 'demo') {
+        const start = step.lit ? emptyCells(shape).map((_, i) => step.lit!.includes(i)) : pressAll(roomSolver, emptyCells(shape), step.from, shape);
+        const play = step.play as number[];
+        expect(fitsShape(shape, start)).toBe(true);
+        expect(isClear(start)).toBe(false);
+        expect(play.every((i) => cellIndexes(shape).includes(i))).toBe(true);
+        expect(step.phases).toHaveLength(play.length);
+        const end = pressAll(roomSolver, start, play, shape);
+        // the first lights demo stops with only bottom lights; every other demo ends dark
+        if (KIND[id] === 'lights' && k === 0) expect(onlyEnds(end, shape) && !isClear(end)).toBe(true);
+        else expect(isClear(end), `${id} step ${k + 1}`).toBe(true);
+        // a chase tap always goes under a lit light; top-edge taps are start cells
+        let b = start;
+        play.forEach((t, n) => {
+          const phase = step.phases![n];
+          if (phase === 'chase' || phase === 'chase2') expect(b[t - shape.cols], `${id} step ${k + 1} tap ${n + 1}`).toBe(true);
+          if (phase === 'edge' || phase === 'top') expect(fx.starts).toContain(t);
+          b = roomSolver.press(b, t, shape);
+        });
+      }
+      if (step.kind === 'show') {
+        // three real tap shapes, a plus first, each named for what it is
+        expect(step.boards[0]!.caption).toBe('plus');
+        expect(new Set(step.boards.map((b) => b.caption)).size).toBe(3);
+        for (const b of step.boards) expect(footprint(shape, b.from[0]!)).toBe(b.caption);
+      }
+      if (step.kind === 'lights') {
+        for (const r of step.rows) {
+          const b = pressAll(roomSolver, emptyCells(shape).map((_, i) => i === r.bottom), r.top, shape);
+          expect(isClear(chaseShape(roomSolver, b, shape).cells)).toBe(true);
+        }
+      }
+    });
+    if (KIND[id] === 'shapes') {
+      const [, spotStep, stuckStep] = g.lesson.steps as Extract<(typeof g.lesson.steps)[number], { kind: 'demo' }>[];
+      // spotting: the demo taps are exactly what spotting finds, two or three of them
+      expect(spot(roomSolver, shape, pressAll(roomSolver, emptyCells(shape), spotStep!.from, shape))).toEqual(spotStep!.play);
+      expect((spotStep!.play as number[]).length).toBeGreaterThanOrEqual(2);
+      // stuck: spotting can't clear it; chase, one top-edge tap, chase again
+      expect(spot(roomSolver, shape, pressAll(roomSolver, emptyCells(shape), stuckStep!.from, shape))).toBeNull();
+      expect(stuckStep!.phases!.filter((x) => x === 'edge')).toHaveLength(1);
+    }
+  });
+
+  test('the Learn list: Basics (the five lessons, unchanged) then Board guides, one tile per room with its picture and name', () => {
+    const t = bootRooms();
+    t.emit('learn:open', {});
+    const sections = qa('[data-learn-section]');
+    expect(sections.map((s) => s.dataset.learnSection)).toEqual(['basics', 'boards']);
+    expect([...sections[0]!.querySelectorAll<HTMLElement>('[data-lesson-tile]')].map((e) => e.dataset.lesson)).toEqual(['shapes', 'order', 'chase', 'bottom-row', 'shortest']);
+    const guides = [...sections[1]!.querySelectorAll<HTMLElement>('[data-lesson-tile]')];
+    expect(guides.map((e) => e.dataset.lesson)).toEqual(PACKS.map((p) => `guide-${p.id}`));
+    for (const [k, tile] of guides.entries()) {
+      expect(tile.dataset.completed).toBe('false');
+      expect(tile.querySelector('.room-glyph')).toBeTruthy();
+      expect(tile.textContent).toContain(PACKS[k]!.name);
+    }
+    guides[3]!.click();
+    expect(t.state('learn').lessonId).toBe('guide-cross');
+  });
+
+  test('without the rooms (no levels module) there are no guides, and opening one is refused', () => {
+    const t = boot();
+    t.emit('learn:open', {});
+    expect(q('[data-learn-section="boards"]')).toBeNull();
+    t.emit('learn:open', { lessonId: 'guide-ring' });
+    expect(t.seen('learn:refused', { command: 'learn:open', reason: 'unknown_lesson' })).toBeTruthy();
+  });
+
+  test('a room with no guide copy, or copy that doesn\'t fit its board, gets no guide', () => {
+    const copy = fixtureData.copy as { learn: { guides: Record<string, unknown> } };
+    const { diamond: _gone, ...guides } = copy.learn.guides;
+    const data = { ...fixtureData, copy: { ...copy, learn: { ...copy.learn, guides: { ...guides, ring: { summary: 'Ring', steps: ['Too short.'] } } } } };
+    const t = bootRooms({ data: data as typeof fixtureData });
+    t.emit('learn:open', {});
+    expect(qa('[data-learn-section="boards"] [data-lesson-tile]').map((e) => e.dataset.lesson)).toEqual(['guide-4x4', 'guide-6x6', 'guide-7x7', 'guide-cross']);
+    t.emit('learn:open', { lessonId: 'guide-ring' });
+    expect(t.seen('learn:refused', { command: 'learn:open', reason: 'unknown_lesson' })).toBeTruthy();
+  });
+
+  test('a guide is drawn on its own shape: gaps keep their slot, empty, and are never cells or buttons', () => {
+    const t = bootRooms();
+    t.emit('learn:open', { lessonId: 'guide-ring' });
+    const figs = qa('[data-mini-board="show"]');
+    expect(figs).toHaveLength(3);
+    for (const f of figs) {
+      expect(f.querySelectorAll('[data-mini-cell]')).toHaveLength(40);
+      expect(f.querySelectorAll('[data-gap]')).toHaveLength(9);
+      expect(f.querySelectorAll('[data-gap][data-mini-cell], [data-gap] button')).toHaveLength(0);
+      expect(f.querySelectorAll('[data-mark="true"]')).toHaveLength(1);
+    }
+    for (let k = 0; k < 3; k++) t.emit('learn:step', { delta: 1 });
+    const board = q('[data-mini-board="practice"]')!;
+    expect(board.querySelectorAll('button[data-mini-cell]')).toHaveLength(40);
+    expect(board.querySelectorAll('button[data-gap]')).toHaveLength(0);
+    t.emit('learn:press', { index: 24 }); // the hole
+    expect(t.seen('learn:refused', { command: 'learn:press', reason: 'bad_index' })).toBeTruthy();
+  });
+
+  test.each(PACKS.map((p) => p.id))('%s practice: assist walks it to dark; solving completes the guide, is saved, and touches no stars', (id) => {
+    const storage = createMemoryStorage();
+    const t = bootRooms({ services: { storage } });
+    t.emit('learn:open', { lessonId: `guide-${id}` });
+    const steps = buildGuide(roomSolver, PACKS.find((p) => p.id === id)!).lesson.steps.length;
+    for (let k = 1; k < steps; k++) t.emit('learn:step', { delta: 1 });
+    const p = t.state('learn').practice!;
+    expect(p.cells).toHaveLength(ROOM[id]!.cols * ROOM[id]!.rows);
+    expect(fitsShape(ROOM[id]!, p.cells)).toBe(true);
+    t.emit('learn:set_assist', { on: true });
+    for (let k = 0; k < 120 && t.state('learn').practice!.status === 'playing'; k++) {
+      const s = t.state('learn').practice!.suggest!;
+      expect(q(`[data-mini-board="practice"] [data-mini-cell][data-index="${s}"]`)!.dataset.suggest).toBe('true');
+      t.emit('learn:press', { index: s });
+    }
+    expect(t.state('learn').practice!.status).toBe('solved');
+    expect(t.seen('learn:practice_solved', { lessonId: `guide-${id}` })).toBeTruthy();
+    expect(t.seen('learn:lesson_completed', { lessonId: `guide-${id}` })).toBeTruthy();
+    expect(t.events().some((e) => e.type.startsWith('progress:') || e.type.startsWith('board:'))).toBe(false);
+    expect((storage.get('learn') as { completed: string[] }).completed).toEqual([`guide-${id}`]);
+    const again = bootRooms({ services: { storage } });
+    again.emit('learn:open', {});
+    expect(q(`[data-lesson-tile][data-lesson="guide-${id}"]`)!.dataset.completed).toBe('true');
+  });
+
+  test('the lights step: six strips on 6×6, letters A–F; tapping a strip plays that light to dark', () => {
+    const t = bootRooms();
+    t.emit('learn:open', { lessonId: 'guide-6x6' });
+    t.emit('learn:step', { delta: 1 });
+    const rows = qa('[data-action="learn-strip"]');
+    expect(rows).toHaveLength(6);
+    expect(rows.map((r) => [...r.querySelectorAll<HTMLElement>('[data-letter]')].map((e) => e.dataset.letter).join(''))).toEqual(['AC', 'D', 'AE', 'BF', 'C', 'DF']);
+    expect(rows[2]!.getAttribute('aria-pressed')).toBe('true');
+    rows[5]!.click();
+    expect(rows[5]!.getAttribute('aria-pressed')).toBe('true');
+    const litIdx = () => qa('[data-mini-board="demo"] [data-mini-cell]').flatMap((e) => (e.dataset.lit === 'true' ? [Number(e.dataset.index)] : []));
+    expect(litIdx()).toEqual([35]);
+    const button = q('[data-action="learn-demo"]')!;
+    for (let k = 0; k < 40 && button.textContent !== 'Replay'; k++) button.click();
+    expect(litIdx()).toEqual([]);
+  });
+
+  test('opened from a level, Back and Done go straight back there', () => {
+    const t = bootRooms({ state: { nav: { screen: 'play', sheet: null, previous: 'home' } } });
+    t.emit('learn:open', { lessonId: 'guide-4x4' });
+    expect(q('[data-action="learn-back"]')!.getAttribute('aria-label')).toBe('Back');
+    q('[data-action="learn-back"]')!.click();
+    expect(t.seen('nav:back')).toEqual({});
+    const before = t.all('nav:back').length;
+    for (let k = 0; k < 3; k++) t.emit('learn:step', { delta: 1 });
+    expect(t.all('nav:back')).toHaveLength(before + 1);
+    expect(t.state('learn').lessonId).toBeNull();
+    expect(t.state('learn').completed).toContain('guide-4x4');
+  });
+});
+
+describe('learn: the Patterns panel on room boards', () => {
+  const boardOn = (id: string, cells: Cells) => ({ status: 'playing' as const, levelId: PACKS.find((p) => p.id === id)!.first, start: cells, cells, par: 3, moves: 0, history: [], shape: ROOM[id]! });
+  const bootPanel = (id: string, cells: Cells) => boot({ services: { solver: roomSolver }, state: { levels: levelsState(), board: boardOn(id, cells) } });
+  const flush = (t: ReturnType<typeof boot>) => t.emit('learn:set_assist', { on: false });
+
+  test.each(['cross', 'ring', 'diamond'])('%s: chase by row, then the board picture with the top-edge fix ringed; following it clears the board', (id) => {
+    const shape = ROOM[id]!;
+    const fx = createFixer(roomSolver, shape);
+    let seed = 1;
+    while (isClear(chaseShape(roomSolver, randomBoard(shape, seed, 5), shape).cells)) seed++;
+    let cells = randomBoard(shape, seed, 5);
+    const t = bootPanel(id, cells);
+    const root = t.view!.region('slot:reference').querySelector<HTMLElement>('[data-reference]')!;
+    const status = root.querySelector<HTMLElement>('[data-reference-status]')!;
+    const picture = root.querySelector<HTMLElement>('[data-reference-shape]')!;
+    expect(root.dataset.referenceKind).toBe('shaped');
+    // chasing: the row of the first light with a cell below it
+    for (let n = 0; n < 60 && !onlyEnds(cells, shape); n++) {
+      const next = chaseShape(roomSolver, cells, shape).taps[0]!;
+      expect(status.textContent).toBe(`Row ${Math.floor(next / shape.cols)}: tap under each lit light.`);
+      expect(picture.hidden).toBe(true);
+      cells = roomSolver.press(cells, next, shape);
+      t.kernel.seed('board', boardOn(id, cells));
+      flush(t);
+    }
+    // only end lights: the picture, lit like the board, the fix ringed
+    const fix = fx.fixFor(cells)!;
+    expect(picture.hidden).toBe(false);
+    expect(status.textContent).toMatch(/^Tap the ringed top-edge light/);
+    expect(picture.querySelectorAll('[data-mini-cell]')).toHaveLength(cellIndexes(shape).length);
+    expect([...picture.querySelectorAll<HTMLElement>('[data-suggest="true"]')].map((e) => Number(e.dataset.index))).toEqual(fix);
+    expect([...picture.querySelectorAll<HTMLElement>('[data-lit="true"]')].map((e) => Number(e.dataset.index))).toEqual(cellIndexes(shape).filter((i) => cells[i]));
+    // tap the ringed ones (the panel keeps the rest ringed), then chase: dark
+    for (const [k, f] of fix.entries()) {
+      cells = roomSolver.press(cells, f, shape);
+      t.kernel.seed('board', boardOn(id, cells));
+      flush(t);
+      if (k < fix.length - 1) expect([...picture.querySelectorAll<HTMLElement>('[data-suggest="true"]')].map((e) => Number(e.dataset.index))).toEqual(fix.slice(k + 1));
+    }
+    expect(isClear(chaseShape(roomSolver, cells, shape).cells)).toBe(true);
+    expect(document.querySelectorAll('[data-cell]')).toHaveLength(0); // never the main board
+  });
+
+  test('room boards link to their guide; classic keeps "All lessons"', () => {
+    const t = bootPanel('ring', randomBoard(ROOM.ring!, 2));
+    const panel = t.view!.region('slot:reference');
+    const guide = panel.querySelector<HTMLElement>('[data-action="guide"]')!;
+    expect(guide.hidden).toBe(false);
+    expect(panel.querySelector<HTMLElement>('[data-action="learn"]')!.hidden).toBe(true);
+    guide.click();
+    expect(t.seen('learn:open')).toEqual({ lessonId: 'guide-ring' });
+    expect(t.state('learn').lessonId).toBe('guide-ring');
+
+    t.kernel.seed('board', boardOn('6x6', randomBoard(ROOM['6x6']!, 2)));
+    flush(t);
+    expect(panel.querySelector<HTMLElement>('[data-reference]')!.dataset.referenceKind).toBe('rect');
+    panel.querySelector<HTMLElement>('[data-action="guide"]')!.click();
+    expect(t.seen('learn:open')).toEqual({ lessonId: 'guide-6x6' });
+
+    t.kernel.seed('board', { status: 'playing', levelId: 3, start: lit([12]), cells: lit([12]), par: 1, moves: 0, history: [] });
+    flush(t);
+    expect(panel.querySelector<HTMLElement>('[data-action="guide"]')!.hidden).toBe(true);
+    expect(panel.querySelector<HTMLElement>('[data-action="learn"]')!.hidden).toBe(false);
+  });
+});
+
+describe('learn: guide copy', () => {
+  test('short and plain: at most 4 steps plus practice, 2 sentences and ~26 words a step, and no 5×5-only words', () => {
+    const guides = (fixtureData.copy as { learn: { guides: Record<string, { summary: string; steps: string[] }> } }).learn.guides;
+    for (const [id, g] of Object.entries(guides)) {
+      expect(g.steps.length, id).toBeLessThanOrEqual(5);
+      for (const step of g.steps) {
+        expect(step.split(/\s+/).length, step).toBeLessThanOrEqual(26);
+        expect(step.split(/[.!?](\s|$)/).filter((x) => x && x.trim()).length, step).toBeLessThanOrEqual(2);
+        expect(step, id).not.toMatch(/echo/i);
+      }
+    }
   });
 });

@@ -1,5 +1,7 @@
 // The shape of each lesson: what each step shows. Every sentence lives in copy.json → learn.lessons.
 // Boards are described by the taps that make them from a dark board, so they are always reachable.
+// Board guides (guides.ts) use the same steps on a room's own shape; their boards are found from the solver.
+import type { Shape } from '../../contracts';
 
 /** what to ring on a mini board */
 export type Marks = number[] | 'taps' | 'chase-first-row' | 'method' | 'shortest' | 'quiet';
@@ -16,10 +18,16 @@ export interface MiniSpec {
   caption?: string;
 }
 
+/** what a demo tap is part of: the first chase, the top-row (or top-edge) taps, the second chase, or a spotted shape */
+export type Phase = 'chase' | 'top' | 'edge' | 'chase2' | 'spot';
+
 export type Step =
   | { kind: 'show'; boards: MiniSpec[] }
-  /** `bottom`: start from a board whose only lights are these bottom-row columns (instead of `from`) */
-  | { kind: 'demo'; from: number[]; bottom?: number[]; play: number[] | 'chase' | 'method' }
+  /** `bottom`: start from a board whose only lights are these bottom-row columns (instead of `from`);
+   *  `lit`: start from a board whose only lights are these cells; `phases`: one per tap of an explicit `play` */
+  | { kind: 'demo'; from: number[]; bottom?: number[]; lit?: number[]; play: number[] | 'chase' | 'method'; phases?: (Phase | null)[] }
+  /** full rectangles: each bottom light and the top lights that clear it (tap a row to watch it) */
+  | { kind: 'lights'; rows: { bottom: number; top: number[] }[]; pick: number }
   | { kind: 'practice' }
   /** the bottom-row list: each leftover row and the top lights that clear it */
   | { kind: 'table' }
@@ -34,13 +42,16 @@ export type Step =
   /** whose echo is this? a short spaced-repetition quiz */
   | { kind: 'drill' };
 
-export type Assist = 'chase' | 'method' | null;
+/** chase: the next chase tap; method: classic chase → table → chase; fix: chase → start-cell fix → chase on any shape */
+export type Assist = 'chase' | 'method' | 'fix' | null;
 
 export interface Lesson {
   steps: Step[];
+  /** the board every step is on; absent = classic 5×5 */
+  shape?: Shape;
   /** what the assist button suggests on the practice board, or null for no assist */
   assist: Assist;
-  /** practice taps come only from these cells (default: all 25) */
+  /** practice taps come only from these cells (default: every cell of the board) */
   pool?: number[];
   /** show moves vs par while practising */
   showPar?: boolean;
