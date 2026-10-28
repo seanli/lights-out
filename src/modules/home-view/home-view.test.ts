@@ -180,7 +180,7 @@ describe('home-view: the menu', () => {
     for (const id of ['5x6', 'ring', 'tower']) {
       expect(row(id).dataset.locked).toBe('true');
       expect(row(id).getAttribute('aria-disabled')).toBe('true');
-      expect(row(id).querySelector<HTMLElement>('.home__row-score')!.hidden).toBe(true);
+      expect(row(id).querySelector<HTMLElement>('.home__score')!.hidden).toBe(true);
     }
     expect(row('5x6').textContent).toBe('Tall roomOpens after level 20'); // no numbers
     expect(row('tower').textContent).toBe('TowerOpens after level 20');

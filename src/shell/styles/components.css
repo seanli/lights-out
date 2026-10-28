@@ -309,10 +309,16 @@ button, input { font: inherit; color: inherit; }
 .chapter[data-locked="true"] .chapter__body { flex: 1; display: flex; flex-direction: column; gap: var(--space-1); }
 .chapter[data-locked="true"] .chapter__meta, .chapter[data-locked="true"] .eyebrow { color: var(--c-text-faint); }
 
+/* ---------- section: a head (an .eyebrow, or a .chapter row) --space-2 above its content ----------
+   Sections sit --stack-lg apart (their parent's gap). The head lines up with the content's optical edge
+   (a menu row's picture, a level tile's rounded corner). */
+.section { display: flex; flex-direction: column; gap: var(--space-2); }
+.section > :is(.eyebrow, .chapter) { padding-inline: var(--space-1); }
+
 /* ---------- menu row: one full-width row per choice (home's boards and Learn, the Learn list), hairlines between ----------
    glyph · title + one sub-line · end slot (a score, a done mark). The list draws the hairlines, its rows may be wrapped in <li>. */
 .menu-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; border-block: var(--hairline) solid var(--c-line); }
-.menu-list > * + * { border-top: var(--hairline) solid var(--c-line); }
+.menu-list > :not(:first-child) { border-top: var(--hairline) solid var(--c-line); } /* beats .menu-row's border: 0 */
 .menu-row {
   display: flex; align-items: center; gap: var(--space-4); width: 100%; min-height: var(--row-h);
   padding: var(--space-3) var(--space-1); border: 0; border-radius: 0; cursor: pointer; text-align: left;
@@ -362,7 +368,8 @@ button, input { font: inherit; color: inherit; }
 }
 .sheet[data-open="true"] { transform: none; }
 .sheet__handle { width: var(--handle-w); height: var(--handle-h); flex: none; margin: 0 auto var(--space-1); border-radius: var(--radius-pill); background: var(--c-line); }
-.sheet__title { font: var(--fw-display) var(--text-xl) / var(--leading-tight) var(--font-display); letter-spacing: var(--tracking-display); text-wrap: balance; }
+/* steps down a little under 375px wide so a short question ("Reset all progress?") stays on one line */
+.sheet__title { font: var(--fw-display) min(var(--text-xl), 8.5vw) / var(--leading-tight) var(--font-display); letter-spacing: var(--tracking-display); text-wrap: balance; }
 .sheet__result { font-weight: var(--fw-bold); font-variant-numeric: tabular-nums; }
 .sheet__result .dim, .sheet__note { color: var(--c-text-dim); font-weight: var(--fw-medium); }
 .sheet__note { font-size: var(--text-sm); text-wrap: balance; }

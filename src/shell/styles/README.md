@@ -12,6 +12,7 @@ Fonts are bundled woff2 (Fraunces 600, Manrope 500/700, Latin only, 45 KB). ≤ 
 | `.bar` | `> .btn` (equal widths), `.bar__main` (1.5× wide: Hint, Next), `.bar--icons` (icon above a small label) | short screens (`max-height: 640px`): `--bar-h-short`, `.bar--icons` puts the icon beside the label; buttons use `.btn` states |
 | `.btn` | `--primary` `--secondary` `--ghost` `--icon` `--hint` `--danger` `--link` (quiet underlined text, 44px tall) `--block` `--stack` (icon over label), `__meta` | `:hover` `:active` (scale) `:focus-visible` `:disabled` `[aria-disabled="true"]` `[aria-pressed="true"]` |
 | `.menu-list` > `.menu-row` | `__glyph` (a `.room-glyph` or an `.icon`) `__body` > `__title` + `__sub`, `__end` (score or `.menu-row__mark`); rows may sit in `<li>` | `:active` `:hover` `:focus-visible` `[aria-disabled="true"]` (dim glyph, quiet words, inert) |
+| `.section` | a head (`.eyebrow` or `.chapter`) `--space-2` above its content, the head inset `--space-1` to the content's optical edge; sections `--stack-lg` apart (the parent's gap) | |
 | `.board-slot` | size container holding `.play-tiers`, `.board`, `.tutorial-line` | |
 | `.board` | `.board--sweep` (warm wash; `--i` = distance), `.board--intro` (lit cells power on by `--i`); `> [data-gap]` keeps its slot, invisible | `[data-status="playing"\|"solved"]` (solved = dimmed, inert), `[data-n="4".."10"]` (gap, pad, radius, glow scale with the cell), `[data-scroll]`, `[data-aim]` |
 | `.cell` | button per light | `[data-lit]` (fades `--lit` over `--dur-flip` after `--flip-delay`) `[data-flip]` (bloom on / afterglow off; remove on `animationend`) `[data-hint="true"]` `[data-pointer="true"]` `:active` (lit: brighter) `:focus-visible` |
@@ -60,5 +61,5 @@ Menu row: `<div class="menu-list"><button class="menu-row"><span class="menu-row
 
 ## Layout rhythm (tokens.css)
 Side padding `--gutter` (16→20px; `.app` pads it once, with the safe areas). Between a screen's blocks `--stack` (12px, `.screen`'s gap);
-between sections of a scrolling screen `--stack-lg` (24px). A section's eyebrow sits `--space-2` above its rows. Inside a card or panel
+between sections of a scrolling screen `--stack-lg` (24px). A section (`.section`) holds its eyebrow `--space-2` above its rows. Inside a card or panel
 `--card-pad`, inside a sheet `--sheet-pad`. Heights: `--header-h`, `--bar-h` / `--bar-h-short`, `--row-h`; every target ≥ `--tap-min`.

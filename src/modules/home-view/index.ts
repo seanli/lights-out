@@ -124,9 +124,10 @@ const svg = (paths: string) => {
 };
 const ICON_SOUND_ON = '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 010 7"/><path d="M19 6a8.5 8.5 0 010 12"/>';
 const ICON_SOUND_OFF = '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 9l5 6M22 9l-5 6"/>';
-const ICON_LEARN = '<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><path d="M17.5 14v7M14 17.5h7"/>';
 /** the logo: a lit plus on a 3×3 grid */
 const GLYPH_LIT = [1, 3, 4, 5, 7];
+/** Learn's picture: one tap's plus, lit on a dark 5×5 board (drawn like a board's room glyph) */
+const LEARN_LIT = [7, 11, 12, 13, 17];
 
 interface Row { pack: Pack; el: HTMLButtonElement; glyph: HTMLElement; meta: HTMLElement; score: HTMLElement; solved: HTMLElement; stars: HTMLElement; key: string }
 
@@ -158,25 +159,27 @@ const homeView: ModuleDef = {
     const cont = h('button', { type: 'button', class: 'btn btn--primary btn--block', 'data-action': 'continue' },
       contLabel, h('span', { class: 'btn__meta', 'aria-hidden': 'true' }, '·'), contLevel);
     const caption = h('p', { class: 'muted home__caption', 'data-home-caption': '' });
-    const learnLink = h('button', { type: 'button', class: 'btn btn--ghost home__link', 'data-action': 'learn', hidden: true }, copy.learnNew);
+    const learnLink = h('button', { type: 'button', class: 'btn btn--link home__link', 'data-action': 'learn', hidden: true }, copy.learnNew);
     const levelsError = h('p', { class: 'home__error', role: 'alert', hidden: true }, copy.levelsError);
 
     // one quiet section per group; a section with no boards stays hidden
     const sections = GROUPS.map((group) => {
-      const list = h('div', { class: 'home__list' });
-      const el = h('section', { class: 'home__group', 'data-group': group, 'aria-labelledby': `home-group-${group}`, hidden: true },
+      const list = h('div', { class: 'menu-list' });
+      const el = h('section', { class: 'section', 'data-group': group, 'aria-labelledby': `home-group-${group}`, hidden: true },
         h('h2', { class: 'eyebrow', id: `home-group-${group}` }, copy.groups[group]), list);
       return { group, el, list };
     });
     const boards = h('div', { class: 'home__boards', hidden: true }, ...sections.map((x) => x.el));
-    const learn = h('button', { type: 'button', class: 'home__row home__row--learn', 'data-action': 'learn' },
-      h('span', { class: 'home__row-glyph' }, svg(ICON_LEARN)),
-      h('span', { class: 'home__row-body' }, h('span', { class: 'home__row-name' }, copy.learn), h('span', { class: 'home__row-meta' }, copy.learnSub)));
-    const learnList = h('div', { class: 'home__list home__list--learn', hidden: true }, learn);
+    const learnGlyph = h('span', { class: 'room-glyph', 'aria-hidden': 'true', style: '--cols:5;--n:5' });
+    for (let i = 0; i < 25; i++) learnGlyph.append(h('i', { 'data-lit': String(LEARN_LIT.includes(i)) }));
+    const learn = h('button', { type: 'button', class: 'menu-row', 'data-action': 'learn' },
+      h('span', { class: 'menu-row__glyph' }, learnGlyph),
+      h('span', { class: 'menu-row__body' }, h('span', { class: 'menu-row__title' }, copy.learn), h('span', { class: 'menu-row__sub' }, copy.learnSub)));
+    const learnList = h('div', { class: 'menu-list home__learn', hidden: true }, learn);
 
     const soundIcon = h('span', { class: 'home__icon' });
     const sound = h('button', { type: 'button', class: 'btn btn--icon', 'data-action': 'sound', 'aria-label': copy.sound, hidden: true }, soundIcon);
-    const reset = h('button', { type: 'button', class: 'btn btn--ghost home__reset', 'data-action': 'reset', hidden: true }, copy.reset);
+    const reset = h('button', { type: 'button', class: 'btn btn--link home__reset', 'data-action': 'reset', hidden: true }, copy.reset);
     // the release, so the owner can tell which build is the latest (DECISIONS #47); built once, the env never changes
     const versionText = versionLine(ctx.service('env'), copy);
     const version = h('p', { class: 'home__version', 'data-home-version': '', hidden: !versionText }, versionText);
@@ -200,7 +203,7 @@ const homeView: ModuleDef = {
       h('h2', { class: 'sheet__title', id: 'home-reset-title' }, copy.resetTitle),
       h('p', { class: 'sheet__note' }, copy.resetBody),
       h('div', { class: 'sheet__actions' },
-        h('button', { type: 'button', class: 'btn btn--block home__danger', 'data-action': 'reset-confirm' }, copy.resetConfirm),
+        h('button', { type: 'button', class: 'btn btn--block btn--danger', 'data-action': 'reset-confirm' }, copy.resetConfirm),
         h('button', { type: 'button', class: 'btn btn--ghost btn--block', 'data-action': 'reset-cancel', 'data-autofocus': '' }, copy.resetCancel)),
     );
     const cancelBtn = sheet.querySelector<HTMLElement>('[data-action="reset-cancel"]')!;
@@ -221,14 +224,14 @@ const homeView: ModuleDef = {
     function buildRows(packs: Pack[]) {
       builtFor = packs;
       rows = packs.map((pack) => {
-        const glyphHost = h('span', { class: 'home__row-glyph' });
-        const meta = h('span', { class: 'home__row-meta' });
-        const solved = h('span', { class: 'home__row-solved num' });
-        const stars = h('span', { class: 'home__row-stars num' });
-        const score = h('span', { class: 'home__row-score' }, solved,
-          h('span', { class: 'home__row-starline' }, h('span', { class: 'star', 'data-state': 'on', 'aria-hidden': 'true' }), stars));
-        const el = h('button', { type: 'button', class: 'home__row', 'data-room-tile': '', 'data-room': pack.id },
-          glyphHost, h('span', { class: 'home__row-body' }, h('span', { class: 'home__row-name' }, pack.name), meta), score);
+        const glyphHost = h('span', { class: 'menu-row__glyph' });
+        const meta = h('span', { class: 'menu-row__sub' });
+        const solved = h('span', { class: 'home__solved num' });
+        const stars = h('span', { class: 'num' });
+        const score = h('span', { class: 'menu-row__end home__score' }, solved,
+          h('span', { class: 'home__starline' }, h('span', { class: 'star', 'data-state': 'on', 'aria-hidden': 'true' }), stars));
+        const el = h('button', { type: 'button', class: 'menu-row', 'data-room-tile': '', 'data-room': pack.id },
+          glyphHost, h('span', { class: 'menu-row__body' }, h('span', { class: 'menu-row__title' }, pack.name), meta), score);
         return { pack, el, glyph: glyphHost, meta, score, solved, stars, key: '' };
       });
       for (const x of sections) {

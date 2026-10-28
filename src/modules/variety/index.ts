@@ -12,12 +12,9 @@ import './variety.css';
 const Text = v.pipe(v.string(), v.minLength(1));
 const Copy = v.object({
   back: Text,
+  /** the header's eyebrow: "5×5 · 50 levels" (one line at 320 wide, so no notes here), "30 levels" for a shape */
   boardSize: Text,
-  /** a rectangle with a note after its size, e.g. "5×16 · scrolls · 30 levels" */
-  boardSizeNote: Text,
   boardShape: Text,
-  /** a short note on a board's meta line, by pack id (the Tower scrolls) */
-  boardNotes: v.record(v.string(), Text),
   summary: Text,
   guide: Text,
   guideClassic: Text,
@@ -103,12 +100,8 @@ const variety: ModuleDef = {
       ctx.emit('nav:go', { screen: 'variety' });
     });
 
-    const metaOf = (p: Pack) => {
-      const vars = { cols: p.shape.cols, rows: p.shape.rows, count: p.count };
-      if (p.kind === 'shape') return fmt(copy.boardShape, vars);
-      const note = copy.boardNotes[p.id];
-      return note ? fmt(copy.boardSizeNote, { ...vars, note }) : fmt(copy.boardSize, vars);
-    };
+    const metaOf = (p: Pack) =>
+      fmt(p.kind === 'shape' ? copy.boardShape : copy.boardSize, { cols: p.shape.cols, rows: p.shape.rows, count: p.count });
 
     const header = (title: string, eyebrow: string) =>
       h('header', { class: 'screen-header' },
@@ -150,7 +143,7 @@ const variety: ModuleDef = {
         const head = ch.name
           ? h('div', { class: 'chapter' }, h('span', { class: 'eyebrow' }, eyebrow), h('span', { class: 'chapter__meta' }, fmt(copy.chapterRange, { from: ch.from, to: ch.to })))
           : null;
-        const open = h('section', { class: 'variety__chapter', 'data-chapter': ch.id }, head, bands, n === 0 ? legend : null);
+        const open = h('section', { class: 'section variety__chapter', 'data-chapter': ch.id }, head, bands, n === 0 ? legend : null);
         // a chapter ahead is one quiet row, not a card (a room is never ahead: it can't be opened while locked)
         const locked = ch.name
           ? h('div', { class: 'chapter variety__ahead', 'data-locked': 'true', 'data-chapter': ch.id, hidden: true },
@@ -160,7 +153,7 @@ const variety: ModuleDef = {
       });
       const glyph = h('span', { class: 'variety__glyph' });
       const summary = h('p', { class: 'variety__summary', 'data-board-summary': '' });
-      const guide = h('button', { type: 'button', class: 'btn btn--ghost variety__guide', 'data-action': 'guide', hidden: true },
+      const guide = h('button', { type: 'button', class: 'btn btn--link variety__guide', 'data-action': 'guide', hidden: true },
         p.kind === 'classic' ? copy.guideClassic : fmt(copy.guide, { name: p.name }));
       region.replaceChildren(
         header(p.name, metaOf(p)),
