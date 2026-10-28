@@ -78,7 +78,7 @@ export function createLearnView(d: Deps) {
    * marks: on a practice board the tap pointer (data-suggest); on illustrations a quiet, non-interactive mark.
    * shape absent = classic 5×5; a room's gaps keep their grid slot and are drawn empty (never cells or buttons).
    */
-  function miniBoard(cells: readonly boolean[], kind: 'practice' | 'show' | 'demo' | 'glyph', marks: readonly number[] = [], shape?: Shape): HTMLElement {
+  function miniBoard(cells: readonly boolean[], kind: 'practice' | 'show' | 'demo', marks: readonly number[] = [], shape?: Shape): HTMLElement {
     const s = shape ?? CLASSIC_SHAPE;
     const n = Math.max(s.cols, s.rows);
     const board = h('div', {
@@ -93,7 +93,7 @@ export function createLearnView(d: Deps) {
         continue;
       }
       const attrs = {
-        class: kind === 'glyph' ? 'mini-dot' : 'cell',
+        class: 'cell',
         'data-mini-cell': '', 'data-index': i, 'data-lit': String(!!cells[i]),
         [markAttr]: marks.includes(i) ? 'true' : null,
       };
@@ -131,7 +131,8 @@ export function createLearnView(d: Deps) {
       const cell = (e.target as Element | null)?.closest?.('[data-mini-cell]') as HTMLElement | null;
       return cell ? Number(cell.dataset.index) : -1;
     };
-    const tapMin = () => parseFloat(getComputedStyle(board).getPropertyValue('--tap-min')) || 44;
+    /** slots under this aim, like the main board (decision 48) */
+    const aimBelow = () => parseFloat(getComputedStyle(board).getPropertyValue('--aim-below')) || 40;
     /** one light's slot: the distance from a light to the next one in its row */
     const slot = () => {
       for (let i = 0; i + 1 < gridSize(s); i++) {
@@ -145,7 +146,7 @@ export function createLearnView(d: Deps) {
     const mode = (): AimMode | null => {
       if (isTall(s)) return 'tap';
       const w = slot();
-      return w > 0 && w < tapMin() ? 'aim' : null;
+      return w > 0 && w < aimBelow() ? 'aim' : null;
     };
     /** the light whose slot holds a point (the gutters count), or -1 off the board */
     const cellAt = (x: number, y: number) => {
@@ -208,33 +209,41 @@ export function createLearnView(d: Deps) {
 
   // ---------- the list ----------
 
+  /** a lesson's picture: the room glyph of the classic board, lit as the lesson's idea */
+  function lessonGlyph(cells: Cells): HTMLElement {
+    const g = roomGlyph({ shape: CLASSIC_SHAPE, count: 1 }, 0);
+    g.querySelectorAll<HTMLElement>('i').forEach((dot, i) => setAttr(dot, 'data-lit', String(!!cells[i])));
+    return g;
+  }
+
   function buildList(s: LearnState): HTMLElement[] {
-    root.classList.add('screen--scroll');
+    root.classList.add('screen--scroll', 'learn-screen--list');
     const header = h('header', { class: 'screen-header' },
       h('button', { class: 'btn btn--icon', type: 'button', 'data-action': 'learn-back', 'aria-label': copy.back, onclick: () => ctx.emit('nav:back', {}) }, icon(CHEVRON_LEFT)),
       h('div', { class: 'screen-header__title' }, h('span', { class: 'eyebrow' }, copy.subtitle), h('strong', {}, copy.title)),
       h('div', { class: 'screen-header__end' }),
     );
-    const tile = (id: string, glyph: HTMLElement, num: number | null, title: string, summary: string) => {
+    // one menu row per lesson or guide, like the home menu: picture, title, one dim line, done mark
+    const row = (id: string, glyph: HTMLElement, title: string, summary: string) => {
       const done = s.completed.includes(id);
       return h('li', {},
-        h('button', { class: 'lesson-tile', type: 'button', 'data-lesson-tile': '', 'data-lesson': id, 'data-completed': String(done), onclick: () => ctx.emit('learn:open', { lessonId: id }) },
-          glyph,
-          h('span', { class: 'lesson-tile__body' },
-            h('span', { class: 'lesson-tile__title' }, num === null ? null : h('span', { class: 'lesson-tile__num num' }, num), title),
-            h('span', { class: 'lesson-tile__summary' }, summary)),
-          h('span', { class: 'lesson-tile__done', 'aria-label': done ? copy.done : null }, done ? icon(CHECK) : null),
+        h('button', { class: 'menu-row lesson-tile', type: 'button', 'data-lesson-tile': '', 'data-lesson': id, 'data-completed': String(done), onclick: () => ctx.emit('learn:open', { lessonId: id }) },
+          h('span', { class: 'menu-row__glyph' }, glyph),
+          h('span', { class: 'menu-row__body' },
+            h('span', { class: 'menu-row__title' }, title),
+            h('span', { class: 'menu-row__sub' }, summary)),
+          // done: the check; not yet: an empty ring in the same place, so the column reads as a checklist
+          h('span', { class: 'menu-row__end' },
+            h('span', { class: 'menu-row__mark lesson-tile__mark', 'data-done': String(done), role: done ? 'img' : null, 'aria-label': done ? copy.done : null }, done ? icon(CHECK) : null)),
         ));
     };
-    const section = (key: 'basics' | 'boards', items: HTMLElement[]) => h('section', { class: 'learn-section', 'data-learn-section': key },
-      h('h2', { class: 'eyebrow learn-section__title' }, copy.sections[key]), h('ol', { class: 'learn-list' }, ...items));
-    const basics = rules.lessons.map((id, k) => tile(id, miniBoard(TILE_GLYPH[id]?.(d) ?? blank(), 'glyph'), k + 1, copy.lessons[id]!.title, copy.lessons[id]!.summary));
+    const section = (key: 'basics' | 'boards', items: HTMLElement[]) => h('section', { class: 'section learn-section', 'data-learn-section': key },
+      h('h2', { class: 'eyebrow learn-section__title' }, copy.sections[key]), h('ol', { class: 'menu-list learn-list' }, ...items));
+    const basics = rules.lessons.map((id) => row(id, lessonGlyph(TILE_GLYPH[id]?.(d) ?? blank()), copy.lessons[id]!.title, copy.lessons[id]!.summary));
     const progress = ctx.read('progress');
     // the room's own picture, lit as it is on the menu (the share of its levels solved)
-    const glyph = (pack: Pack) => {
-      return roomGlyph(pack, progress?.packs?.[pack.id]?.solved ?? 0);
-    };
-    const boards = catalog.guides().map((g) => tile(g.id, glyph(g.pack), null, g.pack.name, copy.guides[g.pack.id]!.summary));
+    const glyph = (pack: Pack) => roomGlyph(pack, progress?.packs?.[pack.id]?.solved ?? 0);
+    const boards = catalog.guides().map((g) => row(g.id, glyph(g.pack), g.pack.name, copy.guides[g.pack.id]!.summary));
     return [header, section('basics', basics), ...(boards.length ? [section('boards', boards)] : [])];
   }
 
@@ -352,7 +361,7 @@ export function createLearnView(d: Deps) {
   }
 
   function buildLesson(s: LearnState): HTMLElement[] {
-    root.classList.remove('screen--scroll');
+    root.classList.remove('screen--scroll', 'learn-screen--list');
     const id = s.lessonId!;
     const lesson = catalog.lesson(id)!;
     const c = catalog.text(id)!;
@@ -374,11 +383,15 @@ export function createLearnView(d: Deps) {
     );
     const dots = h('div', { class: 'learn-dots', 'aria-hidden': 'true' }, ...lesson.steps.map((_, k) => h('i', { 'data-state': k < s.step ? 'done' : k === s.step ? 'now' : 'todo' })));
     const text = h('p', { class: 'learn-text' }, c.steps[s.step] ?? '');
+    // the stage fills what is left: [a list] above the fit box (the picture, as large as it fits), then the line and buttons
+    const tall = !!shape && isTall(shape);
     const stage = h('div', {
       class: `learn-stage learn-stage--${step.kind}`, 'data-shape': shape ? shapeKey(shape) : null,
-      'data-tall': shape && isTall(shape) ? 'true' : null, style: shape ? ratio(shape) : null,
+      'data-tall': tall ? 'true' : null, style: shape ? ratio(shape) : null,
     });
+    const fit = h('div', { class: 'learn-fit' });
     const under = h('div', { class: 'learn-under' });
+    let above: HTMLElement | null = null;
 
     practiceEls = null;
     stopInput();
@@ -386,15 +399,18 @@ export function createLearnView(d: Deps) {
     stopDemo();
     demo = null;
 
+    const demoLine = () => h('p', { class: 'tutorial-line', 'data-learn-line': 'demo', 'data-tone': 'coach', 'aria-live': 'polite' });
+    const demoButton = () => h('button', { class: 'btn btn--ghost learn-small', type: 'button', 'data-action': 'learn-demo', onclick: onDemoButton }, copy.demoPlay);
+
     if (step.kind === 'show') {
-      const figs = h('div', { class: 'learn-figs', style: `--n:${step.boards.length}` }, ...step.boards.map((b) => figure(b, shape)));
-      stage.append(figs);
+      const captioned = step.boards.some((b) => !!b.caption);
+      fit.append(h('div', { class: 'learn-figs', 'data-n': step.boards.length, 'data-captions': captioned ? 'true' : null, style: `--n:${step.boards.length}` }, ...step.boards.map((b) => figure(b, shape))));
     } else if (step.kind === 'demo') {
       demo = demoPlan(step, shape);
       const board = miniBoard(demo.start, 'demo', [], shape);
-      const line = h('p', { class: 'tutorial-line', 'data-learn-line': 'demo', 'aria-live': 'polite' });
-      const button = h('button', { class: 'btn btn--ghost learn-small', type: 'button', 'data-action': 'learn-demo', onclick: onDemoButton }, copy.demoPlay);
-      stage.append(board);
+      const line = demoLine();
+      const button = demoButton();
+      fit.append(board);
       under.append(line, h('div', { class: 'learn-controls' }, button));
       demoEls = { board, line, button, echo: null };
     } else if (step.kind === 'echo') {
@@ -402,10 +418,10 @@ export function createLearnView(d: Deps) {
       const col = 1;
       demo = echoPlan(col);
       const board = miniBoard(demo.start, 'demo');
-      const line = h('p', { class: 'tutorial-line', 'data-learn-line': 'demo', 'aria-live': 'polite' });
-      const button = h('button', { class: 'btn btn--ghost learn-small', type: 'button', 'data-action': 'learn-demo', onclick: onDemoButton }, copy.demoPlay);
+      const line = demoLine();
+      const button = demoButton();
       // the A–E buttons sit over the board's columns
-      stage.append(h('div', { class: 'learn-echo' }, picker(copy, col, (c) => { if (!demoEls) return; demoEls.echo = c; demo = echoPlan(c); restartDemo(); }), board));
+      fit.append(h('div', { class: 'learn-echo' }, picker(copy, col, (c) => { if (!demoEls) return; demoEls.echo = c; demo = echoPlan(c); restartDemo(); }), board));
       under.append(line, h('div', { class: 'learn-controls' }, button));
       demoEls = { board, line, button, echo: col };
     } else if (step.kind === 'lights' && shape) {
@@ -413,14 +429,15 @@ export function createLearnView(d: Deps) {
       const cols = shape.cols;
       demo = lightPlan(step.rows[step.pick]!, shape);
       const board = miniBoard(demo.start, 'demo', [], shape);
-      const line = h('p', { class: 'tutorial-line', 'data-learn-line': 'demo', 'aria-live': 'polite' });
-      const button = h('button', { class: 'btn btn--ghost learn-small', type: 'button', 'data-action': 'learn-demo', onclick: onDemoButton }, copy.demoPlay);
-      // up to 7 wide: the bottom strip with its light → the top strip; wider: the lit light with its letter → the top strip
-      const wide = cols >= WIDE_STRIP;
-      const bottomOf = (r: { bottom: number }, c: number) => wide
-        ? h('span', { class: 'learn-row learn-row--key', 'aria-hidden': 'true', style: '--strip-n:1' },
-          h('span', { class: 'cell', 'data-mini-cell': '', 'data-index': r.bottom, 'data-lit': 'true', 'data-letter': copy.letters[c]! }))
-        : strip({ lit: [c], n: cols, bottom: r.bottom - c });
+      const line = demoLine();
+      const button = demoButton();
+      // a row is the bottom strip with its light → the top strip; 8 wide and up (and the Tower, beside its board) the lit
+      // light with its letter → the top strip. 6 and 7 wide carry both and CSS picks by the room it has (letters stay readable).
+      const wide = cols >= WIDE_STRIP || tall;
+      const keyOf = (r: { bottom: number }, c: number) => h('span', { class: 'learn-row learn-row--key', 'aria-hidden': 'true', style: '--strip-n:1' },
+        h('span', { class: 'cell', 'data-mini-cell': '', 'data-index': r.bottom, 'data-lit': 'true', 'data-letter': copy.letters[c]! }));
+      const bottomOf = (r: { bottom: number }, c: number) => (wide ? [keyOf(r, c)]
+        : [strip({ lit: [c], n: cols, bottom: r.bottom - c }), ...(cols > SIZE ? [keyOf(r, c)] : [])]);
       const rowsEl = step.rows.map((r, c) => h('button', {
         class: 'learn-lights__row', type: 'button', 'data-action': 'learn-strip', 'data-col': c, 'aria-pressed': String(c === step.pick),
         'aria-label': fmt(copy.lights.row, { name: copy.letters[c]!, taps: names(copy, r.top) }),
@@ -428,50 +445,78 @@ export function createLearnView(d: Deps) {
           rowsEl.forEach((el, k) => setAttr(el, 'aria-pressed', String(k === c)));
           demo = lightPlan(r, shape);
           restartDemo();
-          board.scrollIntoView?.({ block: 'nearest', behavior: view.reducedMotion() ? 'auto' : 'smooth' });
         },
-      }, bottomOf(r, c), h('span', { class: 'learn-table__arrow', 'aria-hidden': 'true' }, '→'), strip({ ring: r.top, row: 'top', kind: 'top', letters: copy.letters, n: cols })));
-      stage.append(h('div', { class: 'learn-lights', 'data-wide': wide ? 'true' : null, style: `--strip-n:${cols}` },
-        h('div', { class: 'learn-lights__list', role: 'group', 'aria-label': copy.lights.pick }, ...rowsEl), board));
+      }, ...bottomOf(r, c), h('span', { class: 'learn-table__arrow', 'aria-hidden': 'true' }, '→'), strip({ ring: r.top, row: 'top', kind: 'top', letters: copy.letters, n: cols })));
+      const list = h('div', { class: 'learn-lights__list learn-scroll', role: 'group', 'aria-label': copy.lights.pick }, ...rowsEl);
+      // the list sits above the board (beside it on the Tower) and scrolls when both don't fit; the board keeps its share
+      above = h('div', { class: 'learn-lights', 'data-wide': wide ? 'true' : null, 'data-cols': cols, style: `--strip-n:${cols}` }, list, fit);
+      fit.append(board);
       under.append(line, h('div', { class: 'learn-controls' }, button));
       demoEls = { board, line, button, echo: null };
+      afterLayout(() => { centreIn(list, rowsEl[step.pick]); watchEdges(list); });
     } else if (step.kind === 'table') {
-      stage.append(tableList(copy, d.table()));
+      fit.append(tableList(copy, d.table()));
     } else if (step.kind === 'stack') {
-      stage.append(stackView(copy, solver, step.pairs));
+      fit.append(stackView(copy, solver, step.pairs));
     } else if (step.kind === 'rules') {
-      stage.append(rulesView(copy, d.table()));
+      fit.append(rulesView(copy, d.table()));
     } else if (step.kind === 'derive') {
-      stage.append(deriveView(copy));
+      fit.append(deriveView(copy));
     } else if (step.kind === 'drill') {
       const drill = createDrill({ copy, rules, solver, rng: d.rng, table: d.table(), store: d.drillStore });
-      stage.append(drill.root);
+      fit.append(drill.root);
       under.append(drill.line, drill.controls);
     } else {
       const p = s.practice;
       const board = miniBoard(p?.cells ?? (shape ? emptyCells(shape) : blank()), 'practice', [], shape);
-      const line = h('p', { class: 'tutorial-line', 'data-learn-line': 'practice', 'aria-live': 'polite' });
+      const line = h('p', { class: 'tutorial-line', 'data-learn-line': 'practice', 'data-tone': 'coach', 'aria-live': 'polite' });
       const moves = h('span', { class: 'learn-moves num', 'data-learn-moves': '' });
       const assist = lesson.assist
         ? h('button', { class: 'btn btn--ghost learn-small', type: 'button', 'data-action': 'learn-assist', 'aria-pressed': String(s.assist), onclick: () => ctx.emit('learn:set_assist', { on: !state().assist }) }, copy.assist)
         : null;
       const another = h('button', { class: 'btn btn--ghost learn-small', type: 'button', 'data-action': 'learn-practice', onclick: () => ctx.emit('learn:new_practice', {}) }, copy.newBoard);
-      stage.append(board);
+      fit.append(board);
       under.append(line, h('div', { class: 'learn-controls' }, moves, assist, another));
-      if (lesson.echoHelp) under.append(h('p', { class: 'learn-caption' }, copy.echoTip));
       practiceEls = { board, line, moves, another, assist, suggest: null };
     }
-
-    const navRow = h('nav', { class: 'learn-nav' },
-      h('button', { class: 'btn btn--ghost', type: 'button', 'data-action': 'learn-prev', disabled: s.step === 0, onclick: () => ctx.emit('learn:step', { delta: -1 }) }, copy.prev),
-      h('button', { class: 'btn btn--primary', type: 'button', 'data-action': 'learn-next', onclick: () => ctx.emit('learn:step', { delta: 1 }) }, last ? copy.finish : copy.next),
-    );
-    if (last && lesson.deeper) {
-      under.append(h('button', { class: 'btn btn--ghost learn-link', type: 'button', 'data-action': 'learn-deeper', onclick: () => ctx.emit('learn:open', { lessonId: lesson.deeper! }) }, copy.deeper));
+    // "Go deeper" sits under the last idea before practice (lesson 4's list, lesson 5's two answers), never under a practice board
+    const deeperAt = lesson.steps.reduce((at, x, k) => (x.kind === 'practice' ? at : k), -1);
+    if (lesson.deeper && s.step === deeperAt) {
+      under.append(h('button', { class: 'btn btn--link learn-link', type: 'button', 'data-action': 'learn-deeper', onclick: () => ctx.emit('learn:open', { lessonId: lesson.deeper! }) }, copy.deeper));
     }
-    const body = h('div', { class: 'learn-step', 'data-step': s.step, 'data-kind': step.kind }, dots, text, stage, under);
+    stage.append(above ?? fit);
+    if (under.childElementCount) { stage.append(under); setAttr(stage, 'data-under', 'true'); }
+    // lists that scroll inside the stage (the five rules, how an echo forms) fade at the edge with more to see
+    const scroller = fit.querySelector<HTMLElement>('.learn-rules, .learn-derive');
+    if (scroller) { scroller.classList.add('learn-scroll'); afterLayout(() => watchEdges(scroller)); }
+
+    const navRow = h('nav', { class: 'bar learn-nav' },
+      h('button', { class: 'btn btn--ghost', type: 'button', 'data-action': 'learn-prev', disabled: s.step === 0, onclick: () => ctx.emit('learn:step', { delta: -1 }) }, copy.prev),
+      h('button', { class: 'btn btn--primary bar__main', type: 'button', 'data-action': 'learn-next', onclick: () => ctx.emit('learn:step', { delta: 1 }) }, last ? copy.finish : copy.next),
+    );
+    // the Tower's practice scrolls with the step (its line and buttons stay pinned under the board)
+    const body = h('div', { class: 'learn-step', 'data-step': s.step, 'data-kind': step.kind, 'data-scroll': tall && step.kind === 'practice' ? 'true' : null }, dots, text, stage);
     const wrap = h('div', { class: 'learn-lesson', 'data-lesson-view': id, 'data-step': s.step }, header, body, navRow);
     return [wrap];
+  }
+
+  /** run once the new step is laid out (next frame); skipped where there is no layout (tests) */
+  function afterLayout(fn: () => void) {
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => { if (root.isConnected) fn(); });
+  }
+  /** mark a scrolling box's edges that hide more (CSS fades them) */
+  function watchEdges(el: HTMLElement) {
+    const paint = () => {
+      setAttr(el, 'data-more-above', el.scrollTop > 1 ? 'true' : null);
+      setAttr(el, 'data-more-below', el.scrollTop + el.clientHeight < el.scrollHeight - 1 ? 'true' : null);
+    };
+    el.addEventListener('scroll', paint, { passive: true });
+    paint();
+  }
+  /** scroll a list (only the list, never the page) so a row sits in its middle */
+  function centreIn(list: HTMLElement, row: HTMLElement | undefined) {
+    if (!row || list.scrollHeight <= list.clientHeight) return;
+    list.scrollTop = row.offsetTop - list.offsetTop - (list.clientHeight - row.offsetHeight) / 2;
   }
 
   function parOf(start: Cells, shape?: Shape): number {
@@ -498,6 +543,8 @@ export function createLearnView(d: Deps) {
     else if (echo) line = fmt(copy.echoMatch, { name: names(copy, echo.top) });
     else if (p.suggest !== null) line = copy.assistLine;
     else if (practiceEls.board.dataset.aim === 'true') line = copy.aimTip;
+    // lesson 4: until its echo shows, the line holds the guess-and-chase tip
+    else if (lesson?.echoHelp && p.status === 'playing') line = copy.echoTip;
     setText(practiceEls.line, line);
     // the Tower scrolls: bring a newly ringed light into view (only if it's off screen)
     if (p.suggest !== practiceEls.suggest) {

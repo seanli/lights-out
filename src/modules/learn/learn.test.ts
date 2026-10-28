@@ -333,11 +333,14 @@ describe('learn: module', () => {
     expect(q('[data-action="learn-echo"][data-col="3"]')!.getAttribute('aria-pressed')).toBe('true');
   });
 
-  test('"Go deeper" opens the extra lesson from the last step only; it is not in the list and never counts as a lesson', () => {
+  test('"Go deeper" sits under the last idea before practice (never under the practice board); the extra lesson is not in the list and never counts', () => {
     const t = boot();
     t.emit('learn:open', { lessonId: 'bottom-row' });
     expect(q('[data-action="learn-deeper"]')).toBeNull();
     for (let k = 0; k < 3; k++) t.emit('learn:step', { delta: 1 });
+    expect(q('[data-action="learn-deeper"]')).toBeNull(); // practice
+    t.emit('learn:step', { delta: -1 }); // the bottom-row list
+    expect(q('[data-lesson-view] [data-kind="table"]')).not.toBeNull();
     q('[data-action="learn-deeper"]')!.click();
     expect(t.state('learn').lessonId).toBe('echo-more');
     expect(qa('[data-rule]')).toHaveLength(5);
@@ -937,7 +940,7 @@ describe('learn: board guides', () => {
     t.emit('learn:step', { delta: 1 });
     const rows = qa('[data-action="learn-strip"]');
     expect(rows).toHaveLength(6);
-    expect(rows.map((r) => [...r.querySelectorAll<HTMLElement>('[data-letter]')].map((e) => e.dataset.letter).join(''))).toEqual(['AC', 'D', 'AE', 'BF', 'C', 'DF']);
+    expect(rows.map((r) => [...r.querySelectorAll<HTMLElement>('.learn-row--top [data-letter]')].map((e) => e.dataset.letter).join(''))).toEqual(['AC', 'D', 'AE', 'BF', 'C', 'DF']);
     expect(rows[2]!.getAttribute('aria-pressed')).toBe('true');
     rows[5]!.click();
     expect(rows[5]!.getAttribute('aria-pressed')).toBe('true');
@@ -991,10 +994,16 @@ describe('learn: board guides', () => {
     const button = q('[data-action="learn-demo"]')!;
     for (let k = 0; k < 80 && button.textContent !== 'Replay'; k++) button.click();
     expect(litIdx()).toEqual([]);
-    // up to 7 wide the rows keep both strips
+    // up to 7 wide a row keeps the bottom strip too (CSS shows it while its cells stay readable, else the lettered light)
     t.emit('learn:open', { lessonId: 'guide-7x7' });
     t.emit('learn:step', { delta: 1 });
     expect(q('.learn-lights')!.dataset.wide).toBeUndefined();
+    const sevens = qa('[data-action="learn-strip"]');
+    expect(sevens.every((r, c) => r.querySelector<HTMLElement>('.learn-row--bottom [data-lit="true"]')!.dataset.index === String(42 + c))).toBe(true);
+    expect(sevens.map((r) => r.querySelector<HTMLElement>('.learn-row--key [data-mini-cell]')!.dataset.letter).join('')).toBe('ABCDEFG');
+    // 5 wide: only the two strips
+    t.emit('learn:open', { lessonId: 'guide-5x6' });
+    t.emit('learn:step', { delta: 1 });
     expect(qa('.learn-row--key')).toHaveLength(0);
   });
 

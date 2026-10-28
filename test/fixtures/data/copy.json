@@ -175,7 +175,7 @@
   },
   "learn": {
     "title": "Learn",
-    "subtitle": "Patterns that solve any board",
+    "subtitle": "Solve any board",
     "back": "Back",
     "backToLessons": "Back to lessons",
     "stepOf": "Step {step} of {total}",
@@ -254,7 +254,7 @@
     "lessons": {
       "shapes": {
         "title": "One tap, five lights",
-        "summary": "Spot the shape a tap makes, then tap its centre.",
+        "summary": "Spot a tap's shape, tap its centre.",
         "steps": [
           "A tap flips the light you touch and the four around it: a plus of five.",
           "At an edge it's a T; in a corner, an L.",
@@ -264,7 +264,7 @@
       },
       "order": {
         "title": "Order doesn't matter",
-        "summary": "Taps cancel out and can go in any order.",
+        "summary": "Taps cancel; order never matters.",
         "steps": [
           "Tap a light twice and nothing changes: the second tap undoes the first.",
           "An answer is a set of lights, each tapped once, in any order.",
@@ -273,7 +273,7 @@
       },
       "chase": {
         "title": "Chase the lights down",
-        "summary": "Push every light down to the bottom row.",
+        "summary": "Push the lights down to the bottom.",
         "steps": [
           "Start at the top row. Tap the light below each lit one.",
           "Do the same for each row below. The lights move down: this is chasing.",
@@ -365,7 +365,7 @@
     },
     "guides": {
       "5x6": {
-        "summary": "Chase, then tap straight above each bottom light.",
+        "summary": "Chase, then tap straight above.",
         "steps": [
           "Chase down, row by row. Whatever is left ends up in the bottom row.",
           "One bottom light: tap the top light straight above it, then chase again.",
@@ -374,7 +374,7 @@
         ]
       },
       "6x6": {
-        "summary": "Chase, then clear the bottom row.",
+        "summary": "Chase, then two to each side.",
         "steps": [
           "Chase down, row by row. Whatever is left ends up in the bottom row.",
           "One bottom light: tap the top lights two to each side of it, then chase again. For A and F, also tap the one above.",
@@ -383,7 +383,7 @@
         ]
       },
       "7x7": {
-        "summary": "Chase, then three top taps per bottom light.",
+        "summary": "Chase, then the three above.",
         "steps": [
           "Chase down, row by row. Whatever is left ends up in the bottom row.",
           "One bottom light: tap the three top lights above it (two at an edge), then chase again.",
@@ -392,7 +392,7 @@
         ]
       },
       "8x8": {
-        "summary": "Chase, then each bottom light has its own top taps.",
+        "summary": "Chase, then each light's own taps.",
         "steps": [
           "Chase down, row by row. Whatever is left ends up in the bottom row.",
           "Each bottom light has its own top taps: tap them, then chase again. H mirrors A, G mirrors B, and so on.",
@@ -401,7 +401,7 @@
         ]
       },
       "10x10": {
-        "summary": "Chase, then tap above and two to each side.",
+        "summary": "Chase, then above and two aside.",
         "steps": [
           "Chase down, row by row. Whatever is left ends up in the bottom row.",
           "One bottom light: tap the top light above it and two to each side, then chase again. For A and J, skip the one above.",
@@ -410,7 +410,7 @@
         ]
       },
       "tower": {
-        "summary": "Chase all the way down, then tap straight above.",
+        "summary": "Chase down, then straight above.",
         "steps": [
           "Chase down, row by row, all the way. Whatever is left ends up in the bottom row.",
           "One bottom light: tap the top light straight above it, then chase again.",
@@ -419,7 +419,7 @@
         ]
       },
       "cross": {
-        "summary": "Spot the shapes, or chase and fix from the top edge.",
+        "summary": "Spot shapes, or chase and fix.",
         "steps": [
           "A tap lights a plus. This board's edges cut it short: a T or an L.",
           "Spot those shapes in the lights and tap their centres. Start at the corners: only a few taps can change them.",
@@ -428,7 +428,7 @@
         ]
       },
       "ring": {
-        "summary": "Spot the shapes, or chase and fix from the top edge.",
+        "summary": "Spot shapes, or chase and fix.",
         "steps": [
           "A tap lights a plus. The edges and the hole cut it short: a T or an L.",
           "Spot those shapes in the lights and tap their centres. Start at the corners: only a few taps can change them.",
@@ -437,7 +437,7 @@
         ]
       },
       "diamond": {
-        "summary": "Spot the shapes, or chase and fix from the top edge.",
+        "summary": "Spot shapes, or chase and fix.",
         "steps": [
           "A tap lights a plus. The edges cut it short: an L, or a pair at the tips.",
           "Spot those shapes in the lights and tap their centres. Start at the tips: only a few taps can change them.",
