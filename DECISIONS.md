@@ -40,3 +40,4 @@
 | 36 | Header "Up to ★★★" removed; a "−1★ hint" chip joins the tier row | lead default | It duplicated the tier chip and collided at 320px |
 | 37 | Win sweep is a warm wash through a dark board (timing unchanged); the sheet opens at 640ms instead of 800 so its slide overlaps the sweep's tail (changes #11's number) | lead default | The old sweep looked like a new puzzle lighting up; the win felt long at ~1.9s |
 | 38 | Haptics live in the sound module (vibrate where supported, silent on iOS), on the same on/off switch | lead default | One module owns device feedback; no contract change |
+| 39 | Info and warning notices show on home, Variety and Learn but not on the play screen (errors show everywhere) | lead default | A persistent warning took ~60px off the board on small phones; the player sees it before they start |

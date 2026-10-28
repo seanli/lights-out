@@ -338,13 +338,14 @@ async function blockedStorage() {
   const { context, page } = await newPage('blocked-storage', PHONE, { init: [BLOCK_STORAGE] });
   try {
     await open(page, target.url);
+    // the warning belongs on the home screen, where the player starts (it is hidden during play: DECISIONS #39)
+    const onHome = (await count(page, '[data-notice="storage"]')) > 0 && (await isVisible(page, '[data-notice="storage"]'));
     await tapAction(page, 'continue');
     await enterLevel(page);
     await playLevel(page, { pointer: 'follow' });
     await waitForSolvedSheet(page);
     if ((await count(page, '[data-notice="storage"]')) === 0) return { pass: false, measured: 'played, no notice', detail: 'no [data-notice="storage"] when localStorage throws' };
-    const visible = await isVisible(page, '[data-notice="storage"]');
-    return { pass: visible, measured: visible ? 'played, notice shown' : 'played, notice hidden' };
+    return { pass: onHome, measured: onHome ? 'played; notice shown on home' : 'played; notice not visible on home' };
   } finally {
     await context.close();
   }
