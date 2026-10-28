@@ -23,6 +23,7 @@
 //   [data-reference-bottom] [data-mini-cell][data-index][data-lit]   live copy of the board's bottom row
 //   [data-pattern-row][data-pattern="0,1,2"][data-match="true|false"]   the 7 bottom-row → top-row rows
 //   [data-reference-status="chase|match|nomatch|clear"]   which advice is showing
+//   [data-reference-kind="classic|rect|shaped"]  [data-reference-rule]  the one-line rule beside the match
 //   [data-action="learn"] inside it  → learn:open {} (full lessons; Back returns to the level)
 //
 // Home screen (home-view):
@@ -45,7 +46,9 @@
 //   [data-lesson-tile][data-lesson="<id>"][data-completed="true|false"]   lesson list
 //   [data-lesson-view="<id>"]  [data-step="N"]   current lesson and step
 //   [data-mini-board] [data-mini-cell][data-index][data-lit] (+ data-suggest="true")   practice board (NOT data-cell: that is the main board only)
-//   [data-action="learn-back"|"learn-next"|"learn-prev"|"learn-practice"|"learn-assist"]
+//   [data-action="learn-back"|"learn-next"|"learn-prev"|"learn-practice"|"learn-assist"|"learn-demo"]
+//   lesson 4: [data-action="learn-echo"][data-col="0..4"] (pick a top cell), [data-action="learn-deeper"] (Go deeper),
+//             [data-action="learn-drill"] with [data-drill="idle|asking|right|wrong|done"]
 // Entry points: [data-action="learn"] on the home screen and inside the in-game reference → learn:open
 //
 // Tutorial copy line (tutorial):  [data-tutorial]
