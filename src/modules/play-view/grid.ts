@@ -2,8 +2,12 @@
 import type { Shape } from '../../contracts';
 import { isCell } from '../../lib/shape';
 
-/** a tall board (the Tower, 6×16): it fits its width and scrolls instead of shrinking into the screen */
-export const isTall = (shape: Shape): boolean => shape.rows >= 2 * shape.cols;
+/**
+ * a tall board (the Tower, 8×16): it fits its width and scrolls instead of shrinking into the screen. Only up to 8
+ * across: wider, the lights would be under the tap minimum, and a scrolling board can't use the magnifier, so a wide
+ * tall board (Custom) fits the screen and aims instead.
+ */
+export const isTall = (shape: Shape): boolean => shape.rows >= 2 * shape.cols && shape.cols <= 8;
 
 /** the board's box in px: its width/height (padding box; a scrolling board's whole content), padding and the gap between cells */
 export interface Box { width: number; height: number; padX: number; padY: number; gapX: number; gapY: number }

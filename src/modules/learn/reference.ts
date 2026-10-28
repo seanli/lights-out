@@ -46,17 +46,28 @@ const ABOVE_BOTTOM = (1 << BOTTOM) - 1;
 const toMask = (cells: readonly boolean[]) => { let m = 0; for (let i = 0; i < CELL_COUNT; i++) if (cells[i]) m |= 1 << i; return m; };
 const rowMask = (cols: readonly number[]) => cols.reduce((m, c) => m | (1 << c), 0);
 
-/** classic = no shape (or 5×5 without gaps); rect = any other full rectangle; shaped = a mask with gaps */
+/** a board a chase can't read: a honeycomb or a cube (their grid), else wired or stuck switches; null for a plain square grid */
+export function twistOf(shape: Shape | undefined): TwistKind | null {
+  if (!shape) return null;
+  const grid = gridOf(shape);
+  if (grid === 'hex' || grid === 'cube') return grid;
+  if (shape.wires) return 'wired';
+  return shape.stuck?.length ? 'stuck' : null;
+}
+
+/** classic = no shape (or 5×5 without gaps); rect = any other full rectangle; shaped = a mask with gaps; else the twist */
 export function kindOf(shape: Shape | undefined): BoardKind {
   if (!shape) return 'classic';
+  const twist = twistOf(shape);
+  if (twist) return twist;
   if (shape.mask && shape.mask.some((m) => !m)) return 'shaped';
   return shape.cols === SIZE && shape.rows === SIZE ? 'classic' : 'rect';
 }
 
 type Board = Pick<BoardState, 'status' | 'cells'> & { shape?: Shape };
 
-/** What to do next, from the board alone. Pure, so tests can check it without a DOM. `fixerFor` serves shaped rooms. */
-export function createAdvisor(solver: Pick<SolverService, 'press'>, table: readonly TableEntry[], copy: ReferenceCopy['status'], fixerFor?: (shape: Shape) => Fixer | null) {
+/** What to do next, from the board alone. Pure, so tests can check it without a DOM. `fixerFor` serves shaped rooms, `tips` the twists. */
+export function createAdvisor(solver: Pick<SolverService, 'press'>, table: readonly TableEntry[], copy: ReferenceCopy['status'], fixerFor?: (shape: Shape) => Fixer | null, tips?: ReferenceCopy['tips']) {
   // what each top-row tap toggles, read from the solver once
   const topPress = Array.from({ length: SIZE }, (_, c) => toMask(solver.press(blank(), c)));
   const entries = table.map((e) => ({ bottom: rowMask(e.bottom), top: rowMask(e.top) }));
@@ -142,6 +153,8 @@ export function createAdvisor(solver: Pick<SolverService, 'press'>, table: reado
     if (!board || board.status === 'empty') return { status: 'chase', text: copy.start, match: -1 };
     if (board.status === 'solved' || !board.cells.includes(true)) return { status: 'clear', text: copy.clear, match: -1 };
     const kind = kindOf(board.shape);
+    const twist = twistOf(board.shape);
+    if (twist) return { status: 'tip', text: tips?.[twist] ?? copy.start, match: -1 };
     if (kind === 'shaped') return shaped(board.cells, board.shape!);
     if (kind === 'rect') return rect(board.cells, board.shape!);
     return classic(toMask(board.cells));
@@ -150,7 +163,7 @@ export function createAdvisor(solver: Pick<SolverService, 'press'>, table: reado
 }
 
 /** teal stays the paid Hint's colour: the panel speaks in the coach tone, warm when a row matches */
-const TONE: Record<ReferenceStatus, string> = { chase: 'coach', match: 'match', clear: 'coach', nomatch: 'warn' };
+const TONE: Record<ReferenceStatus, string> = { chase: 'coach', match: 'match', clear: 'coach', nomatch: 'warn', tip: 'coach' };
 
 export interface ReferenceLabels {
   /** "B" / "A + D" for a table row's top taps */
@@ -164,11 +177,13 @@ export interface ReferenceRooms {
   fixer(shape: Shape): Fixer | null;
   /** the guide id for a room, or null when it has none */
   guideFor(pack: string): string | null;
+  /** the guide of the room of this kind (a custom board with a twist has no room of its own), or null */
+  guideForKind(kind: TwistKind): string | null;
 }
 
 export function createReference(ctx: Ctx, solver: SolverService, table: readonly TableEntry[], copy: ReferenceCopy, labels: ReferenceLabels, rooms: ReferenceRooms) {
   const slot = ctx.need('view').region('slot:reference');
-  const advise = createAdvisor(solver, table, copy.status, rooms.fixer);
+  const advise = createAdvisor(solver, table, copy.status, rooms.fixer, copy.tips);
 
   /** a strip of n cells; on a top strip the cells to tap carry the pointer ring and their column letter */
   const strip = (kind: 'bottom' | 'top' | 'live', cols: readonly number[], n = SIZE) => {
@@ -270,9 +285,10 @@ export function createReference(ctx: Ctx, solver: SolverService, table: readonly
     paintTaps(classicTop, match >= 0 ? table[match]!.top : []);
     setAttr(classicTop, 'data-empty', match >= 0 ? null : 'true');
     classicBox.hidden = !classic;
-    // rooms: their board guide instead of all lessons
+    // rooms: their board guide instead of all lessons (a custom board with a twist: that twist's guide)
     const pack = kind === 'classic' ? 'classic' : packOf(board?.levelId);
-    guideId = pack === 'classic' ? null : rooms.guideFor(pack);
+    const twist = twistOf(board?.shape);
+    guideId = pack !== 'classic' ? rooms.guideFor(pack) : twist ? rooms.guideForKind(twist) : null;
     lessonsBtn.hidden = !!guideId;
     guideBtn.hidden = !guideId;
     // shaped rooms: the picture with the fix ringed
@@ -320,6 +336,8 @@ export function createReference(ctx: Ctx, solver: SolverService, table: readonly
     rule.hidden = !line;
     ruleBox.hidden = !line;
     setText(rule, line);
+    // nothing to show below line 1 (a tip, a shaped room while chasing): no empty body taking room
+    body.hidden = classicBox.hidden && rectBox.hidden && shapeBox.hidden;
   };
   ctx.watch('board', update);
   update(ctx.read('board'));

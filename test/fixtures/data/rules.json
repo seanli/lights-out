@@ -130,14 +130,14 @@
         "id": "tower",
         "kind": "size",
         "group": "extreme",
-        "cols": 6,
+        "cols": 8,
         "rows": 16,
         "idBase": 10000,
         "seed": 5016,
         "bands": [
-          { "pars": [6, 6, 7, 7, 8, 8, 9, 9, 10], "boss": 15 },
-          { "pars": [10, 10, 11, 11, 12, 12, 13, 13, 14], "boss": 21 },
-          { "pars": [14, 14, 15, 16, 16, 17, 18, 18, 19], "boss": 29 }
+          { "pars": [8, 8, 9, 9, 10, 10, 11, 11, 12], "boss": 18 },
+          { "pars": [12, 12, 13, 13, 14, 14, 15, 15, 16], "boss": 24 },
+          { "pars": [16, 16, 17, 18, 18, 19, 20, 20, 21], "boss": 32 }
         ]
       }
     ]
@@ -152,7 +152,7 @@
   },
   "hints": { "choice": "random" },
   "custom": {
-    "$comment": "Custom mode: par as a share of the lights per difficulty, wiring mixed per difficulty, stuck lights per lights, tries per puzzle.",
+    "$comment": "Custom mode: par as a share of the lights per difficulty (at most maxPar), wiring mixed per difficulty, stuck lights per lights, tries per puzzle.",
     "par": { "easy": 0.1, "medium": 0.17, "hard": 0.25, "boss": 0.33 },
     "minPar": 2,
     "wires": {
@@ -163,7 +163,8 @@
     },
     "lightsPerStuck": 12,
     "maxStuck": 8,
-    "maxTries": 400
+    "maxTries": 400,
+    "maxPar": 80
   },
   "solved-sheet": { "delayMs": 640 },
   "tutorial": {

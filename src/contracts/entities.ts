@@ -8,9 +8,9 @@ export const CONTRACT_VERSION = 4;
 /** The classic board: 5×5, no gaps. The tutorial, Learn and the Patterns table are about this board. */
 export const SIZE = 5;
 export const CELL_COUNT = SIZE * SIZE;
-/** the widest grid (a 4×4 cube's net: three faces across) and the tallest (the 6×16 Tower, which scrolls) */
-export const MAX_COLS = 12;
-export const MAX_ROWS = 16;
+/** the widest and tallest grid: Custom's biggest board (20 × 30); rooms stay within 12 × 16 (a 4×4 cube's net) */
+export const MAX_COLS = 20;
+export const MAX_ROWS = 30;
 export const MAX_CELLS = MAX_COLS * MAX_ROWS;
 
 export const CellIndexSchema = v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_CELLS - 1));
@@ -250,8 +250,8 @@ export type VarietyState = v.InferOutput<typeof VarietyStateSchema>;
 /** What the player picks for a custom board. Each grid keeps its own size, so switching grids keeps your sizes. */
 export const CustomSettingsSchema = v.object({
   grid: GridSchema,
-  /** square: width and height */
-  cols: v.pipe(v.number(), v.integer(), v.minValue(3), v.maxValue(10)),
+  /** square: width and height (3 × 3 up to 20 × 30; past 10 across the lights are small enough to need the magnifier) */
+  cols: v.pipe(v.number(), v.integer(), v.minValue(3), v.maxValue(MAX_COLS)),
   rows: v.pipe(v.number(), v.integer(), v.minValue(3), v.maxValue(MAX_ROWS)),
   /** hex: the hexagon's side (3 = 19 lights, 4 = 37, 5 = 61) */
   hexSide: v.pipe(v.number(), v.integer(), v.minValue(3), v.maxValue(5)),

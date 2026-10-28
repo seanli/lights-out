@@ -394,7 +394,7 @@ function wiredGuide(solver: Solving, shape: Shape): Step[] {
   return [
     { kind: 'show', boards: three.map((i) => tapFig(i, WIRE_SHAPE[bits(i)]!)) },
     { kind: 'show', boards: [{ from: [], lit: [light], ring: reachers(shape, light), caption: 'reach' }] },
-    { ...demo([...taps], play, play.map(() => 'spot' as const)), rings },
+    { ...demo([...taps], play, play.map(() => 'back' as const)), rings },
     { kind: 'practice' },
   ];
 }
@@ -425,7 +425,8 @@ function stuckGuide(solver: Solver, shape: Shape, fx: Fixer): Step[] {
     if (overlap < 2 || !isClear(chaseShape(solver, pressAll(solver, dark, [a, b, c], shape), shape).cells)) return null;
     return dist(a) + dist(b) + dist(c);
   }) ?? under.slice(0, 1);
-  // 3. a chase that leaves a light over a screw: tap the top-edge light that fixes it, then chase again
+  // 3. a chase that leaves a light over a screw: tap the top-edge light that fixes it, then chase again. The second
+  //    chase runs the whole board (23 taps at the least on 6×6), so: the shortest, then the fewest lights left
   const overScrew = (cells: Cells) => stuck.some((x) => x >= shape.cols && cells[x - shape.cols]);
   const plan = (t: readonly number[]) => {
     const c1 = chaseShape(solver, pressAll(solver, dark, t, shape), shape);
@@ -438,8 +439,7 @@ function stuckGuide(solver: Solver, shape: Shape, fx: Fixer): Step[] {
   const round = best(triplesOf(fx.starts, others), (t) => {
     const p = plan(t);
     if (!p || p.fix.length !== 1 || p.c1.length < 2 || !overScrew(p.left)) return null;
-    const total = p.c1.length + 1 + p.c2.length;
-    return total > 16 ? null : Math.abs(total - 11) * 100 + dist(t[1]) + dist(t[2]);
+    return (p.c1.length + p.c2.length) * 1000 + p.left.filter(Boolean).length * 100 + dist(t[1]) + dist(t[2]);
   }) ?? best(triplesOf(fx.starts, others), (t) => (plan(t) ? 0 : null));
   const p = round ? plan(round)! : { c1: [], fix: [], c2: [] };
   return [

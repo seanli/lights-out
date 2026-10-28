@@ -12,8 +12,8 @@ Other shapes (`shaped.ts`): one equation per real cell, one variable per pressab
 wiring), held in 32-bit words. Gauss-Jordan once per
 `shapeKey`, cached (and per frozen shape object). A solve builds the board and its particular solution in one pass,
 checks parity, then takes the lightest of solution XOR every null-space vector (searched fully up to dimension 12;
-above that a greedy basis descent, logged as a warning). Null-space dimension: 7×7 0, Ring 2, Diamond 0, 8×8 0, 6×16 0,
-hexagon 4 → 4, cube 3 → 6, cube 4 → 0. About 0.6–3 µs per solve.
+above that a greedy basis descent, logged as a warning). Null-space dimension: 7×7 0, Ring 2, Diamond 0, 8×8 0, 8×16 0,
+hexagon 4 → 4, cube 3 → 6, cube 4 → 0 (Custom: 20 × 30 → 0 in 40 ms, 19 × 19 → 16). About 0.6–3 µs per solve.
 
 Console: `solver.solve` solves the board that's showing (with its shape). Bad input throws a plain message.
 Tests: `solver.test.ts` (classic vs `test/ref-solver.ts`), `shapes.test.ts` (every room vs a BigInt reference), `grids.test.ts`

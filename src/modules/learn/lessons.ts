@@ -22,8 +22,9 @@ export interface MiniSpec {
   caption?: string;
 }
 
-/** what a demo tap is part of: the first chase, the top-row (or top-edge) taps, the second chase, or a spotted shape */
-export type Phase = 'chase' | 'top' | 'edge' | 'chase2' | 'spot';
+/** what a demo tap is part of: the first chase, the top-row (or top-edge) taps, the second chase, a spotted shape,
+ *  or a switch found by working back from a lit light (wired) */
+export type Phase = 'chase' | 'top' | 'edge' | 'chase2' | 'spot' | 'back';
 
 /** how a demo ends, when it doesn't end dark: copy.json → learn.demoEnd.<key> ({n} = lights left) */
 export type DemoEnd = 'left' | 'stuck' | 'stuckShape' | 'cancelled';

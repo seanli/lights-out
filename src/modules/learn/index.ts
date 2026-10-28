@@ -40,9 +40,11 @@ const CopySchema = v.looseObject({
   done: text, assist: text, newBoard: text, another: text, assistLine: text, aimTip: text, undoHint: text, moves: text, movesPar: text,
   solved: text, solvedPar: text, solvedAtPar: text, demoPlay: text, demoReplay: text, demoStep: text, demoTap: text, demoPhaseTap: text,
   demoDone: text, demoCancel: text,
+  /** added to a practice light's label when it is a stuck switch */
+  cellStuck: text,
   /** how a demo ends when it doesn't end dark ({n} = lights left) */
   demoEnd: v.object({ left: text, stuck: text, stuckShape: text, cancelled: text }),
-  demoPhase: v.object({ chase: text, top: text, edge: text, chase2: text, spot: text }),
+  demoPhase: v.object({ chase: text, top: text, edge: text, chase2: text, spot: text, back: text }),
   /** a guide's practice line by phase: chasing, only the bottom (end) lights left, after the top taps; edgeFix: the Stuck room's */
   coach: v.object({ chase: text, bottom: text, bottoms: text, again: text, shapeFix: text, edgeFix: text }),
   captions: v.record(v.string(), text), cellOn: text, cellOff: text,
@@ -334,8 +336,9 @@ const learn: ModuleDef = {
         ctx.log.warn('Refused a practice press on a cell that does not exist', { index });
         return ctx.emit('learn:refused', { command: 'learn:press', reason: 'bad_index' });
       }
-      // a stuck switch can't be pressed (the view shakes it, as the play board does); no tap is counted
-      if (shape && isStuck(shape, index)) return ctx.emit('learn:refused', { command: 'learn:press', reason: 'stuck' });
+      // a stuck switch can't be pressed (the view shakes it, as the play board does); no tap is counted.
+      // ('bad_index' until the contract has board:refused's 'stuck' reason here too: requests.md)
+      if (shape && isStuck(shape, index)) return ctx.emit('learn:refused', { command: 'learn:press', reason: 'bad_index' });
       const cells = shape ? solver.press(pr.cells, index, shape) : solver.press(pr.cells, index);
       const solved = isClear(cells);
       const moves = pr.moves + 1;
@@ -387,6 +390,10 @@ const learn: ModuleDef = {
     const reference = createReference(ctx, solver, table, copy.reference, { echo: letters, letters: copy.letters }, {
       fixer: fixerFor,
       guideFor: (pack) => (guidePack(guideId(pack)) ? guideId(pack) : null),
+      guideForKind: (kind) => {
+        const room = (ctx.read('levels')?.packs ?? []).find((p) => p.kind === kind && guidePack(guideId(p.id)));
+        return room ? guideId(room.id) : null;
+      },
     });
 
     const showTable = () => {

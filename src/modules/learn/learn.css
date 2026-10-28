@@ -24,6 +24,34 @@
 }
 /* a room's board (data-mini-n = its longer side): tighter from 6 up so the lights stay big; a gap keeps its slot, empty */
 .board--mini[data-mini-n]:not([data-mini-n="5"]) { --cell-gap: var(--space-1); --board-pad: var(--space-1-5); --cell-radius: var(--radius-xs); }
+/* a honeycomb (view.ts places each light): two half-columns per light, odd rows one later; rows .866 of a light apart;
+   round lights filling --hex-fill of the distance between neighbours, as on the play board */
+.board--mini[data-mini-grid="hex"][data-mini-n] {
+  --cell-radius: 50%; gap: 0;
+  grid-template-columns: repeat(var(--board-halves), minmax(0, 1fr)); grid-template-rows: repeat(var(--hex-rows), minmax(0, 1fr));
+}
+.board--mini[data-mini-grid="hex"] > .cell { width: calc(var(--hex-fill) * 100%); height: auto; aspect-ratio: 1; place-self: center; }
+/* a cube's net (view.ts places each light): six face panels like the play cube's, a seam track between faces */
+.board--mini[data-mini-grid="cube"][data-mini-n] {
+  --face-seam: var(--space-2); --face-pad: var(--space-1); --board-pad: var(--space-1-5);
+  background: none; box-shadow: none;
+  grid-template-columns: repeat(var(--cube-n), minmax(0, 1fr)) var(--face-seam) repeat(var(--cube-n), minmax(0, 1fr)) var(--face-seam) repeat(var(--cube-n), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--cube-n), minmax(0, 1fr)) var(--face-seam) repeat(var(--cube-n), minmax(0, 1fr)) var(--face-seam)
+    repeat(var(--cube-n), minmax(0, 1fr)) var(--face-seam) repeat(var(--cube-n), minmax(0, 1fr));
+}
+.board--mini > .mini-face {
+  margin: calc(-1 * var(--face-pad)); border-radius: var(--radius-sm);
+  background: var(--c-board); box-shadow: var(--shadow-board); pointer-events: none;
+}
+/* demos and practice on the net: as large as fits, but a light never under three quarters of a tap target; below that
+   (short phones) the net scrolls inside its box like the Tower (view.ts: a press lands on release, a swipe scrolls) */
+.learn-stage[data-mini-grid="cube"]:is(.learn-stage--demo, .learn-stage--practice) .learn-fit {
+  --net-cell-min: calc(var(--tap-min) * 3 / 4);
+  overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; place-items: safe center;
+}
+.learn-stage[data-mini-grid="cube"]:is(.learn-stage--demo, .learn-stage--practice) .learn-fit > .board--mini {
+  width: max(min(100cqw, 100cqh * var(--board-cols) / var(--board-rows), var(--board-max)), min(100cqw, var(--board-cols) * var(--net-cell-min)));
+}
 /* where the aim bubble is pointing (src/lib/aim.ts) */
 .board--mini .cell[data-aimed="true"] { outline: var(--ring-w) dashed var(--c-pointer); outline-offset: var(--hairline); z-index: 1; }
 .board--mini > .mini-gap { visibility: hidden; }
@@ -68,7 +96,8 @@
   flex: 1 1 0; min-height: 0; container: learn-stage / size;
   display: flex; flex-direction: column; justify-content: safe center; gap: var(--stack);
 }
-.learn-fit { flex: 1 1 0; min-height: 0; container-type: size; display: grid; place-items: center; }
+/* a hairline of inline padding: a figure as wide as the box keeps its outline (the step scrolls, so it clips) */
+.learn-fit { flex: 1 1 0; min-height: 0; container-type: size; display: grid; place-items: center; padding-inline: var(--hairline); }
 /* a picture with a link under it (figures, lesson 4's list + "Go deeper") rests on the link instead of floating apart */
 .learn-stage--show[data-under] .learn-fit, .learn-stage--table[data-under] .learn-fit { place-items: end center; }
 .learn-stage--show[data-under] .learn-figs { align-content: end; }

@@ -311,7 +311,7 @@ describe('levels', () => {
 
     test.each([
       ['both a size and a picture', { ...rooms[0]!, picture: ['XXX', 'XXX', 'XXX'] }, /needs cols and rows \(and no picture\)/],
-      ['a 13-wide board', { ...rooms[0]!, cols: 13, rows: 8 }, /Invalid value/],
+      ['a 21-wide board', { ...rooms[0]!, cols: 21, rows: 8 }, /Invalid value/],
       ['a hex room without a side', { ...rooms.find((r) => r.kind === 'hex')!, side: undefined }, /needs a side/],
       ['stuck cells on a room that isn\'t stuck', { ...rooms[0]!, bands: rooms[0]!.bands.map((b) => ({ ...b, stuck: 2 })) }, /Only a stuck room/],
     ])('data with %s is rejected before init', (_, room, message) => {

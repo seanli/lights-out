@@ -43,7 +43,7 @@ const TARGETS = {
   12: { name: 'Layout', target: '6 viewports: no h-scroll, 44px, board fits' },  // board slots: 44px, or the board aims
   13: { name: 'Page weight', target: '≤ 310KB, gzip ≤ 112KB' },
   14: { name: 'Offline install (PWA)', target: 'plays offline after SW ready' },
-  15: { name: 'Every room by touch', target: 'level 1 of each; slot ≥ 40px or aim (hex ≥ 36 at 320; cube: front face)' },
+  15: { name: 'Every room by touch', target: 'level 1 of each; slot ≥ 40px or aim (hex, Tower ≥ 36 at 320; cube: front face)' },
 };
 const VIEWPORTS = [
   { width: 320, height: 568 }, { width: 375, height: 667 }, { width: 390, height: 844 },
@@ -584,8 +584,9 @@ async function varietyRooms() {
         if (info.cells !== info.real) out.push(`${where}: ${info.cells} cells shown, ${info.real} expected`);
         if (info.gapButtons) out.push(`${where}: ${info.gapButtons} gaps are tappable`);
         // instant boards need 40px slots or more (DECISIONS #40: the whole slot is the target); smaller slots aim (#48)
-        // a honeycomb can't reach 40 on a 320 phone (seven lights and a half across); its gaps count, so 36 there (DECISIONS)
-        const need = info.grid === 'hex' && size.width < 375 ? 36 : 40;
+        // under 375 wide two boards can't reach 40 and can't use the magnifier: the honeycomb (seven and a half lights
+        // across, its gaps count) and the 8-wide Tower (it scrolls); 36 there (DECISIONS #59, #62)
+        const need = (info.grid === 'hex' || info.scroll) && size.width < 375 ? 36 : 40;
         if (info.slot < need - 0.5 && !info.aim) out.push(`${where}: touch slot ${info.slot.toFixed(0)}px < ${need}px and not in aim mode`);
         if (info.slot >= 40.5 && info.aim) out.push(`${where}: aim mode on ${info.slot.toFixed(0)}px slots`);
         if (info.scroll && info.top !== 0) out.push(`${where}: the Tower did not start at the top (scrollTop ${info.top})`);

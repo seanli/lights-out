@@ -254,7 +254,7 @@ describe('board', () => {
     test.each([
       ['wrong length for the shape', grid(25, 0), ring],
       ['a lit gap', grid(49, 24), ring],
-      ['a shape that is too big', grid(104, 0), { cols: 13, rows: 8, mask: null }],
+      ['a shape that is too big', grid(168, 0), { cols: 21, rows: 8, mask: null }],
       ['a cube that isn\'t a cube\'s net', grid(108, 0), { cols: 9, rows: 12, mask: null, grid: 'cube' as const }],
       ['wiring on a honeycomb', grid(9, 0), { cols: 3, rows: 3, mask: null, grid: 'hex' as const, wires: Array(9).fill(1) }],
       ['a mask of the wrong length', grid(16, 0), { cols: 4, rows: 4, mask: [true, false] }],

@@ -4,7 +4,7 @@
 // board under CUSTOM_LEVEL_ID and goes to play. Settings are remembered in storage under `custom`.
 import * as v from 'valibot';
 import {
-  CUSTOM_LEVEL_ID, CustomSettingsSchema,
+  CUSTOM_LEVEL_ID, CustomSettingsSchema, MAX_COLS, MAX_ROWS,
   type CustomSettings, type CustomState, type ModuleDef, type Rng, type Shape,
 } from '../../contracts';
 import { cubeShape } from '../../lib/cube';
@@ -32,6 +32,8 @@ const Copy = v.object({
   /** under the twist choice: what the chosen twist does */
   twistNotes: v.object({ none: Text, stuck: Text, wired: Text }),
   wiredNeedsSquare: Text,
+  /** under the size steppers when a square board gets big */
+  bigNote: Text,
   /** the board's name; also the start of the label the play header shows */
   name: v.object({ square: Text, hex: Text, cube: Text }),
   /** the preview's line, per grid (hex's name already counts its lights) */
@@ -59,7 +61,12 @@ const OPTIONS = {
 type OptionKey = keyof typeof OPTIONS;
 const OPTION_KEYS = Object.keys(OPTIONS) as OptionKey[];
 /** stepper bounds: the same as CustomSettingsSchema's */
-const SIZES = { cols: [3, 10], rows: [3, 16], hexSide: [3, 5], cubeSide: [3, 4] } as const;
+const SIZES = { cols: [3, MAX_COLS], rows: [3, MAX_ROWS], hexSide: [3, 5], cubeSide: [3, 4] } as const;
+/** past this many across (or down), a square board's lights get small enough to need the magnifier: say so */
+const BIG = { cols: 10, rows: 16 };
+/** hold a − or + to keep stepping: the wait before it repeats, then the pace */
+const HOLD_MS = 380;
+const REPEAT_MS = 60;
 type SizeKey = keyof typeof SIZES;
 const SIZE_KEYS = Object.keys(SIZES) as SizeKey[];
 const SHOWN: Record<CustomSettings['grid'], SizeKey[]> = { square: ['cols', 'rows'], hex: ['hexSide'], cube: ['cubeSide'] };
@@ -82,6 +89,8 @@ const RulesSchema = v.object({
   lightsPerStuck: count,
   maxStuck: count,
   maxTries: count,
+  /** a puzzle never asks for more presses than this, however big the board */
+  maxPar: count,
 });
 type Tuning = v.InferOutput<typeof RulesSchema>;
 
@@ -92,7 +101,7 @@ function baseShape(s: CustomSettings): Shape {
   return { cols: s.cols, rows: s.rows, mask: null };
 }
 
-const parTarget = (t: Tuning, lights: number, d: CustomSettings['difficulty']) => Math.max(t.minPar, Math.round(lights * t.par[d]));
+const parTarget = (t: Tuning, lights: number, d: CustomSettings['difficulty']) => Math.min(t.maxPar, Math.max(t.minPar, Math.round(lights * t.par[d])));
 
 /** the board with its twist: stuck lights or wiring drawn from `rng` */
 function puzzleShape(t: Tuning, s: CustomSettings, rng: Rng): Shape {
@@ -130,7 +139,7 @@ const custom: ModuleDef = {
     emits: ['custom:started', 'custom:refused', 'custom:set', 'custom:play', 'board:load', 'nav:go', 'nav:back'],
     listens: ['custom:open', 'custom:set', 'custom:play'],
     owns: ['custom'],
-    uses: ['view', 'solver', 'rng'],
+    uses: ['view', 'solver', 'rng', 'clock'],
     optional: ['storage'],
     data: { copy: Copy, rules: RulesSchema },
   },
@@ -140,6 +149,7 @@ const custom: ModuleDef = {
     const view = ctx.need('view');
     const solver = ctx.need('solver');
     const rng = ctx.need('rng');
+    const clock = ctx.need('clock');
     const storage = ctx.service('storage');
     const state = () => ctx.read('custom')!;
     /** the last puzzle made, for the console */
@@ -265,6 +275,7 @@ const custom: ModuleDef = {
     const summary = h('span', { class: 'custom__summary', 'data-custom-summary': '' });
     const steppers = Object.fromEntries(SIZE_KEYS.map((k) => [k, stepper(k)])) as Record<SizeKey, Stepper>;
     const lightsNote = h('span', { class: 'custom__lights', 'data-custom-lights': '' });
+    const bigNote = h('p', { class: 'custom__note', 'data-custom-big': '', hidden: true }, copy.bigNote);
     const twistNote = h('span', { 'data-custom-note': '' });
     const wiredNote = h('span', { class: 'custom__wired-note', id: WIRED_NOTE_ID, 'data-custom-wired-note': '' }, copy.wiredNeedsSquare);
     const error = h('p', { class: 'custom__error', role: 'alert', 'data-custom-error': '', hidden: true });
@@ -279,7 +290,7 @@ const custom: ModuleDef = {
         group('grid'),
         h('section', { class: 'section custom__section' },
           h('span', { class: 'eyebrow' }, copy.sections.size),
-          h('div', { class: 'custom__sizes' }, ...SIZE_KEYS.map((k) => steppers[k].el), lightsNote)),
+          h('div', { class: 'custom__sizes' }, ...SIZE_KEYS.map((k) => steppers[k].el), lightsNote), bigNote),
         group('twist', h('p', { class: 'custom__note' }, twistNote, ' ', wiredNote)),
         group('difficulty')),
       error,
@@ -315,6 +326,7 @@ const custom: ModuleDef = {
         setAttr(st.more, 'aria-disabled', set[key] >= SIZES[key][1] ? 'true' : null);
       }
       lightsNote.hidden = set.grid === 'square';
+      bigNote.hidden = set.grid !== 'square' || (set.cols <= BIG.cols && set.rows <= BIG.rows);
       setText(lightsNote, fmt(copy.lights, { n: lights }));
 
       setText(name, nameOf(set, lights));
@@ -341,6 +353,35 @@ const custom: ModuleDef = {
       if (state().settings[key] !== value) ctx.emit('custom:set', { settings: { [key]: value } as Partial<CustomSettings> });
     }
 
+    /** one step of a − / + button; false when it is at its end */
+    const stepOf = (step: HTMLElement): boolean => {
+      const key = step.closest<HTMLElement>('[data-custom-size]')?.dataset.customSize as SizeKey | undefined;
+      if (!key || step.getAttribute('aria-disabled') === 'true') return false;
+      const now = state().settings[key];
+      const next = Math.min(SIZES[key][1], Math.max(SIZES[key][0], now + Number(step.dataset.step)));
+      if (next === now) return false;
+      ctx.emit('custom:set', { settings: { [key]: next } });
+      return true;
+    };
+    // hold − or + to keep stepping (3 to 30 is a long way one tap at a time); the click after a hold does nothing
+    let holding: (() => void) | null = null;
+    let held = false;
+    const stopHold = () => { holding?.(); holding = null; };
+    region.addEventListener('pointerdown', (e) => {
+      const step = (e.target as Element).closest<HTMLElement>('[data-step]');
+      if (!step || e.button !== 0) return;
+      stopHold();
+      held = false;
+      const tick = (wait: number) => {
+        holding = clock.setTimeout(() => {
+          held = true;
+          if (stepOf(step)) tick(REPEAT_MS); else holding = null;
+        }, wait);
+      };
+      tick(HOLD_MS);
+    });
+    for (const type of ['pointerup', 'pointercancel', 'pointerleave'] as const) region.addEventListener(type, stopHold);
+
     // every tap goes through an event (custom:set / custom:play / nav), so replay reproduces it
     region.addEventListener('click', (e) => {
       const target = e.target as Element;
@@ -350,11 +391,9 @@ const custom: ModuleDef = {
       const radio = target.closest<HTMLElement>('[data-custom-option]');
       if (radio) return choose(radio);
       const step = target.closest<HTMLElement>('[data-step]');
-      const key = step?.closest<HTMLElement>('[data-custom-size]')?.dataset.customSize as SizeKey | undefined;
-      if (!step || !key || step.getAttribute('aria-disabled') === 'true') return;
-      const now = state().settings[key];
-      const next = Math.min(SIZES[key][1], Math.max(SIZES[key][0], now + Number(step.dataset.step)));
-      if (next !== now) ctx.emit('custom:set', { settings: { [key]: next } });
+      if (!step) return;
+      if (held && e.detail !== 0) { held = false; return; } // a hold already stepped
+      stepOf(step);
     });
 
     // arrow keys move (and choose) within a radiogroup, skipping what can't be chosen; Tab leaves the group

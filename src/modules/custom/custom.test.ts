@@ -52,6 +52,25 @@ describe('custom: settings', () => {
     expect(boot({ stored: { version: 1, settings: { ...mine, twist: 'wired' } } }).state('custom').settings).toEqual({ ...mine, twist: 'none' });
   });
 
+  test('square sizes run from 3 × 3 to 20 × 30; holding − or + keeps stepping, and the click after a hold adds nothing', () => {
+    const t = boot();
+    t.emit('custom:set', { settings: { cols: 3, rows: 3 } });
+    expect(t.state('custom').settings).toMatchObject({ cols: 3, rows: 3 });
+    t.emit('custom:set', { settings: { cols: 20, rows: 30 } });
+    expect(t.state('custom').settings).toMatchObject({ cols: 20, rows: 30 });
+    expect(document.querySelector<HTMLElement>('[data-custom-big]')!.hidden).toBe(false);
+    t.emit('custom:set', { settings: { cols: 6, rows: 6 } });
+    expect(document.querySelector<HTMLElement>('[data-custom-big]')!.hidden).toBe(true);
+    const plus = document.querySelector<HTMLElement>('[data-custom-size="rows"] [data-step="1"]')!;
+    plus.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
+    t.clock.advance(380 + 60 * 4);
+    plus.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0 }));
+    plus.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+    expect(t.state('custom').settings.rows).toBe(6 + 5);
+    plus.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+    expect(t.state('custom').settings.rows).toBe(6 + 6);
+  });
+
   test('custom:set merges, validates and saves; a bad value is refused and changes nothing', () => {
     const t = boot();
     t.emit('custom:set', { settings: { cols: 8, difficulty: 'hard' } });
@@ -59,7 +78,7 @@ describe('custom: settings', () => {
     expect(t.state('custom').settings).toEqual(want);
     expect(t.storage.dump().custom).toEqual({ version: 1, settings: want });
 
-    t.emit('custom:set', { settings: { cols: 11 } });
+    t.emit('custom:set', { settings: { cols: 21 } }); // 3 × 3 up to 20 × 30
     expect(t.seen('custom:refused')).toEqual({ command: 'custom:set', reason: 'bad_settings' });
     t.emit('custom:set', { settings: { difficulty: 'nightmare' } as unknown as Partial<CustomSettings> });
     expect(t.all('custom:refused').length).toBe(2);
@@ -186,11 +205,12 @@ describe('custom: making a puzzle', () => {
     expect($('[data-custom-error]').hidden).toBe(true);
   });
 
-  test('fast: the biggest boards at boss take well under 150ms', () => {
+  test('fast: the biggest boards at boss take well under 400ms (a 20 × 30 board solves 600 lights)', () => {
     const t = boot();
     const worst: Partial<CustomSettings>[] = [
-      { grid: 'square', cols: 10, rows: 16, twist: 'none', difficulty: 'boss' },
-      { grid: 'square', cols: 10, rows: 16, twist: 'stuck', difficulty: 'boss' },
+      { grid: 'square', cols: 20, rows: 30, twist: 'none', difficulty: 'boss' },
+      { grid: 'square', cols: 20, rows: 30, twist: 'stuck', difficulty: 'boss' },
+      { grid: 'square', cols: 20, rows: 30, twist: 'wired', difficulty: 'boss' },
       { grid: 'square', cols: 10, rows: 16, twist: 'wired', difficulty: 'boss' },
       { grid: 'cube', cubeSide: 4, twist: 'stuck', difficulty: 'boss' },
       { grid: 'hex', hexSide: 5, twist: 'none', difficulty: 'boss' },
@@ -205,7 +225,8 @@ describe('custom: making a puzzle', () => {
       }
       times.sort((a, b) => a - b);
       expect(t.state('custom').status, JSON.stringify(settings)).toBe('playing');
-      expect(times[1], `${JSON.stringify(settings)}: ${times.map(Math.round).join(', ')}ms`).toBeLessThan(150);
+      expect(t.state('custom').error).toBeUndefined();
+      expect(times[1], `${JSON.stringify(settings)}: ${times.map(Math.round).join(', ')}ms`).toBeLessThan(400);
     }
   });
 });
