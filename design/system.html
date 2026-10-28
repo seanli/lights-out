@@ -37,6 +37,10 @@ body.g { height: auto; }
 .g-focus { outline: var(--ring-w) solid var(--c-focus); outline-offset: var(--focus-offset); }
 .cell.g-focus { outline-offset: var(--focus-offset-tight); }
 .g-freeze .cell { animation-play-state: paused; animation-delay: calc(var(--i, 0) * var(--sweep-step) - 260ms); }
+/* a tap frozen ~40ms in: the pressed cell blooms, the staggered neighbours are mid-flip */
+.g-tap .cell[data-flip] { animation-play-state: paused; animation-delay: calc(var(--flip-delay, 0ms) - 40ms); }
+.g-mid-bump { animation-play-state: paused; animation-delay: -30ms; }
+.g-boards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: var(--space-4); }
 /* ?play: only the play screen, full viewport */
 body.g-solo .g-page { display: none; }
 </style>
@@ -50,6 +54,7 @@ body.g-solo .g-page { display: none; }
   <symbol id="i-sound" viewBox="0 0 24 24"><path d="M11 5L6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 010 7M19 5a10 10 0 010 14"/></symbol>
   <symbol id="i-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
   <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5a2 2 0 012-2h13v16H6a2 2 0 00-2 2z"/><path d="M4 21V5"/></symbol>
 </svg>
 
 <template id="play-tpl">
@@ -58,7 +63,7 @@ body.g-solo .g-page { display: none; }
       <header class="screen-header">
         <button class="btn btn--icon" data-action="back" aria-label="Back to levels"><svg class="icon"><use href="#i-back"/></svg></button>
         <div class="screen-header__title"><span class="eyebrow">Chapter 1</span><strong data-level-label>Level 7</strong></div>
-        <div class="screen-header__end" aria-label="Up to 2 stars possible"><span class="stars stars--md" data-stars="2"></span><span class="caption">Max · Hint used</span></div>
+        <div class="screen-header__end"><button class="btn btn--icon" data-action="reference" aria-label="Patterns" aria-expanded="false"><svg class="icon"><use href="#i-book"/></svg></button></div>
       </header>
       <div class="play-stats">
         <div class="stat"><span class="eyebrow">Moves</span><span class="stat__value" data-moves>2</span></div>
@@ -69,6 +74,7 @@ body.g-solo .g-page { display: none; }
           <span class="chip" data-state="now">≤5 <span class="stars stars--xs" data-stars="2"></span></span>
           <span class="chip">≤8 <span class="stars stars--xs" data-stars="1"></span></span>
           <span class="chip">9+ <span class="stars stars--xs" data-stars="1"></span></span>
+          <span class="chip" data-state="hint">−1★ hint</span>
         </div>
         <div class="board" data-board data-status="playing" data-bits="0001010111110101000100011" data-hint="8"></div>
         <p class="tutorial-line" data-tutorial data-tone="hint">Hint: tap the ringed light</p>
@@ -144,8 +150,17 @@ body.g-solo .g-page { display: none; }
     <div class="g-grid">
       <div class="g-card"><span class="g-label">data-status="playing" · lit / unlit / data-hint</span><div class="g-board"><div class="board" data-status="playing" data-bits="0001010111110101000100011" data-hint="8"></div></div></div>
       <div class="g-card"><span class="g-label">data-pointer (tutorial) · :active (r2) · :focus-visible (r4)</span><div class="g-board"><div class="board" data-status="playing" data-bits="0000000100011100010000000" data-pointer="12" data-active="2" data-focus="22"></div></div></div>
-      <div class="g-card"><span class="g-label">.board--sweep mid-celebration (--i = row + col)</span><div class="g-board"><div class="board board--sweep g-freeze" data-status="playing" data-bits="0000000000000000000000000"></div></div></div>
+      <div class="g-card"><span class="g-label">a tap 40ms in: [data-flip] bloom (centre, --flip-delay 0) and afterglow / mid-flip neighbours (--flip-stagger)</span><div class="g-board"><div class="board g-tap" data-status="playing" data-bits="0000000000001000000000000" data-tap="12" data-was="0000000100011100010000000"></div></div></div>
+      <div class="g-card"><span class="g-label">.board--sweep mid-celebration: a warm wash through a dark board (--i = distance)</span><div class="g-board"><div class="board board--sweep g-freeze" data-status="playing" data-bits="0000000000000000000000000"></div></div></div>
       <div class="g-card"><span class="g-label">data-status="solved" · dimmed, inert</span><div class="g-board"><div class="board" data-status="solved" data-bits="0000000000000000000000000"></div></div></div>
+    </div>
+    <span class="g-label">Variety rooms: .board[data-n="4|6|7"] scales gap, padding, corner radius and glow with the cell; a shaped board's gaps are [data-gap] (no data-cell), invisible, keeping their slot</span>
+    <div class="g-boards">
+      <div class="g-card"><span class="g-label">4×4</span><div class="g-board"><div class="board" data-n="4" data-status="playing" data-bits="0110100110010110"></div></div></div>
+      <div class="g-card"><span class="g-label">6×6</span><div class="g-board"><div class="board" data-n="6" data-status="playing" data-bits="001100010010110011110011010010001100" data-hint="14"></div></div></div>
+      <div class="g-card"><span class="g-label">7×7</span><div class="g-board"><div class="board" data-n="7" data-status="playing" data-bits="0001000001110001010100111011101010100011100001000" data-pointer="24"></div></div></div>
+      <div class="g-card"><span class="g-label">Ring (7×7 with gaps)</span><div class="g-board"><div class="board" data-n="7" data-status="playing" data-mask="XXXXXXX|XXXXXXX|XX...XX|XX...XX|XX...XX|XXXXXXX|XXXXXXX" data-bits="1000001010001000000000000000000000000001000101000001"></div></div></div>
+      <div class="g-card"><span class="g-label">Cross, solved + dimmed</span><div class="g-board"><div class="board" data-n="7" data-status="solved" data-mask="..XXX..|..XXX..|XXXXXXX|XXXXXXX|XXXXXXX|..XXX..|..XXX.." data-bits="0"></div></div></div>
     </div>
   </section>
 
@@ -153,13 +168,15 @@ body.g-solo .g-page { display: none; }
     <h2>Stats, chips, stars</h2>
     <div class="g-grid">
       <div class="g-card"><span class="g-label">.stat · .stat--end.stat--muted</span>
-        <div class="play-stats"><div class="stat"><span class="eyebrow">Moves</span><span class="stat__value">12</span></div><div class="stat stat--end stat--muted"><span class="eyebrow">Par</span><span class="stat__value">5</span></div></div>
+        <div class="play-stats"><div class="stat"><span class="eyebrow">Moves</span><span class="stat__value stat__value--bump g-mid-bump">12</span></div><div class="stat stat--end stat--muted"><span class="eyebrow">Par</span><span class="stat__value">5</span></div></div>
+        <span class="g-label">.stat__value--bump (1.12 → 1 on each move; frozen at start above)</span>
       </div>
-      <div class="g-card"><span class="g-label">.chip tiers · data-state now / (none) / lost</span>
+      <div class="g-card"><span class="g-label">.chip tiers · data-state lost / now / (none) / hint</span>
         <div class="play-tiers" style="justify-content:flex-start">
           <span class="chip" data-state="lost">≤5 <span class="stars stars--xs" data-stars="3"></span></span>
           <span class="chip" data-state="now">≤8 <span class="stars stars--xs" data-stars="2"></span></span>
           <span class="chip">9+ <span class="stars stars--xs" data-stars="1"></span></span>
+          <span class="chip" data-state="hint">−1★ hint</span>
         </div>
         <span class="g-label">.chip--lg (star total)</span>
         <div class="g-row"><span class="chip chip--lg"><span class="stars" data-stars="1" data-of="1"></span>14 <span class="chip__of">/ 150</span></span></div>
@@ -182,13 +199,13 @@ body.g-solo .g-page { display: none; }
       </div>
       <div class="g-card"><span class="g-label">.glyph (logo) · .chip--lg</span>
         <div class="row"><div class="row" style="justify-content:flex-start"><div class="glyph"><i></i><i data-lit="true"></i><i></i><i data-lit="true"></i><i data-lit="true"></i><i data-lit="true"></i><i></i><i data-lit="true"></i><i></i></div><h1 class="display">Lights Out</h1></div><span class="chip chip--lg"><span class="stars" data-stars="1" data-of="1"></span>14 <span class="chip__of">/ 150</span></span></div>
-        <span class="g-label">.level-tile states: solved · current · locked · focus · active</span>
+        <span class="g-label">.level-tile states: solved 3★ (glow) · current · locked socket · solved 1★ focus · solved 2★ active</span>
         <div class="level-grid">
-          <button class="level-tile" data-level-tile data-stars="3" data-locked="false" data-current="false">1<span class="stars" data-stars="3"></span></button>
+          <button class="level-tile" data-level-tile data-stars="3" data-solved="true" data-locked="false" data-current="false">1<span class="stars" data-stars="3"></span></button>
           <button class="level-tile" data-current="true" data-locked="false">7<span class="level-tile__tag">Play</span></button>
           <button class="level-tile" data-locked="true" aria-disabled="true">8</button>
-          <button class="level-tile g-focus">4<span class="stars" data-stars="1"></span></button>
-          <button class="level-tile g-active">5<span class="stars" data-stars="2"></span></button>
+          <button class="level-tile g-focus" data-solved="true" data-stars="1">4<span class="stars" data-stars="1"></span></button>
+          <button class="level-tile g-active" data-solved="true" data-stars="2">5<span class="stars" data-stars="2"></span></button>
         </div>
       </div>
     </div>
@@ -202,7 +219,7 @@ body.g-solo .g-page { display: none; }
         <div class="notice" data-tone="warn">This browser isn't saving progress, so it will be lost when you close the page.</div>
         <div class="notice" data-tone="error">Your latest progress couldn't be saved.</div>
       </div>
-      <div class="g-card"><span class="g-label">.tutorial-line · data-tone coach / hint / (none) / :empty keeps its height</span>
+      <div class="g-card"><span class="g-label">.tutorial-line · data-tone coach (--text-md, full contrast) / hint / (none) / :empty keeps its height</span>
         <p class="tutorial-line" data-tone="coach">Tap the glowing light. It switches itself and its neighbours.</p>
         <p class="tutorial-line" data-tone="hint">Hint: tap the ringed light</p>
         <p class="tutorial-line">Each tap flips a plus shape. Turn every light off.</p>
@@ -219,8 +236,7 @@ body.g-solo .g-page { display: none; }
           <p class="g-ghost muted">Board behind the scrim.</p>
           <div class="sheet-backdrop" data-open="true"></div>
           <div class="sheet" data-sheet="solved" data-open="true" data-stars-earned="2" role="dialog" aria-modal="true">
-            <div class="sheet__handle"></div>
-            <span class="eyebrow">Level 7 · solved</span>
+            <span class="eyebrow">Level 7</span>
             <h2 class="sheet__title">Lights out.</h2>
             <div class="stars stars--lg stars--reveal" data-stars="2" style="justify-content:center"></div>
             <p class="sheet__result" data-result>6 moves <span class="dim">· par 5</span></p>
@@ -273,11 +289,15 @@ body.g-solo .g-page { display: none; }
   }
   function fillBoards(root) {
     root.querySelectorAll('.board[data-bits]').forEach(function (b) {
-      var d = b.dataset;
-      for (var i = 0; i < 25; i++) {
-        var c = document.createElement('button'), r = Math.floor(i / 5), k = i % 5;
-        c.className = 'cell'; c.dataset.cell = ''; c.dataset.index = i; c.dataset.lit = d.bits[i] === '1';
+      var d = b.dataset, n = +(d.n || 5), mask = d.mask ? d.mask.replace(/\|/g, '') : '', bit = 0;
+      var near = d.tap ? [+d.tap, +d.tap - n, +d.tap + n, +d.tap - 1, +d.tap + 1] : [];
+      for (var i = 0; i < n * n; i++) {
+        var r = Math.floor(i / n), k = i % n;
+        if (mask && mask[i] !== 'X') { var g = document.createElement('div'); g.dataset.gap = ''; b.appendChild(g); continue; }
+        var c = document.createElement('button');
+        c.className = 'cell'; c.dataset.cell = ''; c.dataset.index = i; c.dataset.lit = (mask ? d.bits[bit++] : d.bits[i]) === '1';
         c.style.setProperty('--i', r + k);
+        if (near.indexOf(i) >= 0) { c.dataset.flip = ''; c.style.setProperty('--flip-delay', i === +d.tap ? '0ms' : 'var(--flip-stagger)'); }
         if (String(i) === d.hint) c.dataset.hint = 'true';
         if (String(i) === d.pointer) c.dataset.pointer = 'true';
         if (String(i) === d.active) c.classList.add('g-active');
@@ -291,13 +311,13 @@ body.g-solo .g-page { display: none; }
   for (var n = 1; n <= 20; n++) {
     var t = document.createElement('button'), s = earned[n - 1];
     t.className = 'level-tile'; t.dataset.levelTile = ''; t.dataset.level = n;
-    t.dataset.locked = !s && n !== 7; t.dataset.current = n === 7; t.dataset.stars = s || 0;
+    t.dataset.locked = !s && n !== 7; t.dataset.current = n === 7; t.dataset.stars = s || 0; t.dataset.solved = !!s;
     t.innerHTML = n + (s ? '<span class="stars" data-stars="' + s + '"></span>' : n === 7 ? '<span class="level-tile__tag">Play</span>' : '');
     if (t.dataset.locked === 'true') t.setAttribute('aria-disabled', 'true');
     lv.appendChild(t);
   }
   var sw = document.getElementById('swatches');
-  ['--c-room', '--c-surface', '--c-surface-2', '--c-board', '--c-line', '--c-text', '--c-text-dim', '--c-text-faint', '--c-tile-off', '--c-tile-on', '--c-tile-on-rim', '--c-accent', '--c-hint', '--c-pointer', '--c-star', '--c-star-off', '--c-info', '--c-warn', '--c-error', '--c-ok']
+  ['--c-room', '--c-tile-solved', '--c-surface', '--c-surface-2', '--c-board', '--c-line', '--c-text', '--c-text-dim', '--c-text-faint', '--c-tile-off', '--c-tile-on', '--c-tile-on-rim', '--c-accent', '--c-hint', '--c-pointer', '--c-star', '--c-star-off', '--c-info', '--c-warn', '--c-error', '--c-ok']
     .forEach(function (v) { sw.insertAdjacentHTML('beforeend', '<span class="g-sw"><i style="background:var(' + v + ')"></i>' + v + '</span>'); });
 
   var tpl = document.getElementById('play-tpl');
