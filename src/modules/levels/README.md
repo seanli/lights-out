@@ -1,18 +1,18 @@
 # levels
 
-Owns the `levels` slice: `{ status: 'ready' | 'error', list: [{id, cells, par}], chapters: [{id, name, from, to}], error? }`.
-Uses `solver` and `rng`. Data: `rules.json → levels` (seed, pars, maxTries, chapters), `copy.json → levels.chapters` (names).
+Owns the `levels` slice: `{ status, list: LevelDef[], chapters, packs: Pack[], error? }`. Uses `solver` and `rng`.
+Data: `rules.json → levels` (seed, pars, maxTries, chapters, rooms), `copy.json → levels` (classic, chapters, rooms names).
 
-- At init, makes one level per entry of `pars` from `rng.seeded(rules.seed)` (never the session rng), so every
-  player gets the same 50 boards. For par k: press k distinct random cells and keep the board when the solver's
-  fewest presses is exactly k and no earlier level has that board. Out of tries → keeps the highest par found and
-  logs a warning. About 15 ms in Node; the debug view shows the time and tries per level.
-- Chapters must cover 1..pars.length once each, in order, and each needs a name; otherwise init throws naming the gap.
-  Pars above 15 are rejected by the data schema (no 5×5 board needs more).
-- `start()` emits `levels:generated {count, pars}`. If generation fails, the slice is `status: 'error'` with a plain `error`.
-- `levels:start {levelId}` → `board:load {levelId, cells, par}` + `levels:started {levelId, par, count}`, or
-  `levels:refused` with `not_ready`, `unknown` (not 1..count) or `locked` (above `progress.unlockedUpTo`; no
-  progress slice means everything is open).
-- Console: `levels.start <n>`, `levels.list` (id: par).
-
-Generation and the chapter check live in `generate.ts` (pure).
+- At init, makes the classic path from `rng.seeded(rules.seed)` exactly as before rooms existed (pinned by a hash test:
+  the 50 boards never change), then each room in `rooms` from its own `rng.seeded(room.seed)`: shape from `cols/rows`
+  or `picture` (`parseShape`), ids `idBase + 1..`. For par k: press k distinct random real cells, keep the board when
+  the solver's fewest presses is exactly k and the room has no such board yet. Out of tries → highest par found + warning.
+- `list`: classic first (ids 1..50, at `list[id − 1]`, no pack fields), then room levels with `pack`, `index`, `shape`.
+- `packs`: classic first, then rooms in data order, names from copy. Bad rooms (overlapping ids, no name, par above the
+  cell count, bad picture) stop the game with a plain message. ~7–18 ms for all 122 levels in Node.
+- `start()` emits `levels:generated {count, pars}` about the classic path only.
+- `levels:start {levelId}` → `board:load {…, shape?}` + `levels:started {levelId, par, count, pack, index, next}`
+  (count = levels in that pack, next = following id in the pack or null). Refused `not_ready`, `unknown`, or `locked`:
+  classic above `progress.unlockedUpTo`; a room level unless `progress.varietyOpen` and `index ≤ progress.packs[room].unlockedUpTo`.
+  No progress slice → everything open.
+- Console: `levels.start <id>`, `levels.list` (id: par, with pack and index for rooms).

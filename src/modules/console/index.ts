@@ -260,14 +260,18 @@ const consoleModule: ModuleDef = {
             ['level', board.levelId === null ? '—' : String(board.levelId)], ['status', board.status],
             ['moves', String(board.moves)], ['par', String(board.par)],
             ['lit', `${litCount(board.cells)}/${board.cells.length}`], ['undo', `${board.history.length} deep`],
-            ['hint', hint === null ? '—' : cellName(hint)], ['screen', nav ? `${nav.screen}${nav.sheet ? `+${nav.sheet}` : ''}` : '—'],
+            ['hint', hint === null ? '—' : cellName(hint, board.shape?.cols)], ['screen', nav ? `${nav.screen}${nav.sheet ? `+${nav.sheet}` : ''}` : '—'],
           ];
           const kv = h('dl', { class: 'console__kv' });
           for (const [k, val] of pairs) kv.append(h('dt', {}, k), h('dd', {}, val));
           const grid = h('div', { class: 'console__grid', 'aria-label': 'board' });
-          boardRows(board.cells).forEach((row, r) => {
+          const cols = board.shape?.cols ?? 5;
+          boardRows(board.cells, board.shape).forEach((row, r) => {
             const line = h('div', {});
-            row.forEach((on, c) => line.append(h('span', { 'data-on': String(on), 'data-hint': r * 5 + c === hint ? 'true' : null }, on ? '1' : '0')));
+            // a gap is a space, so a shaped board keeps its outline
+            row.forEach((on, c) => line.append(on === null
+              ? h('span', { 'data-gap': 'true' }, '\u2007')
+              : h('span', { 'data-on': String(on), 'data-hint': r * cols + c === hint ? 'true' : null }, on ? '1' : '0')));
             grid.append(line);
           });
           nodes.push(h('div', { class: 'console__boardrow' }, kv, grid));

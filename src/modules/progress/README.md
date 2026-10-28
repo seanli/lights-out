@@ -1,13 +1,12 @@
 # progress
 
-Stars, best moves, unlocks and pending hint costs. Owns the `progress` slice `{ status, save: ProgressSaveV1, unlockedUpTo, scoring }`.
+Stars, best moves, unlocks and pending hint costs. Owns `progress`: `{ status, save: ProgressSaveV1, unlockedUpTo, scoring, packs, varietyOpen }`.
 Optional services: `storage`, `view` (works in memory without storage). Rules: `rules.progress`; copy: `copy.progress`.
 
-- Load: `storage.get(saveKey)`. Missing → `new`. Valid → `saved`. Old version → `MIGRATIONS` in `save.ts` (empty for now) → `saved`. Otherwise → `recovered`: keeps the level results that still parse, backs up the bad value to `<saveKey>.backup` (or `.backup-<time>` if one exists), and shows an info notice. If the backup can't be written, the original is never overwritten this visit.
-- `progress:loaded {source, solved, unlockedUpTo}` from `start()`.
-- `unlockedUpTo` = highest solved id + 1, capped at the levels count when the `levels` slice is ready.
-- `levels:started` → `lastLevel`. `hints:shown` → `pendingHints[id] += 1` (survives Restart and reload).
-- `board:solved` → stars = tier(moves − par) − hints × hintCost, min `minStars`. Keeps the best stars and fewest moves, clears pending hints, then emits `progress:level_completed`.
-- `progress:clear` → fresh save, `progress:cleared`.
-- Every change saves at once. On failure: `progress:save_failed {reason}`, plus a warn notice `progress-save` shown once (cleared when saving works again; skipped in memory mode, where storage already says so).
-- Console: `progress.stars`, `progress.unlock [n]` (1..n solved at 3★), `progress.clear`.
+- Load: `storage.get(saveKey)`. Missing → `new`. Valid → `saved`. Old version → `MIGRATIONS` in `save.ts` (none yet) → `saved`. Otherwise → `recovered`: keeps the level results that still parse, backs up the bad value to `<saveKey>.backup` (or `.backup-<time>`), and shows an info notice. If the backup can't be written, the original is never overwritten this visit.
+- The save stays v1: room results are keyed by their ids (1001+) like any level, so old saves load unchanged.
+- `unlockedUpTo` / `allSolved` count only classic ids (1..classic count). `packs[room]` = `{ unlockedUpTo: highest solved index + 1 (≥1, ≤count), solved, stars }`. `varietyOpen` = classic level `varietyAfter` is solved.
+- `levels:started` → `lastLevel` (classic only: a room level never becomes Continue). `hints:shown` → `pendingHints[id] += 1`.
+- `board:solved` → stars = tier(moves − par) − hints × hintCost, min `minStars`; keeps the best, clears pending hints, emits `progress:level_completed` with `pack` and `unlocked` (next level in the same pack, or null).
+- `progress:clear` → fresh save, `progress:cleared`. Every change merges with storage, then saves; on failure `progress:save_failed` + a warn notice once.
+- Console: `progress.stars`, `progress.unlock [n]` (classic 1..n at 3★), `progress.clear`.

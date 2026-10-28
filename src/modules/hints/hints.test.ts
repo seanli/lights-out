@@ -59,6 +59,17 @@ describe('hints', () => {
     expect(t.seen('hints:shown')).toEqual({ levelId: 6, index: s.cell });
   });
 
+  test('asks the solver about the board’s own shape (a Variety room)', () => {
+    const ring = { cols: 7, rows: 7, mask: Array.from({ length: 49 }, (_, i) => !(i >= 16 && i <= 32 && [2, 3, 4].includes(i % 7))) };
+    const cells = Array.from({ length: 49 }, (_, i) => i === 0 || i === 1 || i === 7);
+    const asked: unknown[] = [];
+    const solver: SolverService = { ...refSolver, solve: (c, shape) => { asked.push(shape); return [0]; } };
+    const t = boot({ board: boardState(cells, { levelId: 5001, start: cells, shape: ring }), solver, choice: 'first' });
+    t.emit('hints:request', {});
+    expect(asked).toEqual([ring]);
+    expect(t.seen('hints:shown')).toEqual({ levelId: 5001, index: 0 });
+  });
+
   test('"first" picks the lowest index', () => {
     const t = boot({ choice: 'first', board: boardState(levelFrom([20, 7, 13])) });
     t.emit('hints:request', {});

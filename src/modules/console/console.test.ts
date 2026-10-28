@@ -112,6 +112,20 @@ describe('console', () => {
     expect(JSON.parse(sessionStorage.getItem('lights-out:console')!).collapsed).toBe(false);
   });
 
+  test('a shaped board draws rows × cols with its gaps as spaces', () => {
+    const frames = stubFrames();
+    const t = boot();
+    const cross = [false, false, true, true, true, false, false];
+    const mask = [...cross, ...cross, ...Array(21).fill(true), ...cross, ...cross];
+    t.kernel.seed('board', { status: 'playing', levelId: 4001, start: Array(49).fill(false), cells: Array.from({ length: 49 }, (_, i) => i === 2), par: 1, moves: 0, history: [], shape: { cols: 7, rows: 7, mask } });
+    frames.flush();
+    openConsole(frames);
+    const state = $('[data-console-content="state"]')!;
+    const rows = [...state.querySelectorAll('.console__grid > div')].map((r) => r.textContent!.replace(/\u2007/g, ' '));
+    expect(rows).toEqual(['  100  ', '  000  ', '0000000', '0000000', '0000000', '  000  ', '  000  ']);
+    expect(state.textContent).toContain('1/49');
+  });
+
   test('consecutive same-type events collapse into one row with a count; tap bursts too', () => {
     const frames = stubFrames();
     const d = fakeDebug();

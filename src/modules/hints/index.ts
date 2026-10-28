@@ -33,7 +33,7 @@ const hints: ModuleDef = {
       if (ctx.read('hints')?.status === 'showing') return ctx.emit('hints:refused', { reason: 'already_showing' });
       // the tutorial already points at a correct cell; a paid hint would only cost a star
       if (ctx.read('tutorial')?.status === 'active') return ctx.emit('hints:refused', { reason: 'tutorial_active' });
-      const solution = solver.solve(board.cells);
+      const solution = solver.solve(board.cells, board.shape);
       if (!solution || solution.length === 0) {
         ctx.log.warn('No hint: the solver found no way to clear this board', { levelId: board.levelId, cells: board.cells });
         return ctx.emit('hints:refused', { reason: 'unsolvable' });

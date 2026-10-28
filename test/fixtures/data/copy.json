@@ -1,6 +1,7 @@
 {
   "$comment": "Every sentence the player sees. One section per owning module. {name} is filled in by the module.",
   "levels": {
+    "classic": "Classic",
     "chapters": {
       "first-light": "First light",
       "crossfade": "Crossfade",

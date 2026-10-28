@@ -1,6 +1,6 @@
 // Pure progress rules: stars, unlocking, and reading a save (validate → migrate → salvage).
 import * as v from 'valibot';
-import { LevelResultSchema, ProgressSaveV1Schema, type LevelResult, type ProgressSave, type Scoring, type Stars } from '../../contracts';
+import { LevelResultSchema, ProgressSaveV1Schema, type LevelResult, type Pack, type ProgressSave, type ProgressState, type Scoring, type Stars } from '../../contracts';
 
 export const freshSave = (): ProgressSave => ({ version: 1, results: {}, pendingHints: {}, lastLevel: 0 });
 
@@ -11,12 +11,39 @@ export function starsFor(moves: number, par: number, hintsUsed: number, s: Scori
   return Math.min(3, Math.max(s.minStars, base - hintsUsed * s.hintCost)) as Stars;
 }
 
-/** highest solved level + 1 (at least 1), capped at the level count when it is known */
+/**
+ * Classic path: highest solved classic level + 1 (at least 1), capped at the classic count when it is known.
+ * Only ids 1..count are classic (Variety rooms use ids from 1001 up), so room results never move it.
+ */
 export function unlockedFrom(save: ProgressSave, count?: number): number {
   let top = 0;
-  for (const k of Object.keys(save.results)) top = Math.max(top, Number(k) || 0);
+  for (const k of Object.keys(save.results)) {
+    const id = Number(k) || 0;
+    if (count && count > 0 && id > count) continue;
+    top = Math.max(top, id);
+  }
   const next = top + 1;
   return count && count > 0 ? Math.min(next, count) : next;
+}
+
+export type PackProgress = NonNullable<ProgressState['packs']>[string];
+
+/** per Variety room: highest solved index + 1 (at least 1, capped at its count), levels solved, stars earned */
+export function packProgress(save: ProgressSave, packs: readonly Pack[]): Record<string, PackProgress> {
+  const out: Record<string, PackProgress> = {};
+  for (const p of packs) {
+    if (p.kind === 'classic') continue;
+    let top = 0, solved = 0, stars = 0;
+    for (let index = 1; index <= p.count; index++) {
+      const r = save.results[String(p.first + index - 1)];
+      if (!r) continue;
+      top = index;
+      solved++;
+      stars += r.stars;
+    }
+    out[p.id] = { unlockedUpTo: Math.max(1, Math.min(top + 1, p.count)), solved, stars };
+  }
+  return out;
 }
 
 /** One step per old version: steps[n] turns a version-n save into version n+1. None yet. */
