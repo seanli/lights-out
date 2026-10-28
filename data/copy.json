@@ -14,22 +14,30 @@
     "level": "Level {level}",
     "solvedCount": "{solved} of {total} solved",
     "savedNote": "Progress is saved on this device",
+    "allSolved": "Every level solved. Replay any level to improve your stars.",
+    "levelsError": "The levels couldn't be made, so there's nothing to play. Reload the page to try again.",
+    "starTotal": "{stars} of {max} stars",
+    "chapter": "Chapter {n} · {name}",
     "chapterRange": "Levels {from}–{to}",
     "chapterLocked": "Unlocks at level {level}",
+    "play": "Play",
+    "tileSolved": "Level {level}, {stars} of 3 stars",
+    "tileOpen": "Level {level}, not solved yet",
+    "tileLocked": "Level {level}, locked",
     "starLegend": {
       "three": "par",
-      "two": "par +3",
+      "two": "par +{within}",
       "one": "solved",
-      "hint": "hint −1★"
+      "hint": "hint −{cost}★"
     },
+    "learn": "Learn the patterns",
     "soundOn": "Sound on",
     "soundOff": "Sound off",
     "reset": "Reset progress",
     "resetTitle": "Reset all progress?",
     "resetBody": "This clears every star and locks all levels after level 1. It can't be undone.",
     "resetConfirm": "Reset progress",
-    "resetCancel": "Keep my progress",
-    "allSolved": "Every level solved. Replay any level to improve your stars."
+    "resetCancel": "Keep my progress"
   },
   "play-view": {
     "chapter": "Chapter {chapter}",
@@ -50,15 +58,20 @@
   "solved-sheet": {
     "eyebrow": "Level {level} · solved",
     "title": "Lights out.",
-    "result": "{moves} moves · par {par}",
+    "moves": "{moves} moves",
+    "move": "{moves} move",
+    "par": " · par {par}",
+    "stars": "{stars} of 3 stars",
     "atPar": "Solved in par.",
     "overPar": "{over} over par. Replay in {par} for three stars.",
     "hinted": "Solve it without a hint for more stars.",
     "next": "Next level",
     "replay": "Replay",
     "levels": "Levels",
-    "allDoneTitle": "All 50 levels solved.",
-    "allDoneBody": "Replay any level to collect the stars you missed."
+    "allDoneTitle": "All {total} levels solved.",
+    "allDoneBody": "Replay any level to collect the stars you missed.",
+    "allDoneAction": "Back to the levels",
+    "lastLevel": "That was the last level. Earlier levels are waiting for their stars."
   },
   "tutorial": {
     "1": [
