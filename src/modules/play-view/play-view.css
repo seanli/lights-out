@@ -46,6 +46,19 @@
 /* Undo / Restart with nothing to take back are resting, not broken */
 .screen--play .play-actions > .btn[aria-disabled="true"] { opacity: var(--rest-opacity, .55); }
 
+/* short phones (320×568, a 375×667 in Safari, inside a frame): the chrome folds so 6×6/7×7 slots stay ≥ 40px.
+   Stats go on one baseline line, gaps tighten, actions use the compact height; the tiers stay (same stakes on every board). */
+@media (orientation: portrait) and (max-height: 640px) {
+  .screen--play { gap: var(--space-2); --play-stats-h: calc(var(--text-xl) * var(--leading-num)); }
+  .screen--play .board-slot { gap: var(--space-2); --board-chrome-y: calc(var(--play-stats-h) + var(--chip-h) + var(--line-h) + 3 * var(--space-2)); }
+  .screen--play .board-slot[data-tiers="false"] { --board-chrome-y: calc(var(--play-stats-h) + var(--line-h) + 2 * var(--space-2)); }
+  .play-stats > .stat { flex-direction: row; align-items: baseline; gap: var(--space-2); }
+  .play-stats .stat__value { font-size: var(--text-xl); }
+  .play-stats [data-par] { font-size: var(--text-lg); }
+  .play-stats > .stat + .stat::before { height: var(--space-6); }
+  .screen--play > .play-actions > .btn { min-height: var(--btn-h-compact); }
+}
+
 /* desktop: room for the board to reach --board-max */
 @media (min-width: 1000px) and (min-height: 820px) {
   .app:has(> .screens > .screen--play:not([hidden])) { max-width: var(--app-max-play, 560px); }
