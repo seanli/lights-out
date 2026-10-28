@@ -1,7 +1,7 @@
 // Event payloads. Commands are imperative (board:press); facts are past tense (board:pressed).
 // A refused command always emits `<module>:refused` with a reason.
 // Handlers never depend on order: put what a reaction needs in the payload.
-import type { Cells, LevelId, Screen, Sheet, Stars } from './entities';
+import type { Cells, LevelId, Screen, Shape, Sheet, Stars } from './entities';
 
 export interface Events {
   // ---- kernel ----
@@ -10,11 +10,12 @@ export interface Events {
   'kernel:handler_failed': { module: string; type: string; message: string };
 
   // ---- board ----
-  'board:load': { levelId: LevelId; cells: Cells; par: number };
+  /** shape absent = the classic 5×5 board */
+  'board:load': { levelId: LevelId; cells: Cells; par: number; shape?: Shape };
   'board:press': { index: number };
   'board:undo': Record<string, never>;
   'board:restart': Record<string, never>;
-  'board:loaded': { levelId: LevelId; cells: Cells; par: number };
+  'board:loaded': { levelId: LevelId; cells: Cells; par: number; shape?: Shape };
   'board:pressed': { levelId: LevelId; index: number; cells: Cells; moves: number; litCount: number };
   'board:undone': { levelId: LevelId; index: number; cells: Cells; moves: number };
   'board:restarted': { levelId: LevelId; cells: Cells };
@@ -23,7 +24,8 @@ export interface Events {
 
   // ---- levels ----
   'levels:start': { levelId: LevelId };
-  'levels:started': { levelId: LevelId; par: number; count: number };
+  /** count = levels in this pack; next = the following level in the same pack, or null after its last */
+  'levels:started': { levelId: LevelId; par: number; count: number; pack?: string; index?: number; next?: LevelId | null };
   'levels:generated': { count: number; pars: number[] };
   'levels:refused': { levelId: LevelId; reason: 'locked' | 'unknown' | 'not_ready' };
 
@@ -36,8 +38,10 @@ export interface Events {
     improved: boolean;
     /** the level this solve unlocked, or null */
     unlocked: LevelId | null;
-    /** true when every level is now solved */
+    /** true when every level of the classic path is now solved (always false for Variety rooms) */
     allSolved: boolean;
+    /** the pack this level belongs to ('classic' when absent) */
+    pack?: string;
     /** true when this was the level's first solve (so allSolved && firstSolve = this solve finished the set) */
     firstSolve: boolean;
   };
@@ -69,6 +73,12 @@ export interface Events {
   // ---- sound ----
   'sound:set': { enabled: boolean };
   'sound:changed': { enabled: boolean };
+
+  // ---- variety ----
+  /** open the Variety menu, optionally inside a room */
+  'variety:open': { room?: string };
+  'variety:opened': { room: string | null };
+  'variety:refused': { reason: 'locked' | 'unknown_room' };
 
   // ---- learn ----
   /** open the Learn screen, optionally at a lesson */

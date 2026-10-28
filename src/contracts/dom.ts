@@ -6,8 +6,9 @@
 //   [data-sheet="solved"|...]        open sheet has no [hidden]
 //
 // Play screen (play-view):
-//   [data-board]                     the 5×5 grid; data-status="playing|solved"
-//   [data-cell][data-index="0..24"][data-lit="true|false"]   one button per cell
+//   [data-board]                     the grid; data-status="playing|solved", data-cols, data-rows
+//   [data-cell][data-index="0..48"][data-lit="true|false"]   one button per REAL cell (index over the whole grid)
+//   gaps of a shaped board render as an element with [data-gap] and NO data-cell (never a button)
 //     data-hint="true"               on the hinted cell (hints slice)
 //     data-pointer="true"            on the tutorial target (tutorial slice)
 //   [data-moves]                     text content = moves so far (digits)
@@ -33,6 +34,12 @@
 // Solved sheet (solved-sheet):
 //   [data-sheet="solved"] [data-stars-earned="1..3"]  [data-result]  (e.g. "6 moves · par 5")
 //   [data-action="next"|"replay"|"levels"]
+//
+// Variety screen (variety):  [data-screen="variety"]
+//   [data-room-tile][data-room="<pack id>"][data-stars="N"][data-solved="N"]   room list
+//   [data-room-view="<pack id>"]  level tiles reuse [data-level-tile][data-level="<id>"][data-stars][data-locked][data-current]
+//   [data-action="variety-back"]   back to the room list, or nav:back from the list
+// Entry point: [data-action="variety"] on the home screen (disabled with a reason until it opens) → variety:open
 //
 // Learn screen (learn):  [data-screen="learn"]
 //   [data-lesson-tile][data-lesson="<id>"][data-completed="true|false"]   lesson list

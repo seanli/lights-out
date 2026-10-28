@@ -5,6 +5,14 @@
       "first-light": "First light",
       "crossfade": "Crossfade",
       "blackout": "Blackout"
+    },
+    "rooms": {
+      "4x4": "Small room",
+      "6x6": "Wide room",
+      "7x7": "Great hall",
+      "cross": "Cross",
+      "ring": "Ring",
+      "diamond": "Diamond"
     }
   },
   "home-view": {
@@ -37,7 +45,9 @@
     "resetTitle": "Reset all progress?",
     "resetBody": "This clears every star and locks all levels after level 1. It can't be undone.",
     "resetConfirm": "Reset progress",
-    "resetCancel": "Keep my progress"
+    "resetCancel": "Keep my progress",
+    "variety": "Variety",
+    "varietyLocked": "Variety opens after chapter 1"
   },
   "play-view": {
     "chapter": "Chapter {chapter}",
@@ -261,5 +271,10 @@
         ]
       }
     }
+  },
+  "variety": {
+    "title": "Variety",
+    "subtitle": "Same rule, new rooms",
+    "back": "Back"
   }
 }

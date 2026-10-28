@@ -62,7 +62,7 @@ describe('solver', () => {
       expect(mine.length).toBe(ref.length);
       expect(mine).toEqual([...mine].sort((a, z) => a - z));
       expect(new Set(mine).size).toBe(mine.length);
-      expect(mine.reduce(s.press, b)).toEqual(empty());
+      expect(mine.reduce((c, i) => s.press(c, i), b)).toEqual(empty());
     }
     // 1000 built boards are solvable; about 1 in 4 arbitrary ones are
     expect(solvable).toBeGreaterThan(1150);

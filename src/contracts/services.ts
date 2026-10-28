@@ -1,5 +1,5 @@
 // Service interfaces. A service is provided by exactly one owner (kernel, shell or a module).
-import type { Cells } from './entities';
+import type { Cells, Shape } from './entities';
 import type { EventRecord, LogRecord, ModuleStatus, ServiceStatus, Snapshot } from './kernel';
 
 export interface Rng {
@@ -56,13 +56,13 @@ export interface StorageService {
   mode(): 'live' | 'memory';
 }
 
-/** Provided by the solver module. Pure functions over 5×5 boards. */
+/** Provided by the solver module. Pure functions over boards of any shape; shape absent = classic 5×5. */
 export interface SolverService {
-  /** the board after pressing index (toggles it and its 4 neighbours) */
-  press(cells: Cells, index: number): Cells;
+  /** the board after pressing index (toggles it and its up/down/left/right neighbours that exist) */
+  press(cells: Cells, index: number, shape?: Shape): Cells;
   /** a fewest-presses solution as a sorted list of indexes, or null if unsolvable */
-  solve(cells: Cells): number[] | null;
-  isSolvable(cells: Cells): boolean;
+  solve(cells: Cells, shape?: Shape): number[] | null;
+  isSolvable(cells: Cells, shape?: Shape): boolean;
 }
 
 /** Provided by the kernel for the debug console and tooling. */

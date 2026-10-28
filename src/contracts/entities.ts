@@ -3,16 +3,32 @@
 import * as v from 'valibot';
 
 /** Bump when any slice shape below changes; hot-reload snapshots from another version are discarded. */
-export const CONTRACT_VERSION = 1;
+export const CONTRACT_VERSION = 2;
 
+/** The classic board: 5×5, no gaps. The tutorial, Learn and the Patterns table are about this board. */
 export const SIZE = 5;
 export const CELL_COUNT = SIZE * SIZE;
+/** the largest board side (Variety rooms go up to 7×7) */
+export const MAX_SIDE = 7;
+export const MAX_CELLS = MAX_SIDE * MAX_SIDE;
 
-/** A board is 25 booleans, row-major, index = row * 5 + col. true = lit. */
-export const CellsSchema = v.pipe(v.array(v.boolean()), v.length(CELL_COUNT));
+/**
+ * A board's shape: a cols × rows grid. `mask` marks which grid positions are real cells (null = all of them);
+ * a gap is never lit, never pressable, and a press never reaches across it. Pure helpers: src/lib/shape.ts.
+ */
+export const ShapeSchema = v.object({
+  cols: v.pipe(v.number(), v.integer(), v.minValue(3), v.maxValue(MAX_SIDE)),
+  rows: v.pipe(v.number(), v.integer(), v.minValue(3), v.maxValue(MAX_SIDE)),
+  mask: v.nullable(v.array(v.boolean())),
+});
+export type Shape = v.InferOutput<typeof ShapeSchema>;
+export const CLASSIC_SHAPE: Shape = Object.freeze({ cols: SIZE, rows: SIZE, mask: null }) as Shape;
+
+/** One boolean per grid position (cols × rows), row-major, index = row * cols + col. true = lit. Gaps are false. */
+export const CellsSchema = v.pipe(v.array(v.boolean()), v.minLength(9), v.maxLength(MAX_CELLS));
 export type Cells = v.InferOutput<typeof CellsSchema>;
 
-export const CellIndexSchema = v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(CELL_COUNT - 1));
+export const CellIndexSchema = v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_CELLS - 1));
 
 export const LevelIdSchema = v.pipe(v.number(), v.integer(), v.minValue(1));
 export type LevelId = number;
@@ -31,13 +47,22 @@ export const BoardStateSchema = v.object({
   moves: v.number(),
   /** pressed cell indexes, newest last; undo pops */
   history: v.array(CellIndexSchema),
+  /** absent = the classic 5×5 board */
+  shape: v.optional(ShapeSchema),
 });
 export type BoardState = v.InferOutput<typeof BoardStateSchema>;
 
 export const LevelDefSchema = v.object({
+  /** unique across all packs and stable forever (saves are keyed by it): classic 1–50, rooms from their idBase */
   id: LevelIdSchema,
   cells: CellsSchema,
   par: v.number(),
+  /** absent = 'classic' */
+  pack: v.optional(v.string()),
+  /** 1-based position inside its pack; absent = id (classic) */
+  index: v.optional(v.number()),
+  /** absent = the classic 5×5 board */
+  shape: v.optional(ShapeSchema),
 });
 export type LevelDef = v.InferOutput<typeof LevelDefSchema>;
 
@@ -49,10 +74,25 @@ export const ChapterSchema = v.object({
 });
 export type Chapter = v.InferOutput<typeof ChapterSchema>;
 
+/** A level pack: the classic path, or a Variety room. Its levels are ids first .. first + count - 1. */
+export const PackSchema = v.object({
+  id: v.string(),
+  name: v.string(),
+  kind: v.picklist(['classic', 'size', 'shape']),
+  shape: ShapeSchema,
+  first: LevelIdSchema,
+  count: v.number(),
+});
+export type Pack = v.InferOutput<typeof PackSchema>;
+
 export const LevelsStateSchema = v.object({
   status: v.picklist(['generating', 'ready', 'error']),
+  /** every level of every pack */
   list: v.array(LevelDefSchema),
+  /** chapters of the classic path */
   chapters: v.array(ChapterSchema),
+  /** 'classic' first, then the Variety rooms in menu order; absent in old snapshots = classic only */
+  packs: v.optional(v.array(PackSchema)),
   error: v.optional(v.string()),
 });
 export type LevelsState = v.InferOutput<typeof LevelsStateSchema>;
@@ -91,6 +131,10 @@ export const ProgressStateSchema = v.object({
   unlockedUpTo: v.number(),
   /** the star rule in force (from rules.json → progress), so views can show tiers without owning the rule */
   scoring: v.optional(ScoringSchema),
+  /** per Variety room: highest level index that may be started, levels solved, stars earned */
+  packs: v.optional(v.record(v.string(), v.object({ unlockedUpTo: v.number(), solved: v.number(), stars: v.number() }))),
+  /** true once the Variety menu is open (rules.json → progress.varietyAfter) */
+  varietyOpen: v.optional(v.boolean()),
 });
 export type ProgressState = v.InferOutput<typeof ProgressStateSchema>;
 
@@ -101,7 +145,7 @@ export const HintsStateSchema = v.object({
 });
 export type HintsState = v.InferOutput<typeof HintsStateSchema>;
 
-export const ScreenSchema = v.picklist(['home', 'play', 'learn']);
+export const ScreenSchema = v.picklist(['home', 'play', 'learn', 'variety']);
 export type Screen = v.InferOutput<typeof ScreenSchema>;
 export const SheetSchema = v.picklist(['solved', 'confirm_reset', 'complete']);
 export type Sheet = v.InferOutput<typeof SheetSchema>;
@@ -167,6 +211,12 @@ export const LearnStateSchema = v.object({
 });
 export type LearnState = v.InferOutput<typeof LearnStateSchema>;
 
+export const VarietyStateSchema = v.object({
+  /** the room whose levels are showing, or null for the room list */
+  room: v.nullable(v.string()),
+});
+export type VarietyState = v.InferOutput<typeof VarietyStateSchema>;
+
 /** Every slice in the store, by name. A slice name equals its owning module's name. */
 export interface State {
   board: BoardState;
@@ -179,5 +229,6 @@ export interface State {
   sound: SoundState;
   offline: OfflineState;
   learn: LearnState;
+  variety: VarietyState;
 }
 export type SliceName = keyof State;

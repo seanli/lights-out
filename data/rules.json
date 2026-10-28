@@ -20,6 +20,83 @@
         "from": 41,
         "to": 50
       }
+    ],
+    "rooms": [
+      {
+        "id": "4x4",
+        "kind": "size",
+        "cols": 4,
+        "rows": 4,
+        "idBase": 1000,
+        "seed": 4004,
+        "pars": [1, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 6]
+      },
+      {
+        "id": "6x6",
+        "kind": "size",
+        "cols": 6,
+        "rows": 6,
+        "idBase": 2000,
+        "seed": 6006,
+        "pars": [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14]
+      },
+      {
+        "id": "7x7",
+        "kind": "size",
+        "cols": 7,
+        "rows": 7,
+        "idBase": 3000,
+        "seed": 7007,
+        "pars": [3, 4, 5, 6, 7, 8, 9, 11, 12, 14, 16, 18]
+      },
+      {
+        "id": "cross",
+        "kind": "shape",
+        "picture": [
+          "..XXX..",
+          "..XXX..",
+          "XXXXXXX",
+          "XXXXXXX",
+          "XXXXXXX",
+          "..XXX..",
+          "..XXX.."
+        ],
+        "idBase": 4000,
+        "seed": 4141,
+        "pars": [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+      },
+      {
+        "id": "ring",
+        "kind": "shape",
+        "picture": [
+          "XXXXXXX",
+          "XXXXXXX",
+          "XX...XX",
+          "XX...XX",
+          "XX...XX",
+          "XXXXXXX",
+          "XXXXXXX"
+        ],
+        "idBase": 5000,
+        "seed": 5151,
+        "pars": [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14]
+      },
+      {
+        "id": "diamond",
+        "kind": "shape",
+        "picture": [
+          "...X...",
+          "..XXX..",
+          ".XXXXX.",
+          "XXXXXXX",
+          ".XXXXX.",
+          "..XXX..",
+          "...X..."
+        ],
+        "idBase": 6000,
+        "seed": 6161,
+        "pars": [2, 3, 4, 4, 5, 6, 6, 7, 8, 9, 10, 11]
+      }
     ]
   },
   "progress": {
@@ -27,7 +104,8 @@
     "twoStarsWithin": 3,
     "hintCost": 1,
     "minStars": 1,
-    "saveKey": "progress"
+    "saveKey": "progress",
+    "varietyAfter": 20
   },
   "hints": {
     "choice": "random"
@@ -50,7 +128,13 @@
     "snapshotLimit": 5
   },
   "learn": {
-    "lessons": ["shapes", "order", "chase", "bottom-row", "shortest"],
+    "lessons": [
+      "shapes",
+      "order",
+      "chase",
+      "bottom-row",
+      "shortest"
+    ],
     "practicePresses": {
       "shapes": [1, 1],
       "order": [2, 3],
