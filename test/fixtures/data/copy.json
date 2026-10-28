@@ -57,6 +57,7 @@
   "play-view": {
     "chapter": "Chapter {chapter}",
     "level": "Level {level}",
+    "boss": "{name} · Boss",
     "moves": "Moves",
     "par": "Par",
     "undo": "Undo",
@@ -81,6 +82,7 @@
   "solved-sheet": {
     "eyebrow": "Level {level}",
     "title": "Lights out.",
+    "bossTitle": "Boss beaten.",
     "moves": "{moves} moves",
     "move": "{moves} move",
     "par": " · par {par}",

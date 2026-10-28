@@ -284,6 +284,36 @@ describe('solved-sheet', () => {
     q<HTMLButtonElement>(SEL.action('next')).click();
     expect(t.seen('levels:start')).toEqual({ levelId: 1006 });
   });
+
+  test('after a boss: the skull, data-boss and "Boss beaten."; the stars follow the same rules; the next level is plain again', () => {
+    const t = boot({ levels: withRooms });
+    t.emit('levels:started', { levelId: 1010, par: 10, count: 12, pack: '4x4', index: 10, next: 1011, boss: true });
+    t.emit('board:solved', { levelId: 1010, moves: 12, par: 10 });
+    t.emit('progress:level_completed', completed({ levelId: 1010, stars: 2, moves: 12, par: 10, unlocked: 1011, pack: '4x4' }));
+    t.clock.advance(DELAY);
+    expect(sheet().dataset.boss).toBe('true');
+    expect(q('.sheet__title').textContent).toBe('Boss beaten.');
+    expect(q<HTMLElement>('.solved__boss').hidden).toBe(false);
+    expect(q('.solved__boss .skull')).not.toBeNull();
+    expect(q('.eyebrow').textContent).toBe('Small room · Level 10');
+    expect(q('[data-stars-earned]').dataset.starsEarned).toBe('2');
+    expect(q('[data-result]').textContent).toBe('12 moves · par 10');
+    q<HTMLButtonElement>(SEL.action('next')).click();
+    t.emit('levels:started', { levelId: 1011, par: 7, count: 12, pack: '4x4', index: 11, next: 1012 });
+    t.emit('board:solved', { levelId: 1011, moves: 7, par: 7 });
+    t.clock.advance(DELAY);
+    expect(sheet().hasAttribute('data-boss')).toBe(false);
+    expect(q('.sheet__title').textContent).toBe('Lights out.');
+    expect(q<HTMLElement>('.solved__boss').hidden).toBe(true);
+  });
+
+  test('a boss known only from the levels slice (after a hot reload) still gets its skull', () => {
+    const t = boot({ levels: { ...levels, list: levels.list.map((l) => (l.id === 10 ? { ...l, boss: true as const } : l)) } });
+    t.emit('board:solved', { levelId: 10, moves: 5, par: 5 });
+    t.clock.advance(DELAY);
+    expect(sheet().dataset.boss).toBe('true');
+    expect(q('.sheet__title').textContent).toBe('Boss beaten.');
+  });
 });
 
 const small: Pack = { id: '4x4', name: 'Small room', kind: 'size', shape: { cols: 4, rows: 4, mask: null }, first: 1001, count: 12 };

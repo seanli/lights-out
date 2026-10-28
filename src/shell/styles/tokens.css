@@ -181,6 +181,14 @@
   --board-pad-6: 10px;
   --cell-gap-7: 4px;
   --board-pad-7: 6px;
+  --cell-gap-8: 4px;
+  --board-pad-8: 6px;
+  --cell-gap-10: 3px;
+  --board-pad-10: 5px;
+  /* a tall board that scrolls (.board[data-scroll], the Tower): fits its width, cells capped near the classic size */
+  --cell-gap-tall: 6px;
+  --board-pad-tall: 8px;
+  --cell-max-tall: 64px;
   --ring-offset: 5px;
   --ring-offset-tight: 3px;
   --focus-offset: 3px;

@@ -5,12 +5,6 @@
   --play-stats-h: calc(var(--text-xs) * var(--leading-tight) + var(--space-1-5) + var(--text-2xl) * var(--leading-num));
 }
 
-/* any board: cols × rows from the level's shape (play-view sets them with data-n; gaps keep their slot) */
-.screen--play .board {
-  grid-template-columns: repeat(var(--board-cols, var(--board-n, 5)), minmax(0, 1fr));
-  grid-template-rows: repeat(var(--board-rows, var(--board-n, 5)), minmax(0, 1fr));
-}
-
 /* C1: the stats sit in the board slot, so stats + tiers + board + line form one group that rests on the action bar;
    the free height collects as headroom under the header, and the board's top row comes down toward the thumb */
 .screen--play { grid-template-rows: auto minmax(0, 1fr) auto; }
@@ -18,10 +12,10 @@
   justify-content: flex-end; justify-content: safe flex-end; /* safe: never over the header if something overflows */
   --board-chrome-y: calc(var(--play-stats-h) + var(--chip-h) + var(--line-h) + 3 * var(--space-3));
 }
-/* a little air above the actions, taken only from height the board can't use (short phones keep every pixel) */
-.screen--play .board-slot > .play-line {
-  margin-bottom: clamp(0px, 100cqh - var(--board-chrome-y) - min(100cqw, 100cqh - var(--board-chrome-y), var(--board-max)), clamp(var(--space-3), 3vh, var(--space-6)));
-}
+/* a little air above the actions, taken only from height the board can't use (short phones keep every pixel):
+   a spacer that is the only thing in the slot allowed to shrink (its negative margin cancels the slot's gap) */
+.screen--play .board-slot::after { content: ""; flex: 0 1 clamp(var(--space-3), 3vh, var(--space-6)); margin-top: calc(-1 * var(--space-3)); }
+.screen--play[data-reference="open"] .board-slot::after { display: none; }
 .board-slot[data-tiers="false"] { --board-chrome-y: calc(var(--play-stats-h) + var(--line-h) + 2 * var(--space-3)); }
 
 /* the tier row (+ the hint chip) stays one line on phones: tighter chips below 390, the hint's word only for screen readers below 360 */
@@ -51,6 +45,7 @@
 @media (orientation: portrait) and (max-height: 640px) {
   .screen--play { gap: var(--space-2); --play-stats-h: calc(var(--text-xl) * var(--leading-num)); }
   .screen--play .board-slot { gap: var(--space-2); --board-chrome-y: calc(var(--play-stats-h) + var(--chip-h) + var(--line-h) + 3 * var(--space-2)); }
+  .screen--play .board-slot::after { margin-top: calc(-1 * var(--space-2)); }
   .screen--play .board-slot[data-tiers="false"] { --board-chrome-y: calc(var(--play-stats-h) + var(--line-h) + 2 * var(--space-2)); }
   .play-stats > .stat { flex-direction: row; align-items: baseline; gap: var(--space-2); }
   .play-stats .stat__value { font-size: var(--text-xl); }
@@ -68,8 +63,8 @@
 .play-line { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: var(--line-h); }
 .play-line[data-hint="true"] > [data-slot] { display: none; }
 
-/* the board is a touch surface: no selection, no callout, no double-tap zoom */
-.screen--play .board { touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+/* the board is a touch surface: no selection, no callout (touch-action per press mode: components.css) */
+.screen--play .board { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 
 /* phone on its side: board left; right column (≤ --side-w) has the header on top and the play group resting on the actions */
 @media (orientation: landscape) and (max-height: 540px) {
@@ -77,7 +72,7 @@
     grid-template-rows: auto minmax(0, 1fr) auto auto auto auto;
     grid-template-areas: "board head" "board ." "board stats" "board tiers" "board line" "board actions";
   }
-  .screen--play .board-slot > .play-line { margin-bottom: 0; }
+  .screen--play .board-slot::after { display: none; }
   .screen--play .board-slot > .play-stats { grid-area: stats; }
   .screen--play .play-line { grid-area: line; align-self: center; }
 }
@@ -130,7 +125,7 @@
   .screen--play[data-reference="open"] .board-slot > .play-stats { grid-area: stats; order: 0; margin-top: 0; min-height: 0; padding-inline-end: 0; }
   .screen--play[data-reference="open"] .board {
     grid-area: board; align-self: center;
-    --board-size: min(100cqh, 100cqw - var(--side-w) - var(--space-6), var(--board-max));
+    --fit-w: min(100cqw - var(--side-w) - var(--space-6), var(--board-max)); --fit-h: min(100cqh, var(--board-max));
   }
   .screen--play[data-reference="open"] > .play-actions { grid-area: actions; justify-self: stretch; grid-template-columns: 1fr 1fr 1.35fr; }
   .screen--play[data-reference="open"] > .play-actions > .btn { min-height: var(--btn-h); }
@@ -140,3 +135,8 @@
 @media (orientation: landscape) and (max-height: 540px) {
   .screen--play[data-reference="open"] > .play-actions > .btn { min-height: var(--tap-min); }
 }
+
+/* a boss level: the skull beside the level's name, in the warm accent (the eyebrow says "· Boss"); calm, no new colours */
+.play-skull { display: none; }
+.screen-header[data-boss="true"] .play-skull { display: inline-block; margin-inline-end: var(--space-1-5); color: var(--c-accent); }
+.screen-header[data-boss="true"] .eyebrow { color: var(--c-accent); }

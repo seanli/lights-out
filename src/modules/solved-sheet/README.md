@@ -8,6 +8,7 @@ The end-of-level sheet in `view.region('sheet:solved')`. Uses `view`, `clock`; o
 - `levels:started {pack, index, next}` is kept (order-independent); without it (hot reload) the place comes from the levels slice.
 - Shows: eyebrow "Level 7" (rooms: "Small room · Level 3"), "Lights out.", `[data-stars-earned]`, `[data-result]` "6 moves · par 5",
   and a note only when it says what to do (over par, or hinted). No drag handle.
+- After a boss (`levels:started.boss`, else the level's def): `data-boss="true"`, a skull over the title, "Boss beaten." Same star rules.
 - `next` → `levels:start {next}` ("Next · Level 8", hidden when next is null), `replay`, `levels` → `variety:open {room: pack}` (this board's
   level screen, classic included; home when no `variety` slice). Last level of a board: "Back to the levels" is primary (classic: all-done copy).
 - The backdrop does nothing. Copy: `copy.json → solved-sheet`.

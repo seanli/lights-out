@@ -16,3 +16,6 @@
   .solved__row { flex: 2; }
   .sheet__actions > .btn { flex: 1; }
 }
+/* after a boss: a skull over the title, in the warm accent; calm, no new colours */
+.solved__boss { display: flex; justify-content: center; font-size: var(--text-2xl); color: var(--c-accent); }
+.solved__boss[hidden] { display: none; }

@@ -5,21 +5,23 @@ import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { INSTRUMENT, ROOT, contextOptions, launch, resolveTarget, withHash } from './lib/target.mjs';
 import { solve } from './lib/solver.mjs';
-import { CELLS, Skip, debugState, emit, enterLevel, hasDebug, readBoard, settle, sheetOpens, tap, waitForSolvedSheet, waitInteractive } from './lib/play.mjs';
+import { CELLS, PLAY, Skip, debugState, emit, enterLevel, fingers, hasDebug, readBoard, settle, sheetOpens, tap, waitForSolvedSheet, waitInteractive } from './lib/play.mjs';
 
 const USAGE = `Usage: npm run look -- --state <state> [options]
 
 States:
   home        the home screen (the menu of boards)
   board:ID    one board's level screen, e.g. board:classic, board:ring (rooms open after classic level 20: add --solved 20)
-  play:N      level N, untouched
+  play:N      level N, untouched (any board: room levels open the rooms first, e.g. play:9001)
   hint:N      level N with a hint showing
-  solved:N    level N solved, solved sheet open
+  aim:N       level N with a finger held on a cell (the aim bubble on boards in aim mode)
+  solved:N    level N solved, solved sheet open (classic levels)
   console     the debug console over the home screen
 
 Options:
   --solved N              first mark classic levels 1..N solved at 3★ (progress.unlock), e.g. to show the rooms open
   --widths 375,768,1440   widths to shoot (height: 844 below 768, 1024 at 768–1199, 900 from 1200)
+  --sizes 320x568,390x844 exact viewports to shoot instead of --widths
   --landscape             also shoot a 812×375 phone on its side
   --short                 also shoot a short 375×600 phone
   --out look-out          output folder
@@ -28,8 +30,8 @@ Options:
 
 const args = parseArgs(process.argv.slice(2));
 if (args.help || !args.state) { console.log(USAGE); process.exit(args.help ? 0 : 2); }
-const m = String(args.state).match(/^(home|console|play|hint|solved|board)(?::([\w-]+))?$/);
-const needsNum = ['play', 'hint', 'solved'].includes(m?.[1]);
+const m = String(args.state).match(/^(home|console|play|hint|aim|solved|board)(?::([\w-]+))?$/);
+const needsNum = ['play', 'hint', 'aim', 'solved'].includes(m?.[1]);
 if (!m || (needsNum && !/^\d+$/.test(m[2] ?? '')) || (m[1] === 'board' && !m[2])) { console.error(`Unknown state "${args.state}".\n\n${USAGE}`); process.exit(2); }
 const [, kind, arg] = m;
 const level = needsNum ? Number(arg) : null;
@@ -37,7 +39,9 @@ const solvedUpTo = args.solved === undefined ? null : Number(args.solved);
 if (solvedUpTo !== null && !(Number.isInteger(solvedUpTo) && solvedUpTo >= 1)) { console.error('--solved needs a level number, e.g. --solved 25'); process.exit(2); }
 
 const widths = String(args.widths ?? '375,768,1440').split(',').map(Number).filter(Boolean);
-const sizes = widths.map((w) => ({ width: w, height: w < 768 ? 844 : w < 1200 ? 1024 : 900 }));
+const sizes = args.sizes
+  ? String(args.sizes).split(',').map((s) => s.split('x').map(Number)).filter(([w, h]) => w && h).map(([width, height]) => ({ width, height }))
+  : widths.map((w) => ({ width: w, height: w < 768 ? 844 : w < 1200 ? 1024 : 900 }));
 if (args.landscape) sizes.push({ width: 812, height: 375 });
 if (args.short) sizes.push({ width: 375, height: 600 });
 const outDir = resolve(ROOT, args.out ?? 'look-out');
@@ -110,10 +114,32 @@ async function reach(page) {
   await page.waitForFunction(() => window.__lightsOut.debug.state().levels?.status === 'ready', null, { timeout: 10000 })
     .catch(() => { throw new Error('levels never became ready'); });
   const state = await debugState(page);
+  const def = state.levels.list.find((l) => l.id === level);
+  if (!def) throw new Error(`no level ${level} in the levels slice`);
+  const room = def.pack && def.pack !== 'classic';
   const unlocked = state.progress?.unlockedUpTo ?? 1;
-  if (level > unlocked) await unlockUpTo(page, level);
+  // the rooms open after classic level 20; inside a room, its first level is open
+  if (room && unlocked < 20) await page.evaluate(() => window.__lightsOut.debug.commands()['progress.unlock'](['20']));
+  else if (!room && level > unlocked) await unlockUpTo(page, level);
   await emit(page, 'levels:start', { levelId: level });
-  await enterLevel(page);
+  await enterLevel(page, 4000, { cells: null });
+  if (kind === 'aim') {
+    // hold a finger on a cell near the middle of the board (a lit one if there is one), slightly off its centre
+    const at = await page.evaluate((PLAY) => {
+      const cells = [...document.querySelectorAll(`${PLAY} [data-cell]`)];
+      const visible = cells.filter((c) => { const r = c.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; });
+      const mid = visible[Math.floor(visible.length / 2)];
+      const pick = visible.filter((c) => c.dataset.lit === 'true').sort((a, b) => Math.abs(cells.indexOf(a) - cells.indexOf(mid)) - Math.abs(cells.indexOf(b) - cells.indexOf(mid)))[0] ?? mid;
+      const r = pick.getBoundingClientRect();
+      return { x: r.left + r.width * 0.6, y: r.top + r.height * 0.6, aim: document.querySelector(`${PLAY} [data-board]`).dataset.aim === 'true' };
+    }, PLAY);
+    if (!at.aim) problems.push(`level ${level}: the board is not in aim mode at this size (no bubble)`);
+    const finger = await fingers(page);
+    await finger.down(at.x, at.y);
+    await finger.move(at.x + 2, at.y + 2);
+    if (at.aim) await page.waitForSelector('[data-aim-bubble][data-open="true"]', { timeout: 2000 }).catch(() => problems.push('no open [data-aim-bubble] while a finger is held'));
+    return;
+  }
   if (kind === 'hint') {
     await emit(page, 'hints:request', {});
     await page.waitForFunction((CELLS) => document.querySelector(`${CELLS}[data-hint="true"]`), CELLS, { timeout: 2000 })
