@@ -4,7 +4,7 @@ import type { NavState, Screen } from '../contracts/entities';
 import type { Env } from '../contracts/services';
 import type { Kernel } from '../kernel';
 
-const ROUTED: Screen[] = ['play', 'learn'];
+const ROUTED: Screen[] = ['play', 'learn', 'variety'];
 
 function hashScreen(): Screen {
   const h = location.hash.replace(/^#/, '') as Screen;
