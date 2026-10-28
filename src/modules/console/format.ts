@@ -33,25 +33,30 @@ export function boardRows(cells: readonly boolean[]): boolean[][] {
 
 export const cellName = (i: number) => `r${Math.floor(i / SIZE)} c${i % SIZE}`;
 
-function shortValue(k: string, v: unknown): string | null {
+/** keyed: slice summaries name every field; event payloads stay terse */
+function shortValue(k: string, v: unknown, keyed = false): string | null {
   if (v === undefined) return null;
   if (k === 'index' && typeof v === 'number' && v >= 0 && v < CELL_COUNT) return cellName(v);
   if (k === 'levelId' && typeof v === 'number') return `L${v}`;
-  if (isCells(v)) return `${litCount(v)} lit`;
+  if (isCells(v)) return keyed || k !== 'cells' ? `${k} ${litCount(v)} lit` : `${litCount(v)} lit`;
   if (Array.isArray(v)) return `${k}[${v.length}]`;
   if (v && typeof v === 'object') return `${k}{…}`;
-  if (typeof v === 'string') return v;
-  if (typeof v === 'boolean') return v ? k : `!${k}`;
+  if (typeof v === 'string' && !keyed) return v;
+  if (typeof v === 'boolean' && !keyed) return v ? k : `!${k}`;
   return `${k} ${String(v)}`;
 }
 
 export const clip = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
 
 /** a one-line payload summary, capped (tap the row for the full JSON) */
-export function shortPayload(payload: unknown, max = 24): string {
+export function shortPayload(payload: unknown, max = 28): string {
   if (payload === null || payload === undefined) return '';
   if (typeof payload !== 'object') return clip(String(payload), max);
-  const parts = Object.entries(payload as Record<string, unknown>).map(([k, v]) => shortValue(k, v)).filter((s): s is string => !!s);
+  const p = payload as Record<string, unknown>;
+  const parts = Object.entries(p)
+    .filter(([k]) => !(k === 'litCount' && isCells(p.cells)))
+    .map(([k, v]) => shortValue(k, v))
+    .filter((s): s is string => !!s);
   return clip(parts.join(' '), max);
 }
 
@@ -60,7 +65,7 @@ export function summarize(value: unknown, max = 80): string {
   if (value === null || typeof value !== 'object') return clip(JSON.stringify(value) ?? 'undefined', max);
   const entries = Object.entries(value as Record<string, unknown>);
   const status = entries.find(([k]) => k === 'status');
-  const parts = [status ? String(status[1]) : null, ...entries.filter(([k]) => k !== 'status').map(([k, v]) => shortValue(k, v))];
+  const parts = [status ? String(status[1]) : null, ...entries.filter(([k]) => k !== 'status').map(([k, v]) => shortValue(k, v, true))];
   return clip(parts.filter((s): s is string => !!s).join(' · '), max);
 }
 
@@ -71,7 +76,7 @@ export function prettyJson(value: unknown, indent = ''): string {
   const next = `${indent}  `;
   if (Array.isArray(value)) {
     if (!value.length) return '[]';
-    if (value.every((x) => x === null || typeof x !== 'object')) return `[${value.map((x) => JSON.stringify(x)).join(',')}]`;
+    if (value.every((x) => x === null || typeof x !== 'object')) return `[${value.map((x) => JSON.stringify(x)).join(', ')}]`;
     return `[\n${value.map((x) => next + prettyJson(x, next)).join(',\n')}\n${indent}]`;
   }
   const entries = Object.entries(value).filter(([, v]) => v !== undefined);
