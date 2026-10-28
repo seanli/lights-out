@@ -75,7 +75,8 @@ export interface Events {
   'sound:changed': { enabled: boolean };
 
   // ---- variety ----
-  /** open the Variety menu, optionally inside a room */
+  /** open one board's level screen: any pack id from levels.packs, classic included (rooms stay locked until
+   *  progress.varietyOpen). `room` becomes required once the menu lands (lead-approved; see the menu builder's task). */
   'variety:open': { room?: string };
   'variety:opened': { room: string | null };
   'variety:refused': { reason: 'locked' | 'unknown_room' };

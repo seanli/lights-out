@@ -26,9 +26,11 @@
 //   [data-reference-kind="classic|rect|shaped"]  [data-reference-rule]  the one-line rule beside the match
 //   [data-action="learn"] inside it  → learn:open {} (full lessons; Back returns to the level)
 //
-// Home screen (home-view):
-//   [data-action="continue"]         starts the suggested level
-//   [data-level-tile][data-level="N"][data-stars="0..3"][data-locked="true|false"][data-current="true|false"]
+// Home screen (home-view): one menu, every board its own row (The Good Sudoku pattern)
+//   [data-action="continue"]         starts the suggested level (the board last played, else classic)
+//   [data-room-tile][data-room="<pack id>"][data-solved="N"][data-stars="N"][data-locked="true|false"]
+//                                    one row per pack in levels.packs order, classic first → variety:open {room}
+//   [data-action="learn"]            → learn:open {}
 //   [data-action="sound"]            toggles sound; aria-pressed reflects state
 //   [data-action="reset"]            opens the reset confirmation
 //
@@ -36,11 +38,11 @@
 //   [data-sheet="solved"] [data-stars-earned="1..3"]  [data-result]  (e.g. "6 moves · par 5")
 //   [data-action="next"|"replay"|"levels"]
 //
-// Variety screen (variety):  [data-screen="variety"]
-//   [data-room-tile][data-room="<pack id>"][data-stars="N"][data-solved="N"]   room list
-//   [data-room-view="<pack id>"]  level tiles reuse [data-level-tile][data-level="<id>"][data-stars][data-locked][data-current]
-//   [data-action="variety-back"]   back to the room list, or nav:back from the list
-// Entry point: [data-action="variety"] on the home screen (disabled with a reason until it opens) → variety:open
+// Board screen (variety): one board's levels, classic included  [data-screen="variety"]
+//   [data-room-view="<pack id>"]     classic groups its tiles into chapters ([data-chapter]); rooms are one grid
+//   [data-level-tile][data-level="<global id>"][data-stars="0..3"][data-locked="true|false"][data-current="true|false"]
+//   [data-action="variety-back"]     → back to where the player came from (the menu)
+//   [data-action="guide"]            → learn:open {lessonId: "guide-<pack id>"} (classic: learn:open {}); only while learn runs
 //
 // Learn screen (learn):  [data-screen="learn"]
 //   [data-lesson-tile][data-lesson="<id>"][data-completed="true|false"]   lesson list
@@ -49,7 +51,9 @@
 //   [data-action="learn-back"|"learn-next"|"learn-prev"|"learn-practice"|"learn-assist"|"learn-demo"]
 //   lesson 4: [data-action="learn-echo"][data-col="0..4"] (pick a top cell), [data-action="learn-deeper"] (Go deeper),
 //             [data-action="learn-drill"] with [data-drill="idle|asking|right|wrong|done"]
-// Entry points: [data-action="learn"] on the home screen and inside the in-game reference → learn:open
+//   board guides: [data-lesson-tile][data-lesson="guide-<pack id>"] (one per room; classic's guide is the five lessons)
+// Entry points: [data-action="learn"] on the home screen and inside the in-game reference → learn:open;
+//               [data-action="guide"] on a board screen and inside the in-game reference → learn:open {lessonId}
 //
 // Tutorial copy line (tutorial):  [data-tutorial]
 // Shell notices:                  [data-notice="<id>"][data-tone="info|warn|error"]
@@ -68,6 +72,7 @@ export const SEL = {
   par: '[data-par]',
   action: (name: string) => `[data-action="${name}"]`,
   levelTile: (n: number) => `[data-level-tile][data-level="${n}"]`,
+  roomTile: (id: string) => `[data-room-tile][data-room="${id}"]`,
   tutorial: '[data-tutorial]',
   notice: (id: string) => `[data-notice="${id}"]`,
 } as const;
