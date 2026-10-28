@@ -7,6 +7,8 @@
 .home__logo { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
 .home__logo .display { white-space: nowrap; font-size: clamp(24px, 7.5vw, var(--text-xl)); }
 .home__tools { display: flex; align-items: center; gap: var(--space-2); flex: none; }
+/* the star total stands as tall as the sound button beside it */
+.home__tools .chip--lg { min-height: var(--tap-min); padding-inline: var(--space-4); }
 /* sound is a quiet tool, not a selected primary */
 .home__top [data-action="sound"][aria-pressed] { color: var(--c-text-dim); background: var(--c-surface); box-shadow: var(--shadow-outline); }
 
@@ -23,6 +25,9 @@
 .home__solved { color: var(--c-text); font-weight: var(--fw-bold); }
 .home__starline { display: inline-flex; align-items: center; gap: var(--space-1); }
 .home__starline .star { --star-size: var(--star-sm); }
+/* a board not started yet keeps its numbers quiet, so the boards in play stand out down the list */
+.menu-row[data-solved="0"] .home__solved { color: var(--c-text-dim); }
+.menu-row[data-stars="0"] .home__starline .star { background-color: var(--c-star-off); }
 
 /* the very bottom: Reset, then the release; pushed down when the menu is short */
 .home__footer { margin-top: auto; display: flex; flex-direction: column; align-items: center; }

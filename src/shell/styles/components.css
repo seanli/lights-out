@@ -59,6 +59,18 @@ button, input { font: inherit; color: inherit; }
 /* the title steps down a little under 360px wide, so a lesson title ("Chase the lights down") still fits at 320 */
 .screen-header__title > strong { font: var(--fw-display) min(var(--text-lg), 5.6vw) / var(--leading-snug) var(--font-display); letter-spacing: var(--tracking-display); }
 .screen-header__end { grid-column: 3; justify-self: end; display: flex; align-items: center; justify-content: flex-end; gap: var(--space-1); }
+/* on a scrolling screen the header stays: Back is always in reach (a board screen opens scrolled to its current level).
+   It sits on the room's own colour, and the content fades out as it passes under it. */
+.screen--scroll > .screen-header {
+  position: sticky; top: 0; z-index: 1;
+  margin-inline: calc(-1 * var(--gutter)); padding-inline: var(--gutter); background: var(--c-room);
+}
+/* and focus or scrollIntoView never parks a row under it */
+.screen--scroll:has(> .screen-header) { scroll-padding-top: calc(var(--header-h) + var(--stack)); }
+.screen--scroll > .screen-header::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 100%; height: var(--stack); pointer-events: none;
+  background: linear-gradient(var(--c-room), var(--c-none));
+}
 
 /* play screen. Portrait: one column, the board-slot takes the leftover height.
    .board-slot is a size container holding tiers + board + tutorial line; the board is the
