@@ -1,10 +1,10 @@
-node_modules/
-dist/
-dist-pwa/
-.worktrees/
-probe-out/
-look-out/
 *.log
-lights-out-offline.zip
 .cache/
+.worktrees/
 design/*.png
+dist-pwa/
+dist/
+lights-out-offline.zip
+look-out/
+node_modules/
+probe-out/
