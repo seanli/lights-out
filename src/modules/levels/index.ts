@@ -50,11 +50,12 @@ const RulesSchema = v.object({
   /** from this level of a board on (classic and every board you chase), a plain chase never clears it: no free par */
   fixFrom: v.pipe(int, v.minValue(1)),
   /**
-   * symmetric boards (lib/symmetry.ts): a level's first choice takes turns along `levels`, a boss takes `boss` in
-   * order; `tries` per symmetry before the next; classic levels before `from` keep their random presses (the tutorial's)
+   * how levels look (lib/symmetry.ts): a level's first choice takes turns along `levels` ("tangled": an asymmetric
+   * puzzle), a boss takes `boss` in order; `tries` per symmetry before the next; classic levels before `from` keep
+   * their random presses (the tutorial's)
    */
   looks: v.object({
-    levels: v.pipe(v.array(SymmetrySchema), v.minLength(1)),
+    levels: v.pipe(v.array(v.picklist([...SYMMETRY_NAMES, 'tangled'])), v.minLength(1)),
     boss: v.pipe(v.array(SymmetrySchema), v.minLength(1)),
     from: v.pipe(int, v.minValue(1)),
     tries: v.pipe(int, v.minValue(1)),

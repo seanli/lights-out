@@ -97,6 +97,8 @@ const RulesSchema = v.object({
   /** symmetries a puzzle may have (lib/symmetry.ts), tried in a random order; tries per symmetry before the next */
   looks: v.pipe(v.array(v.picklist(SYMMETRY_NAMES)), v.minLength(1)),
   looksTries: count,
+  /** the share of puzzles made tangled on purpose: asymmetric, like the levels' */
+  tangled: v.pipe(v.number(), v.minValue(0), v.maxValue(1)),
 });
 type Tuning = v.InferOutput<typeof RulesSchema>;
 
@@ -222,8 +224,9 @@ const custom: ModuleDef = {
         const base = baseShape(s);
         const twist = twistOf(tuning, s, base);
         target = parTarget(tuning, cellCount(base), s.difficulty);
-        // a symmetric board like the levels' (a random symmetry first), else a tangled one
-        made = makePuzzle({ base, par: target, ...(twist ? { twist } : {}), looks: shuffled(tuning.looks, r), looksTries: tuning.looksTries, orPars: [target - 1, target + 1].filter((n) => n >= tuning.minPar && n <= tuning.maxPar), readable: s.difficulty === 'easy' ? 1 : 0, maxTries: tuning.maxTries }, r, solver);
+        // like the levels: mostly a symmetric board (a random symmetry first), now and then a tangled, asymmetric one
+        const tangled = r.int(1000) < tuning.tangled * 1000;
+        made = makePuzzle({ base, par: target, ...(twist ? { twist } : {}), looks: tangled ? [] : shuffled(tuning.looks, r), asymmetric: tangled, looksTries: tuning.looksTries, orPars: [target - 1, target + 1].filter((n) => n >= tuning.minPar && n <= tuning.maxPar), readable: s.difficulty === 'easy' ? 1 : 0, maxTries: tuning.maxTries }, r, solver);
         shape = made.shape;
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

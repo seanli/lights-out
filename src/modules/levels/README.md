@@ -7,7 +7,7 @@ Data: `rules.json → levels` (seed, bands, maxTries, chapters, readable, roomTr
   change), then each room from its own `rng.seeded(room.seed)`: kind size/stuck/wired (`cols/rows`), shape (`picture`),
   hex / cube (`side`); ids `idBase + 1..`. Per level: a hand-made board where `pictures` puts one (`"all"` = every light
   on; par is what it needs), else `lib/puzzle.ts makePuzzle`: a symmetric board (`looks`: a level takes `levels` in turn,
-  a boss `boss`; stuck cells or wiring placed to match), else tangled presses. Par exact, no press readable whole, never a
+  a boss `boss`; stuck cells or wiring placed to match) or, where `levels` says "tangled", tangled presses with no symmetry. Par exact, no press readable whole, never a
   pinwheel; from level `fixFrom` (3) a board you chase never gives par away (`chaseClears`). Out of tries → the closest
   board + warning. ~200 ms for all 320 levels in the browser. Retired rooms' ids stay reserved.
 - `list`: classic first (ids 1..50, at `list[id − 1]`, no pack fields), then room levels with `pack`, `index`, `shape`.

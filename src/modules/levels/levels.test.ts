@@ -8,7 +8,7 @@ import { chaseClears, chaseable, readableIn } from '../../lib/puzzle';
 import { cellIndexes, fitsShape, gridSize, hexagonShape, isCell, isPressable, parseShape, pressTargets, shapeKey, shapeProblem, touching } from '../../lib/shape';
 import { isPinwheel, symmetriesOfBoard } from '../../lib/symmetry';
 import levels from './index';
-import { parsOf } from './generate';
+import { looksFor, parsOf, type Looks } from './generate';
 
 /**
  * independent reference for any board: BigInt elimination with one equation per real cell and one variable per
@@ -78,6 +78,7 @@ const rules = (fixtureData.rules as { levels: Record<string, unknown> & { rooms:
 const pictureCells = (shape: Shape, p: Picture): boolean[] =>
   p.picture === 'all' ? Array.from({ length: gridSize(shape) }, (_, i) => isCell(shape, i)) : p.picture.join('').split('').map((ch) => ch === 'X');
 const classicPictures = new Map((rules.pictures ?? []).map((p) => [p.at, pictureCells(CLASSIC_SHAPE, p)]));
+const looks = rules.looks as Looks;
 /** the pars the data asks for, except a picture's: whatever its board needs */
 const target = parsOf(rules.bands as Band[]).map((par, i) => (classicPictures.has(i + 1) ? refSolve(classicPictures.get(i + 1)!)!.length : par));
 const nine = (p: number) => Array<number>(9).fill(p);
@@ -113,10 +114,10 @@ describe('levels', () => {
   });
 
   // pinned so an accidental change to generation or data shows up here; re-pinned on purpose with decision 45 (bosses),
-  // decision 72 (from level 3 no board a plain chase clears) and decision 79 (symmetric boards and pictures)
+  // decision 72 (from level 3 no board a plain chase clears) and decision 79 (symmetric and tangled boards, pictures)
   test('the classic 50 boards are exactly the ones players already have (pinned hash)', () => {
     const hash = createHash('sha256').update(JSON.stringify(classicOf(state))).digest('hex');
-    expect(hash).toBe('b9dfb1546a271d96a02db591c7dfca34f60dba961eadf1a68b52b8083268885b');
+    expect(hash).toBe('8f2e1d32e71e14ce35f3f23b61611f9fa1e6e907a7887143b8223c4252beeb0c');
     // the tutorial's two levels never changed
     const on = (l: { cells: Cells }) => l.cells.flatMap((x, i) => (x ? [i] : []));
     expect(on(classicOf(state)[0]!)).toEqual([1, 5, 6, 7, 11]);
@@ -137,8 +138,16 @@ describe('levels', () => {
     expect(classicOf(state)[49]!.cells.every(Boolean)).toBe(true);
   });
 
-  test('from level 3 every board is symmetric (a mirror or a turn carries it onto itself), and none is a pinwheel', () => {
-    for (const level of classicOf(state).slice(2)) expect(symmetriesOfBoard(CLASSIC_SHAPE, level.cells).length, `level ${level.id}`).toBeGreaterThan(0);
+  test('from level 3 a board is symmetric (a mirror or a turn carries it onto itself) or, where the data says tangled, shows no symmetry at all; none is a pinwheel', () => {
+    let tangled = 0;
+    for (const level of classicOf(state).slice(2)) {
+      if (classicPictures.has(level.id)) continue;
+      const order = looksFor(looks, level.id, !!level.boss);
+      if (!order) tangled++;
+      expect(symmetriesOfBoard(CLASSIC_SHAPE, level.cells).length > 0, `level ${level.id}`).toBe(order !== null);
+    }
+    // about a third of the regular levels are asymmetric on purpose
+    expect(tangled).toBeGreaterThanOrEqual(12);
     for (const level of state.list) expect(isPinwheel(level.shape ?? CLASSIC_SHAPE, level.cells), `level ${level.id}`).toBe(false);
   });
 
@@ -307,8 +316,8 @@ describe('levels', () => {
         }
         // the openings don't give themselves away: no press of a fewest solution shows as its whole footprint
         expect(readableIn(l.shape!, l.cells, fewest)).toBe(0);
-        // symmetric: a mirror or a turn carries the board (lights, stuck cells and wiring) onto itself
-        expect(symmetriesOfBoard(l.shape!, l.cells).length, `${id} level ${l.index}`).toBeGreaterThan(0);
+        // symmetric: a mirror or a turn carries the board (lights, stuck cells and wiring) onto itself; tangled: nothing does
+        expect(symmetriesOfBoard(l.shape!, l.cells).length > 0, `${id} level ${l.index}`).toBe(looksFor(looks, l.index!, !!l.boss) !== null);
         // no free par: from level 3 on a board you chase, a plain chase never clears it
         if (l.index! >= 3 && chaseable(l.shape!)) expect(chaseClears(l.shape!, l.cells, solver), `${id} level ${l.index}`).toBe(false);
       }

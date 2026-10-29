@@ -19,7 +19,7 @@
     "roomTries": 3000,
     "fixFrom": 3,
     "looks": {
-      "levels": ["mirror", "both", "flip", "mirror", "third", "full", "mirror", "flip", "both"],
+      "levels": ["mirror", "tangled", "both", "flip", "tangled", "third", "full", "tangled", "mirror"],
       "boss": ["full", "third", "both", "mirror", "flip", "turn", "diagonal"],
       "from": 3,
       "tries": 150
@@ -190,7 +190,7 @@
   },
   "hints": { "choice": "random" },
   "custom": {
-    "$comment": "Custom mode: par as a share of the lights per difficulty (at most maxPar), wiring mixed per difficulty, stuck lights per lights, tries per puzzle, and the symmetries a puzzle may have (tried in a random order, then a tangled board).",
+    "$comment": "Custom mode: par as a share of the lights per difficulty (at most maxPar), wiring mixed per difficulty, stuck lights per lights, tries per puzzle, the symmetries a puzzle may have (tried in a random order, then a tangled board), and the share of puzzles made tangled (asymmetric) on purpose.",
     "par": { "easy": 0.1, "medium": 0.17, "hard": 0.25, "boss": 0.33 },
     "minPar": 2,
     "wires": {
@@ -204,7 +204,8 @@
     "maxTries": 400,
     "maxPar": 80,
     "looks": ["mirror", "both", "flip", "full", "third"],
-    "looksTries": 80
+    "looksTries": 80,
+    "tangled": 0.34
   },
   "solved-sheet": { "delayMs": 640 },
   "tutorial": {

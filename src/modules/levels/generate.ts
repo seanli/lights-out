@@ -10,21 +10,37 @@ export interface LevelsRules {
   chapters: { id: string; from: number; to: number }[];
 }
 
-/** the symmetries levels are made with (rules.json → levels.looks) */
+/** a level's look: a symmetry, or tangled (an asymmetric puzzle, kept among the symmetric ones) */
+export type Look = SymmetryName | 'tangled';
+
+/** the looks levels are made with (rules.json → levels.looks) */
 export interface Looks {
   /** a level's first choice takes turns along this list by the level's position; the rest of the list follows */
-  levels: readonly SymmetryName[];
+  levels: readonly Look[];
   /** a boss's order, the most symmetric first; after its own list a level falls back on this one */
   boss: readonly SymmetryName[];
   /** tries per symmetry before moving on to the next */
   tries: number;
 }
 
-/** the symmetries to try for a level, in order (names a board doesn't have are skipped by the caller) */
-export function looksFor(looks: Looks, index: number, boss: boolean): SymmetryName[] {
+/**
+ * The symmetries to try for a level, in order (names a board doesn't have are skipped by the caller), or null when the
+ * level is tangled: an asymmetric puzzle on purpose. A symmetric level that finds no board falls back on the other
+ * symmetries, never on tangled, so the share of asymmetric levels stays what the data says.
+ */
+export function looksFor(looks: Looks, index: number, boss: boolean): SymmetryName[] | null {
   if (boss) return [...looks.boss];
   const k = (index - 1) % looks.levels.length;
-  return [...new Set([...looks.levels.slice(k), ...looks.levels.slice(0, k), ...looks.boss])];
+  if (looks.levels[k] === 'tangled') return null;
+  const order = [...looks.levels.slice(k), ...looks.levels.slice(0, k)].filter((x): x is SymmetryName => x !== 'tangled');
+  return [...new Set([...order, ...looks.boss])];
+}
+
+/** makePuzzle's looks for a room level: its symmetries, or none and asymmetric when it is tangled */
+function lookSpec(looks: Looks | undefined, index: number, boss: boolean): { looks: SymmetryName[]; asymmetric: boolean } {
+  if (!looks) return { looks: [], asymmetric: false };
+  const order = looksFor(looks, index, boss);
+  return { looks: order ?? [], asymmetric: !order };
 }
 
 /** a hand-made board (a picture, or every light on): its par is whatever the solver says */
@@ -65,8 +81,8 @@ export const parsOf = (bands: readonly { pars: readonly number[]; boss: number }
 const key = (cells: Cells) => cells.map((on) => (on ? '1' : '0')).join('');
 
 /**
- * For each target par k: a picture if the plan has one there; else, from `looksFrom` on, a symmetric board (looksFor,
- * lib/puzzle.ts symmetric); else press k distinct random cells on an empty board and keep the board when its
+ * For each target par k: a picture if the plan has one there; else, from `looksFrom` on, a symmetric or a tangled
+ * board as looksFor says (lib/puzzle.ts makePuzzle); else press k distinct random cells on an empty board and keep the board when its
  * fewest-presses solution is exactly k and no earlier level has the same board.
  * Out of tries → keep the closest new board found (highest par below k) and report it in `missed`.
  */
@@ -98,7 +114,8 @@ export function generateLevels(
     if (picture) best = pictureLevel(picture, shape, solver, id);
     else if (looks && n + 1 >= looksFrom) {
       // classic never limited readable presses
-      const made = makePuzzle({ base: shapeOf(shape), par: wanted, looks: looksFor(looks, n + 1, boss), looksTries: looks.tries, readable: Infinity, maxTries: rules.maxTries, seen, needsFix: () => needsFix }, rng, solver);
+      const order = looksFor(looks, n + 1, boss);
+      const made = makePuzzle({ base: shapeOf(shape), par: wanted, looks: order ?? [], asymmetric: !order, looksTries: looks.tries, readable: Infinity, maxTries: rules.maxTries, seen, needsFix: () => needsFix }, rng, solver);
       t = made.tries;
       best = made;
     }
@@ -167,8 +184,8 @@ export interface RoomPlan {
 
 /**
  * A Variety room: per level, a picture if the plan has one there; else a symmetric board (looksFor, with its stuck
- * cells or wiring placed to match when the room has a twist), or failing every symmetry, its own random stuck cells
- * or wiring and a tangled board (lib/puzzle.ts). Either way the fewest-presses solution is the band's par and no press
+ * cells or wiring placed to match when the room has a twist), or a tangled one where looksFor says so (an asymmetric
+ * puzzle, its own random stuck cells or wiring) or when no symmetry works (lib/puzzle.ts). Either way the fewest-presses solution is the band's par and no press
  * can be read off the board; from `fixFrom` on, on a board you chase, a plain chase doesn't clear it. Every 10th level
  * is the band's boss.
  */
@@ -195,7 +212,7 @@ export function generateRoom(plan: RoomPlan, rng: Rng, solver: SolverService): G
       } else {
         made = makePuzzle({
           base: plan.shape, par: wanted, ...(twist ? { twist } : {}),
-          looks: plan.looks ? looksFor(plan.looks, index, isBoss) : [], looksTries: plan.looks?.tries ?? 0,
+          ...lookSpec(plan.looks, index, isBoss), looksTries: plan.looks?.tries ?? 0,
           readable: plan.readable, maxTries: plan.maxTries, seen,
           needsFix,
         }, rng, solver);

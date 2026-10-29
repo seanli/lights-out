@@ -153,8 +153,10 @@ describe('custom: making a puzzle', () => {
       const solution = solver.solve(load.cells, load.shape)!;
       expect(solution.length).toBe(load.par);
       expect(solution.every((i) => isPressable(load.shape!, i))).toBe(true);
-      // symmetric like the levels (a mirror or a turn carries lights, stuck cells and wiring onto themselves), never a pinwheel
-      expect(symmetriesOfBoard(load.shape!, load.cells).length).toBeGreaterThan(0);
+      // like the levels: symmetric (a mirror or a turn carries lights, stuck cells and wiring onto themselves) or tangled
+      // on purpose and then not symmetric at all; never a pinwheel
+      const made = (t.instance!.debug!() as { last: { symmetry: string | null } }).last;
+      expect(symmetriesOfBoard(load.shape!, load.cells).length > 0).toBe(made.symmetry !== null);
       expect(isPinwheel(load.shape!, load.cells)).toBe(false);
       if (settings.twist === 'stuck') expect(load.shape!.stuck!.length).toBeGreaterThan(0);
       if (settings.twist === 'wired') expect(load.shape!.wires!.length).toBe(load.shape!.cols * load.shape!.rows);
@@ -182,6 +184,19 @@ describe('custom: making a puzzle', () => {
     expect(t.seen('board:load')!.cells).not.toEqual(boss.cells);
     expect(t.state('custom').played).toBe(3);
     expect(t.seen('custom:started')!.puzzle).toBe(3);
+  });
+
+  test('most puzzles are symmetric, about a third tangled on purpose (asymmetric)', () => {
+    const t = boot({ seed: 3 });
+    t.emit('custom:set', { settings: { cols: 7, rows: 7, difficulty: 'medium' } });
+    const kinds: (string | null)[] = [];
+    for (let i = 0; i < 30; i++) {
+      t.emit('custom:play', {});
+      kinds.push((t.instance!.debug!() as { last: { symmetry: string | null } }).last.symmetry);
+    }
+    const tangled = kinds.filter((k) => k === null).length;
+    expect(tangled).toBeGreaterThan(3);
+    expect(tangled).toBeLessThan(20);
   });
 
   test('the same session seed makes the same puzzle (replay)', () => {

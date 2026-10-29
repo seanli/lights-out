@@ -23,6 +23,8 @@ export interface TangleOptions {
   seen?: Set<string>;
   /** the board must need a fix from the top edge: a plain chase down doesn't clear it (chaseClears) */
   needsFix?: boolean;
+  /** the board may show no symmetry at all (an asymmetric puzzle, kept among the symmetric ones) */
+  asymmetric?: boolean;
 }
 
 /** a square grid without wiring, where "chase down" is the method (stuck switches and gaps included) */
@@ -123,11 +125,12 @@ export function tangle(shape: Shape, par: number, rng: Rng, solver: SolverServic
       if ((!fallback || made.par > fallback.par) && !isPinwheel(shape, cells)) fallback = made;
       continue;
     }
+    const fits = () => !isPinwheel(shape, cells) && !(opts.asymmetric && symmetriesOfBoard(shape, cells).length);
     if (made.par === par && made.readable <= maxReadable) {
-      if (!isPinwheel(shape, cells)) return made;
+      if (fits()) return made;
       continue;
     }
-    if (better(made) && !isPinwheel(shape, cells)) best = made;
+    if (better(made) && fits()) best = made;
   }
   best ??= fallback;
   if (!best) throw new Error(`Couldn't make a board needing ${par} presses`);
@@ -372,6 +375,8 @@ export interface PuzzleSpec {
   twist?: Twist;
   /** symmetries to try, in order (names the board doesn't have are skipped); empty = a tangled board */
   looks: readonly SymmetryName[];
+  /** a tangled board that shows no symmetry at all (with empty `looks`: an asymmetric puzzle on purpose) */
+  asymmetric?: boolean;
   /** tries per symmetry before the next */
   looksTries: number;
   /**
@@ -424,7 +429,7 @@ export function makePuzzle(spec: PuzzleSpec, rng: Rng, solver: SolverService): P
   let shape = base;
   if (twist && 'stuck' in twist) shape = { ...base, stuck: stuckCells(base, twist.stuck, rng) };
   else if (twist) shape = { ...base, wires: wiring(base, rng, twist.kinds, twist.gentle) };
-  const made = tangle(shape, par, rng, solver, { readable: spec.readable, maxTries: spec.maxTries, ...(spec.seen ? { seen: spec.seen } : {}), needsFix: spec.needsFix?.(shape) ?? false });
+  const made = tangle(shape, par, rng, solver, { readable: spec.readable, maxTries: spec.maxTries, ...(spec.seen ? { seen: spec.seen } : {}), needsFix: spec.needsFix?.(shape) ?? false, asymmetric: spec.asymmetric ?? false });
   return { ...made, tries: spent + made.tries, shape, symmetry: null };
 }
 
