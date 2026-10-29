@@ -639,6 +639,18 @@ describe('play-view', () => {
       expect(q('[data-cube-line]').textContent).toBe('1 lit light out of sight · drag to turn');
       // Shift + an arrow (or the console) turns it a quarter about the screen's axes
       expect(t.instance!.commands!.turn!(['right'])).toMatch(/front/);
+      // a drag whose end never comes (iOS can drop it) doesn't block the next one, and the end is heard off the board too
+      const before = JSON.stringify((t.instance!.debug!() as { cube: { orient: number[] } }).cube.orient);
+      pointer(cell(front), { pointerId: 3, clientX: 100, clientY: 100 });
+      move(board, { pointerId: 3, clientX: 140, clientY: 100 });
+      pointer(cell(front), { pointerId: 4, clientX: 100, clientY: 200 });
+      move(board, { pointerId: 4, clientX: 100, clientY: 260 });
+      up(document.body, { pointerId: 4, clientX: 100, clientY: 260 });
+      expect(JSON.stringify((t.instance!.debug!() as { cube: { orient: number[] } }).cube.orient)).not.toBe(before);
+      expect(presses()).toEqual([front]);
+      pointer(cell(front), { pointerId: 5, clientX: 100, clientY: 100 });
+      up(cell(front), { pointerId: 5, clientX: 100, clientY: 100 });
+      expect(presses().length).toBe(2); // and a tap after it still presses
     });
 
     test('stuck cells carry a mark and a word, and shake when tapped (the board refuses the press)', () => {

@@ -363,8 +363,13 @@ const playView: ModuleDef = {
       orient = facing(id);
       showOrient(true);
     };
-    // one finger at a time; the board keeps it (pointer capture) once it turns, so the drag never drops at an edge
+    // One finger turns the cube. While it does, the board holds the pointer (capture), the page never pans (touchmove
+    // is cancelled), the faces keep taking the pointer (which faces face you is settled when the finger lifts: toggling
+    // them mid-drag lost the pointer on iOS), the turn is painted once a frame, and the finger's end is heard wherever
+    // it lands; a drag whose end never came is replaced by the next touch, so the cube can't get stuck.
     let drag: { id: number; x: number; y: number; lastX: number; lastY: number; cell: number; moved: boolean } | null = null;
+    let frame = 0;
+    const paintTurn = () => { frame = 0; if (cube) cube.el.style.transform = cssMatrix(orient); };
     /**
      * The light exactly under a point of the turned cube. The browser's own target can be a neighbour: on a face seen at
      * a slant, touch adjustment moves a tap to a "better" button nearby. Faces turned away take no pointer, so they're skipped.
@@ -376,8 +381,19 @@ const playView: ModuleDef = {
       }
       return cellIndex(fallback);
     };
+    const endDrag = (e: PointerEvent, cancelled: boolean) => {
+      if (!cube || !drag || e.pointerId !== drag.id) return;
+      const d = drag;
+      drag = null;
+      if (frame) { cancelAnimationFrame(frame); frame = 0; }
+      cube.el.classList.remove('cube--turning');
+      // a drag leaves the cube where the finger left it; a tap presses the light it landed on
+      if (d.moved) showOrient(false);
+      else if (!cancelled && d.cell >= 0) { pending[d.cell] = 1; press(d.cell); }
+    };
     board.addEventListener('pointerdown', (e) => {
-      if (!cube || e.button !== 0 || drag) return;
+      if (!cube || e.button !== 0 || drag?.id === e.pointerId) return;
+      if (drag?.moved) showOrient(false); // the last drag's end never came: settle it, then this touch starts afresh
       drag = { id: e.pointerId, x: e.clientX, y: e.clientY, lastX: e.clientX, lastY: e.clientY, cell: cubeCellAt(e.clientX, e.clientY, e.target), moved: false };
     });
     board.addEventListener('pointermove', (e) => {
@@ -385,6 +401,7 @@ const playView: ModuleDef = {
       if (!drag.moved) {
         if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < CUBE_SLOP) return;
         drag.moved = true;
+        cube.el.classList.add('cube--still', 'cube--turning');
         try { board.setPointerCapture(e.pointerId); } catch { /* no capture (a synthetic event): the drag still works */ }
       }
       // roll by the finger's step since the last event: the cube turns with it, from wherever it is
@@ -392,17 +409,11 @@ const playView: ModuleDef = {
       drag.lastX = e.clientX;
       drag.lastY = e.clientY;
       turned = true;
-      showOrient(false);
+      if (!frame) frame = requestAnimationFrame(paintTurn);
     });
-    const endDrag = (e: PointerEvent, cancelled: boolean) => {
-      if (!cube || !drag || e.pointerId !== drag.id) return;
-      const d = drag;
-      drag = null;
-      // a tap presses the light it landed on; a drag leaves the cube where the finger left it
-      if (!d.moved && !cancelled && d.cell >= 0) { pending[d.cell] = 1; press(d.cell); }
-    };
-    board.addEventListener('pointerup', (e) => endDrag(e, false));
-    board.addEventListener('pointercancel', (e) => endDrag(e, true));
+    addEventListener('pointerup', (e) => endDrag(e, false));
+    addEventListener('pointercancel', (e) => endDrag(e, true));
+    board.addEventListener('touchmove', (e) => { if (cube) e.preventDefault(); }, { passive: false });
 
     // the slot (board size / cols, gutter included: DECISIONS #40) decides aim mode; measured, never on a tap
     let aimBelow = 0;

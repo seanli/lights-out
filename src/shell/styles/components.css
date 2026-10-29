@@ -387,6 +387,7 @@ button, input { font: inherit; color: inherit; }
   transition: transform var(--dur-cube-turn) var(--ease-out);
 }
 .cube--still { transition: none; }
+.cube--turning { will-change: transform; }
 .cube__face {
   --cell-size: calc(var(--cube-edge) / (var(--cube-n) + 2 * var(--cube-pad-k) + (var(--cube-n) - 1) * var(--cube-gap-k)));
   --cell-radius: calc(var(--cell-size) * .2); --glow-blur: calc(var(--cell-size) * .3);
