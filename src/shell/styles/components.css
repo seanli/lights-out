@@ -80,7 +80,8 @@ button, input { font: inherit; color: inherit; }
    new size (never animated, so a tap never lands on a moving cell); nothing else moves or changes form.
    The board area is a size container. The board is the largest of its shape that fits; the status row sits right above
    it, and the pair is centred in the area, so spare height on a tall phone splits evenly above and below instead of
-   pooling under the header. While the tutorial coaches, the pair rests on the bar and its sentence takes the space above. */
+   pooling under the header. While the tutorial coaches, its sentence sits where the hint line does (right over the status
+   row) and the board leaves room for it; the screen is otherwise the same as any level's (decision 75). */
 .screen--play {
   /* the classic board at its smallest instant-press size (5 slots of --aim-below): the panel never squeezes the area below */
   --play-board-min: calc(5 * var(--aim-below));
@@ -134,7 +135,11 @@ button, input { font: inherit; color: inherit; }
 /* the space under the board matches the line's space over the status row: the pair sits in the middle */
 .board-slot::after { content: ""; flex: 1 1 0; }
 .screen--play[data-coaching="true"]:not([data-reference="open"]) .board-slot { --board-chrome-y: calc(var(--play-status-h) + var(--play-coach-h)); }
-.screen--play[data-coaching="true"]:not([data-reference="open"]) .board-slot::after { display: none; }
+/* and the sentence's line always gets that room (on a tall phone the spare height still splits evenly, as on any level);
+   side by side (a phone on its side) the board has its own column and the line shares the other */
+@media not all and (orientation: landscape) and (max-height: 540px) {
+  .screen--play[data-coaching="true"]:not([data-reference="open"]) .play-line { min-height: var(--play-coach-h); }
+}
 /* the line over the board (the hint line, or the coach in slot:coach) lives in the spare height above it, shown whole
    or not at all: a column-wrapping flex box whose items wrap out of its clip when they don't fit */
 .play-line {
@@ -335,9 +340,16 @@ button, input { font: inherit; color: inherit; }
 .board--sweep[data-grid="hex"] > .cell:not([data-hint="true"], [data-pointer="true"])::after {
   border-radius: 0; clip-path: var(--hex-clip); box-shadow: none;
 }
-.board[data-grid="hex"] > .cell[data-lit="true"][data-flip]:not([data-hint="true"], [data-pointer="true"])::after { background: var(--hex-bloom); }
-.board[data-grid="hex"] > .cell[data-lit="false"][data-flip]:not([data-hint="true"], [data-pointer="true"])::after { background: var(--hex-afterglow); }
+/* a flash gives way to the win wash, as on square tiles (the winning tap's lights go straight into the wash) */
+.board[data-grid="hex"]:not(.board--sweep) > .cell[data-lit="true"][data-flip]:not([data-hint="true"], [data-pointer="true"])::after { background: var(--hex-bloom); }
+.board[data-grid="hex"]:not(.board--sweep) > .cell[data-lit="false"][data-flip]:not([data-hint="true"], [data-pointer="true"])::after { background: var(--hex-afterglow); }
 .board--sweep[data-grid="hex"] > .cell[data-lit]:not([data-hint="true"], [data-pointer="true"])::after { background: var(--hex-sweep); box-shadow: none; }
+/* and the square tile's warm halo, as a hexagon a little larger than the tile behind it, pulsing with the wash */
+.board--sweep[data-grid="hex"] > .cell[data-lit]:not([data-hint="true"], [data-pointer="true"])::before {
+  content: ""; position: absolute; inset: -11%; z-index: -1; pointer-events: none; clip-path: var(--hex-clip); opacity: 0;
+  background: radial-gradient(closest-side, var(--c-glow) 72%, var(--c-glow-none));
+  animation: lo-sweep var(--dur-sweep-cell) var(--ease-out) calc(var(--i, 0) * var(--sweep-step)) backwards;
+}
 /* the hint: a hexagonal halo behind the tile (the dot sits on top as everywhere) */
 .board[data-grid="hex"] > .cell[data-hint="true"]::before {
   inset: calc(-1.8 * var(--ring-w)); border: 0; border-radius: 0; box-shadow: none;
@@ -471,6 +483,10 @@ button, input { font: inherit; color: inherit; }
 }
 /* a honeycomb tile's face fades in the same way (it holds its own --lit) */
 .board--intro .cell[data-lit="true"] > .cell__face { animation: lo-power-on var(--dur-power-on) var(--ease-out) calc(var(--i, 0) * var(--power-step)) backwards; }
+/* a honeycomb tile's light is its face (above); the tile itself only gets its glow, a drop shadow on the hexagon, in one
+   step at the end. Never the square tile's box-shadow, which would draw a square around the hexagon */
+.board--intro[data-grid="hex"] > .cell[data-lit="true"] { animation: lo-hex-glow-on var(--dur-power-on) step-end calc(var(--i, 0) * var(--power-step)) backwards; }
+@keyframes lo-hex-glow-on { from { filter: none; } }
 @keyframes lo-power-on { from { --lit: 0; } }
 @keyframes lo-glow-on { from { box-shadow: var(--shadow-tile-off); } }
 
@@ -627,8 +643,6 @@ button, input { font: inherit; color: inherit; }
 }
 .tutorial-line:empty { visibility: hidden; }
 .tutorial-line[data-tone="coach"] { color: var(--c-text); font-size: var(--text-md); }
-/* first-run focus: while coaching, only the board, the ring and one sentence (visibility keeps the layout still) */
-[data-coaching="true"] .play-tiers, [data-coaching="true"] [data-action="hint"] { visibility: hidden; }
 .tutorial-line[data-tone="hint"] { color: var(--c-hint); }
 .tutorial-line[data-tone="hint"]::before { content: ""; width: var(--dot); height: var(--dot); flex: none; border-radius: var(--radius-pill); background: var(--c-hint); box-shadow: 0 0 0 var(--space-half) var(--c-hint-glow); }
 

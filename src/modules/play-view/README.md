@@ -13,7 +13,7 @@ The play screen, rendered into `view.region('screen:play')`. Owns no slice; read
   A boss (`levels.list[].boss`): `data-boss="true"` on the header, a skull before the level, eyebrow "Cathedral · Boss" (`copy.boss`), warm accent.
 - Status row: Moves (display numeral, bumps per change) and Par as a pair; tier chips from `progress.scoring` (aria-label: max stars still possible),
   after a hint a `chip[data-state="hint"]` "−1★". `data-long` on `.play-tiers` (limits ≥ 10) lets the row fold the "≤N" limits sooner: it never wraps.
-- The line over the board: the hint line or the tutorial's `slot:coach`, shown whole in the spare height or not at all; while coaching the board leaves it room.
+- The line over the board: the hint line or the tutorial's `slot:coach`, shown whole in the spare height or not at all; while coaching the board leaves it room and the screen otherwise looks like any level (star tiers shown, Hint resting).
 - Feel: changed cells get `data-flip` and `--flip-delay` (pressed cell 0ms, neighbours `var(--flip-stagger)`). A new level adds `.board--intro`. Coaching sets `data-coaching="true"`.
 - Solve: `.board--sweep`, each real cell's `--i` = distance from the winning tap scaled to `--dur-sweep`. All motion skipped under reduced motion.
 - Pattern reference: `[data-action="reference"]` toggles `slot:reference`; waits for a lifted finger; Escape closes.

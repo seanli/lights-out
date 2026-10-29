@@ -412,11 +412,12 @@ describe('play-view', () => {
       expect(q(SEL.moves).classList.contains('stat__value--bump')).toBe(true);
     });
 
-    test('coaching hides the tiers and the hint (data-coaching on the screen)', () => {
+    test('coaching marks the screen (data-coaching) and rests the Hint button: the ring already points', () => {
       const tut: TutorialState = { status: 'active', levelId: 7, step: 0, target: 12, copyKey: '1' };
       const { t } = boot({ tutorial: tut });
       const screen = document.querySelector<HTMLElement>(SEL.screen('play'))!;
       expect(screen.dataset.coaching).toBe('true');
+      expect(document.querySelector('[data-action="hint"]')!.getAttribute('aria-disabled')).toBe('true');
       t.kernel.seed('tutorial', { ...tut, status: 'done', target: null });
       expect(screen.hasAttribute('data-coaching')).toBe(false);
     });

@@ -328,7 +328,10 @@
   /* the same three flashes painted inside a hexagon tile (a clip-path cuts off outer shadows) */
   --hex-bloom: radial-gradient(circle at 50% 45%, var(--c-glow-strong), var(--c-glow-none) 78%);
   --hex-afterglow: radial-gradient(circle at 50% 50%, var(--c-glow-none) 35%, var(--c-afterglow) 100%);
-  --hex-sweep: radial-gradient(circle at 50% 50%, var(--c-glow-none) 50%, var(--c-glow) 100%), var(--wash-sweep);
+  /* the win wash on a hexagon: the square tile's fill and its gold edge (--c-tile-on-edge, drawn as a hexagon outline:
+     a clip cuts off box-shadows, so the edge is an image) */
+  --hex-edge-on: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 115.47' preserveAspectRatio='none'%3E%3Cpolygon points='50,1 99,29.1 99,86.4 50,114.5 1,86.4 1,29.1' fill='none' stroke='rgba(255,226,170,.75)' stroke-width='2' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
+  --hex-sweep: var(--hex-edge-on) center / 100% 100% no-repeat, var(--wash-sweep);
 }
 
 html,
