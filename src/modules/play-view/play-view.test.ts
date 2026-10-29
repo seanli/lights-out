@@ -578,6 +578,30 @@ describe('play-view', () => {
       expect(presses()).toEqual([3 * 7 + 3]);
     });
 
+    test('a honeycomb tile draws only hexagons: its face, a ring for focus, a hexagon plate on a stuck switch', () => {
+      const hex = { ...hexagonShape(4), stuck: [3 * 7 + 3] };
+      const { cell } = boot({ board: shaped(hex, { start: hex.mask!.map(() => false), cells: hex.mask!.map(() => false) }) });
+      for (const i of [3 * 7, 3 * 7 + 3]) {
+        expect(cell(i).querySelectorAll(':scope > .cell__face')).toHaveLength(1);
+        expect(cell(i).querySelectorAll(':scope > svg.hex-ring')).toHaveLength(1);
+      }
+      // the plate fills the tile's box at its own (hexagon) proportions, rim and rivets inside the tile
+      const plate = cell(3 * 7 + 3).querySelector('.cell__stuck')!;
+      const [, , w, h] = plate.getAttribute('viewBox')!.split(' ').map(Number);
+      expect(h! / w!).toBeCloseTo(2 / Math.sqrt(3), 3);
+      expect(plate.querySelector('polygon.cell__rim')).not.toBeNull();
+      expect(plate.querySelector('rect')).toBeNull();
+      const inside = (x: number, y: number) => Math.abs(x) <= 12 && Math.abs(y) <= 13.856 - Math.abs(x) * 0.5774;
+      for (const r of plate.querySelectorAll('circle')) expect(inside(Number(r.getAttribute('cx')), Number(r.getAttribute('cy')))).toBe(true);
+    });
+
+    test('a square board keeps its square plate', () => {
+      const sq = { cols: 5, rows: 5, mask: null, stuck: [12] };
+      const { cell } = boot({ board: shaped(sq, { start: new Array(25).fill(false), cells: new Array(25).fill(false) }) });
+      expect(cell(12).querySelector('.cell__stuck rect.cell__rim')).not.toBeNull();
+      expect(cell(12).querySelector('.hex-ring')).toBeNull();
+    });
+
     test('a cube folds six faces, names each light by its face, presses on release and turns on a swipe', () => {
       const cube = cubeShape(3);
       const lit = cube.mask!.map(() => false);

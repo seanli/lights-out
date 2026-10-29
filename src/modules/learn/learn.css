@@ -38,12 +38,11 @@
 }
 .board--mini[data-mini-grid="hex"] > .cell[data-lit="true"] { filter: drop-shadow(0 0 var(--space-1-5) var(--c-glow)); }
 .board--mini[data-mini-grid="hex"] > .cell::before { content: none; }
-.mini-hex-ring {
-  position: absolute; inset: -9% -10%; width: 120%; height: 118%; overflow: visible; pointer-events: none; visibility: hidden; z-index: 1;
-  fill: none; stroke: var(--c-pointer); stroke-width: var(--ring-w); stroke-dasharray: 4 3; vector-effect: non-scaling-stroke;
-}
-.board--mini[data-mini-grid="hex"] > .cell:is([data-ring="true"], [data-suggest="true"], [data-aimed="true"]) > .mini-hex-ring { visibility: visible; }
-.board--mini[data-mini-grid="hex"] > .cell[data-suggest="true"] > .mini-hex-ring { filter: drop-shadow(0 0 var(--pulse-spread) var(--c-pointer-glow)); }
+/* the outline, Assist's ring and the aimed light: the shared hexagon ring (.hex-ring, components.css), dashed pointer */
+.board--mini[data-mini-grid="hex"] > .cell:is([data-ring="true"], [data-suggest="true"], [data-aimed="true"]) { z-index: 1; }
+.board--mini[data-mini-grid="hex"] > .cell:is([data-ring="true"], [data-suggest="true"], [data-aimed="true"]) > .hex-ring { visibility: visible; }
+.board--mini[data-mini-grid="hex"] > .cell[data-suggest="true"] > .hex-ring { filter: drop-shadow(0 0 var(--pulse-spread) var(--c-pointer-glow)); }
+.board--mini[data-mini-grid="hex"] > .cell[data-stuck="true"] { background: none; }
 /* a cube's net (view.ts places each light): six face panels like the play cube's, a seam track between faces */
 .board--mini[data-mini-grid="cube"][data-mini-n] {
   --face-seam: var(--space-2); --face-pad: var(--space-1); --board-pad: var(--space-1-5);

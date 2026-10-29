@@ -5,7 +5,7 @@ import { fmt, h, setAttr, setText } from '../../lib/dom';
 import { emptyCells, gridOf, gridSize, isCell, isStuck, shapeKey } from '../../lib/shape';
 import { cubeSide, FACES } from '../../lib/cube';
 import { roomGlyph } from '../../lib/glyph';
-import { stuckIcon, wireIcon } from '../../lib/icons';
+import { hexRing, stuckIcon, wireIcon } from '../../lib/icons';
 import { attachAim, type AimHandle, type AimMode } from '../../lib/aim';
 import type { Catalog, LearnCopy, LearnRules } from './index';
 import type { DemoEnd, MiniSpec, Phase, Step } from './lessons';
@@ -63,21 +63,6 @@ function icon(d: string): SVGSVGElement {
   const path = document.createElementNS(SVG, 'path');
   path.setAttribute('d', d);
   svg.append(path);
-  return svg;
-}
-/**
- * A honeycomb light's outline (outlined, Assist's ring, the aimed light), drawn as a hexagon a little larger than the
- * tile: the tile's face is clipped to a hexagon, so an outline or ring on the tile itself would be cut off.
- */
-function hexRing(): SVGSVGElement {
-  const svg = document.createElementNS(SVG, 'svg');
-  svg.setAttribute('viewBox', '0 0 86.6 100');
-  svg.setAttribute('preserveAspectRatio', 'none');
-  svg.setAttribute('class', 'mini-hex-ring');
-  svg.setAttribute('aria-hidden', 'true');
-  const shape = document.createElementNS(SVG, 'polygon');
-  shape.setAttribute('points', '43.3,0 86.6,25 86.6,75 43.3,100 0,75 0,25');
-  svg.append(shape);
   return svg;
 }
 const CHEVRON_LEFT = 'M15 18l-6-6 6-6';
@@ -164,7 +149,7 @@ export function createLearnView(d: Deps) {
         cell.style.gridRow = String(r + Math.floor(r / side) + 1);
       }
       const bits = s.wires?.[i];
-      if (bits !== undefined || stuck) cell.append(h('span', { class: 'cell__mark', 'aria-hidden': 'true' }, bits !== undefined ? wireIcon(bits) : null, stuck ? stuckIcon() : null));
+      if (bits !== undefined || stuck) cell.append(h('span', { class: 'cell__mark', 'aria-hidden': 'true' }, bits !== undefined ? wireIcon(bits) : null, stuck ? stuckIcon(hex ? 'hex' : 'square') : null));
       board.append(cell);
     }
     if (kind === 'practice') wirePractice(board, s);

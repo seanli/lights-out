@@ -9,7 +9,7 @@ import { CUSTOM_LEVEL_ID, MAX_CELLS, type BoardState, type CustomState, type Hin
 import { cellAt, hexCellAt, hexHalf, hexSpan, isTall, rowEdge, stepFrom } from './grid';
 import { attachAim, type AimMode } from '../../lib/aim';
 import { fmt, h, setAttr, setText } from '../../lib/dom';
-import { skull, stuckIcon, wireIcon } from '../../lib/icons';
+import { hexRing, skull, stuckIcon, wireIcon } from '../../lib/icons';
 import { FACES, IDENTITY, cellFace, cssMatrix, cubeSide, faceMatrix, facesShowing, frontFace, turn, type FaceId, type Mat } from '../../lib/cube';
 import { cellIndexes, gridOf, gridSize, isCell, isStuck, shapeKey, shapeOf } from '../../lib/shape';
 import './play-view.css';
@@ -224,7 +224,8 @@ const playView: ModuleDef = {
           // a honeycomb tile: placed by half-columns (odd rows half a tile right) and rows, from the first used half
           cell.style.setProperty('--hx', String(hexHalf(next, i) - hexSpan(next).first));
           cell.style.setProperty('--hy', String(rowOf(i)));
-          cell.append(h('span', { class: 'cell__face', 'aria-hidden': 'true' }));
+          // the hexagon is the face (clipped); the ring (keyboard focus) is drawn outside the clip
+          cell.append(h('span', { class: 'cell__face', 'aria-hidden': 'true' }), hexRing());
         }
         if (at) {
           cell.style.gridColumn = String(at.a + 1);
@@ -595,7 +596,7 @@ const playView: ModuleDef = {
         setAttr(cell, 'data-wires', bits === undefined ? null : String(bits));
         const marks: Node[] = [];
         if (bits !== undefined) marks.push(wireIcon(bits));
-        if (stuck) marks.push(stuckIcon());
+        if (stuck) marks.push(stuckIcon(gridOf(s) === 'hex' ? 'hex' : 'square'));
         // only the marks are redrawn: a honeycomb tile keeps its face
         cell.querySelector(':scope > .cell__mark')?.remove();
         if (marks.length) cell.append(h('span', { class: 'cell__mark', 'aria-hidden': 'true' }, ...marks));
