@@ -8,10 +8,11 @@
 }
 .custom__body > * { flex-shrink: 0; }
 
-/* the preview: what Play will make, on a dark board well; lit more the harder it is */
+/* the preview: what Play will make, on a dark card with an even outline (panels never use the board's sunken well
+   shadow, which smudges their top edge); lit more the harder it is */
 .custom__preview {
   display: flex; align-items: center; gap: var(--space-4);
-  padding: var(--card-pad); border-radius: var(--radius-lg); background: var(--c-board); box-shadow: var(--shadow-board);
+  padding: var(--card-pad); border-radius: var(--radius-lg); background: var(--c-board); box-shadow: var(--shadow-outline);
 }
 .custom__glyph { display: flex; flex: none; }
 .custom__glyph .room-glyph { --glyph-box: calc(2 * var(--space-8)); --glyph-tall: calc(2 * var(--space-8)); }
@@ -24,7 +25,7 @@
 /* a segmented choice: one recessed track, the chosen option lit like a pressed button */
 .custom__seg {
   display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--space-1);
-  padding: var(--space-1); border-radius: var(--radius-md); background: var(--c-board); box-shadow: var(--shadow-recessed);
+  padding: var(--space-1); border-radius: var(--radius-md); background: var(--c-board); box-shadow: var(--shadow-outline);
 }
 .custom__opt {
   display: inline-flex; align-items: center; justify-content: center; gap: var(--space-1); min-width: 0;
@@ -47,7 +48,7 @@
 .custom__sizes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
 .custom__stepper {
   display: flex; flex-direction: column; gap: var(--space-1-5);
-  padding: var(--space-2); border-radius: var(--radius-md); background: var(--c-board); box-shadow: var(--shadow-recessed);
+  padding: var(--space-2); border-radius: var(--radius-md); background: var(--c-board); box-shadow: var(--shadow-outline);
 }
 .custom__stepper-name { padding-inline: var(--space-1); font-size: var(--text-xs); line-height: var(--leading-snug); color: var(--c-text-dim); }
 .custom__stepper-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-1); }
