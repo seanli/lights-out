@@ -4,7 +4,7 @@
 // levels module (fixed seeds) and the custom module.
 import type { Cells, Rng, Shape, SolverService } from '../contracts';
 import { cellCount, cellIndexes, emptyCells, gridOf, gridSize, isCell, isPressable, pressTargets, touching } from './shape';
-import { isPinwheel, orbits, symmetryNamed, type Symmetry, type SymmetryName } from './symmetry';
+import { isPinwheel, orbits, symmetriesOfBoard, symmetryNamed, type Symmetry, type SymmetryName } from './symmetry';
 
 export interface Made {
   cells: Cells;
@@ -361,12 +361,15 @@ export function wiring(shape: Shape, rng: Rng, kinds: number, gentle: boolean, s
   return out;
 }
 
+/** a twist placed per puzzle: how many stuck cells, or which wiring */
+export type Twist = { stuck: number } | { kinds: number; gentle: boolean };
+
 /** a puzzle to make: the board before its twist, the par, and the symmetries to try in order */
 export interface PuzzleSpec {
   /** the board before its twist (stuck cells or wiring are placed per puzzle) */
   base: Shape;
   par: number;
-  twist?: { stuck: number } | { kinds: number; gentle: boolean };
+  twist?: Twist;
   /** symmetries to try, in order (names the board doesn't have are skipped); empty = a tangled board */
   looks: readonly SymmetryName[];
   /** tries per symmetry before the next */
@@ -423,4 +426,35 @@ export function makePuzzle(spec: PuzzleSpec, rng: Rng, solver: SolverService): P
   else if (twist) shape = { ...base, wires: wiring(base, rng, twist.kinds, twist.gentle) };
   const made = tangle(shape, par, rng, solver, { readable: spec.readable, maxTries: spec.maxTries, ...(spec.seen ? { seen: spec.seen } : {}), needsFix: spec.needsFix?.(shape) ?? false });
   return { ...made, tries: spent + made.tries, shape, symmetry: null };
+}
+
+/**
+ * A hand-made picture on a stuck or wired board: its plates or wiring placed to share one of the picture's symmetries
+ * (in `looks` order; anywhere, if the picture has none), tried until the picture can be solved. Keeps the par nearest
+ * `par`, preferring at least it (a boss's), never a board a plain chase clears when `needsFix` says so. Null when
+ * nothing works.
+ */
+export function twistAround(base: Shape, cells: Cells, twist: Twist, par: number, looks: readonly SymmetryName[], rng: Rng, solver: SolverService, opts: { tries?: number; needsFix?: (shape: Shape) => boolean } = {}): Puzzle | null {
+  const has = symmetriesOfBoard(base, cells);
+  const names = looks.filter((n) => has.includes(n));
+  const miss = (n: number) => (n >= par ? n - par : 2 * (par - n));
+  let best: Puzzle | null = null;
+  const tries = opts.tries ?? 80;
+  for (let t = 0; t < tries; t++) {
+    const name = names.length ? names[t % names.length]! : null;
+    const sym = name ? symmetryNamed(base, name) : undefined;
+    let shape: Shape;
+    if ('stuck' in twist) {
+      const stuck = sym ? symmetricStuck(base, twist.stuck, rng, sym) : stuckCells(base, twist.stuck, rng);
+      if (!stuck) continue;
+      shape = { ...base, stuck };
+    } else shape = { ...base, wires: wiring(base, rng, twist.kinds, twist.gentle, sym) };
+    const solution = solver.solve(cells, shape);
+    if (!solution || (opts.needsFix?.(shape) && chaseClears(shape, cells, solver)) || isPinwheel(shape, cells)) continue;
+    if (!best || miss(solution.length) < miss(best.par)) {
+      best = { cells: [...cells], par: solution.length, readable: readableIn(shape, cells, solution), tries: t + 1, shape, symmetry: name };
+    }
+    if (solution.length === par) break;
+  }
+  return best;
 }

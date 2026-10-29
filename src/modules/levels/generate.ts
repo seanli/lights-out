@@ -1,8 +1,8 @@
 // Deterministic level generation and chapter checks. Pure: everything comes in as arguments.
 import { type Cells, type Chapter, type LevelDef, type Rng, type Shape, type SolverService } from '../../contracts';
-import { chaseClears, chaseable, makePuzzle, type Made } from '../../lib/puzzle';
+import { chaseClears, chaseable, makePuzzle, twistAround, type Made, type Twist } from '../../lib/puzzle';
 import { cellIndexes, emptyCells, shapeOf } from '../../lib/shape';
-import type { SymmetryName } from '../../lib/symmetry';
+import { SYMMETRY_NAMES, type SymmetryName } from '../../lib/symmetry';
 
 export interface LevelsRules {
   pars: number[];
@@ -161,7 +161,7 @@ export interface RoomPlan {
   fixFrom?: number;
   /** symmetric boards (and symmetric stuck cells or wiring); absent = tangled boards only */
   looks?: Looks;
-  /** hand-made boards by position (never in a stuck or wired room: each of its levels has its own shape) */
+  /** hand-made boards by position (in a stuck or wired room, the level's stuck cells or wiring are placed around it) */
   pictures?: ReadonlyMap<number, Cells>;
 }
 
@@ -183,15 +183,21 @@ export function generateRoom(plan: RoomPlan, rng: Rng, solver: SolverService): G
       const id = plan.idBase + index;
       const isBoss = k === band.pars.length;
       const picture = plan.pictures?.get(index);
+      const twist: Twist | undefined = plan.twist === 'stuck' ? { stuck: band.stuck ?? 3 } : plan.twist === 'wired' ? { kinds: band.kinds ?? 4, gentle: band.gentle ?? false } : undefined;
+      const needsFix = (s: Shape) => plan.fixFrom !== undefined && index >= plan.fixFrom && chaseable(s);
       let made: Made & { shape: Shape };
-      if (picture) made = { ...pictureLevel(picture, plan.shape, solver, id), readable: 0, tries: 0, shape: plan.shape };
-      else {
-        const twist = plan.twist === 'stuck' ? { stuck: band.stuck ?? 3 } : plan.twist === 'wired' ? { kinds: band.kinds ?? 4, gentle: band.gentle ?? false } : undefined;
+      if (picture && !twist) made = { ...pictureLevel(picture, plan.shape, solver, id), readable: 0, tries: 0, shape: plan.shape };
+      else if (picture && twist) {
+        // a picture in a stuck or wired room: its plates or wiring are placed around it
+        const dressed = twistAround(plan.shape, picture, twist, wanted, plan.looks?.boss ?? SYMMETRY_NAMES, rng, solver, { needsFix });
+        if (!dressed) throw new Error(`Level ${id}'s picture can't be solved with any ${'stuck' in twist ? 'stuck cells' : 'wiring'} placed around it`);
+        made = dressed;
+      } else {
         made = makePuzzle({
           base: plan.shape, par: wanted, ...(twist ? { twist } : {}),
           looks: plan.looks ? looksFor(plan.looks, index, isBoss) : [], looksTries: plan.looks?.tries ?? 0,
           readable: plan.readable, maxTries: plan.maxTries, seen,
-          needsFix: (s) => plan.fixFrom !== undefined && index >= plan.fixFrom && chaseable(s),
+          needsFix,
         }, rng, solver);
         if (made.par !== wanted || made.readable > plan.readable) missed.push({ id, wanted, got: made.par });
       }

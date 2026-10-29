@@ -272,7 +272,12 @@ describe('levels', () => {
       const shape = shapeOf(room);
       const list = state.list.filter((l) => l.pack === id);
       const pictures = new Map((room.pictures ?? []).map((p) => [p.at, pictureCells(shape, p)]));
-      const pars = parsOf(room.bands).map((par, i) => (pictures.has(i + 1) ? refShapedSolve(shape, pictures.get(i + 1)!)!.length : par));
+      // a picture's par is what it needs on its board (in a stuck or wired room, with the stuck cells or wiring placed around it)
+      const pars = parsOf(room.bands).map((par, i) => {
+        if (!pictures.has(i + 1)) return par;
+        const level = list[i]!;
+        return refShapedSolve(level.shape!, pictures.get(i + 1)!)!.length;
+      });
       expect(list.map((l) => l.id)).toEqual(pars.map((_, i) => room.idBase + i + 1));
       expect(list.map((l) => l.index)).toEqual(pars.map((_, i) => i + 1));
       expect(list.map((l) => l.par)).toEqual(pars);
@@ -377,7 +382,6 @@ describe('levels', () => {
       ['a 21-wide board', { ...rooms[0]!, cols: 21, rows: 8 }, /Invalid value/],
       ['a hex room without a side', { ...rooms.find((r) => r.kind === 'hex')!, side: undefined }, /needs a side/],
       ['stuck cells on a room that isn\'t stuck', { ...rooms[0]!, bands: rooms[0]!.bands.map((b) => ({ ...b, stuck: 2 })) }, /Only a stuck room/],
-      ['pictures in a stuck room', { ...rooms.find((r) => r.kind === 'stuck')!, pictures: [{ at: 10, picture: 'all' }] }, /A stuck or wired room has no pictures/],
     ])('data with %s is rejected before init', (_, room, message) => {
       expect(() => boot({ data: withRules({ rooms: [room] }) })).toThrow(message);
     });

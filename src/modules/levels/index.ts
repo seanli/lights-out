@@ -79,7 +79,7 @@ const RulesSchema = v.object({
       idBase: v.pipe(int, v.minValue(1)),
       seed: int,
       bands: BandsSchema,
-      /** levels made by hand (not in a stuck or wired room: each of its levels has its own shape) */
+      /** levels made by hand (in a stuck or wired room, each one's stuck cells or wiring are placed around it) */
       pictures: v.optional(PicturesSchema),
     }),
     v.check((r) => r.kind !== 'shape' || (r.picture !== undefined && r.cols === undefined && r.rows === undefined), 'A shape room has a picture (and no cols or rows)'),
@@ -87,7 +87,6 @@ const RulesSchema = v.object({
     v.check((r) => !['hex', 'cube'].includes(r.kind) || (r.side !== undefined && r.cols === undefined && r.rows === undefined && r.picture === undefined), 'A hex or cube room needs a side (and no cols, rows or picture)'),
     v.check((r) => r.kind === 'stuck' || r.bands.every((b) => b.stuck === undefined), 'Only a stuck room sets stuck cells per band'),
     v.check((r) => r.kind === 'wired' || r.bands.every((b) => b.kinds === undefined && b.gentle === undefined), 'Only a wired room sets wiring per band'),
-    v.check((r) => !r.pictures || !['stuck', 'wired'].includes(r.kind), 'A stuck or wired room has no pictures: each of its levels has its own shape'),
   )),
 });
 type Rules = v.InferOutput<typeof RulesSchema>;
@@ -119,7 +118,7 @@ function roomShape(room: Room): Shape {
 }
 
 /** a pack's pictures as boards by position, checked against its shape; throws a plain message */
-function pictureBoards(where: string, shape: Shape, count: number, list: v.InferOutput<typeof PicturesSchema> | undefined, solver: SolverService): Map<number, Cells> {
+function pictureBoards(where: string, shape: Shape, count: number, list: v.InferOutput<typeof PicturesSchema> | undefined, solver: SolverService, twisted = false): Map<number, Cells> {
   const out = new Map<number, Cells>();
   for (const { at, picture } of list ?? []) {
     const name = `${where} level ${at}'s picture`;
@@ -133,7 +132,8 @@ function pictureBoards(where: string, shape: Shape, count: number, list: v.Infer
       if (cells.some((on, i) => on && !isCell(shape, i))) throw new Error(`${name} lights a gap in the board`);
       if (!cells.some(Boolean)) throw new Error(`${name} has no lights on`);
     }
-    if (!solver.isSolvable(cells, shape)) throw new Error(`${name} can't be solved: no presses turn it all off`);
+    // a stuck or wired room places its twist around the picture when it makes the level, and checks it there
+    if (!twisted && !solver.isSolvable(cells, shape)) throw new Error(`${name} can't be solved: no presses turn it all off`);
     out.set(at, cells);
   }
   return out;
@@ -154,7 +154,7 @@ function planPacks(rules: Rules, copy: v.InferOutput<typeof CopySchema>, solver:
     const clash = out.find((p) => first <= p.pack.first + p.pack.count - 1 && p.pack.first <= last);
     if (clash) throw new Error(`Room "${room.id}" uses level ids ${first}–${last}, which overlap "${clash.pack.id}"`);
     const shape = roomShape(room);
-    out.push({ pack: { id: room.id, name, kind: room.kind, group: room.group, shape, first, count }, room, pictures: pictureBoards(`Room "${room.id}"`, shape, count, room.pictures, solver) });
+    out.push({ pack: { id: room.id, name, kind: room.kind, group: room.group, shape, first, count }, room, pictures: pictureBoards(`Room "${room.id}"`, shape, count, room.pictures, solver, room.kind === 'stuck' || room.kind === 'wired') });
   }
   return out;
 }
