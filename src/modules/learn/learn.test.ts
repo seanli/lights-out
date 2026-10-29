@@ -1558,7 +1558,7 @@ describe('learn: first-time-player review', () => {
   test('lesson 5 has Assist: it rings a shortest answer, so following it solves at par', () => {
     const t = boot();
     t.emit('learn:open', { lessonId: 'shortest' });
-    for (let k = 0; k < 3; k++) t.emit('learn:step', { delta: 1 }); // past the A·C·E demo and the four fixes
+    for (let k = 0; k < 4; k++) t.emit('learn:step', { delta: 1 }); // past the A·C·E demo, the four fixes and the Restart move
     expect(q('[data-action="learn-assist"]')).not.toBeNull();
     t.emit('learn:set_assist', { on: true });
     const par = solver.solve(t.state('learn').practice!.start)!.length;
@@ -1591,6 +1591,42 @@ describe('learn: first-time-player review', () => {
     t.emit('learn:step', { delta: 1 });
     expect(qa('[data-mini-board="show"]')).toHaveLength(4);
     expect(caps()).toEqual(['A and D: 15 taps', 'C, D and E: 11 taps', 'A, B and C: 11 taps', 'B and E: 15 taps']);
+  });
+
+  test('lesson 5, the Restart move: the fix that lands on par first, then one chase; all dark in par taps', () => {
+    const t = boot();
+    t.emit('learn:open', { lessonId: 'shortest' });
+    for (let k = 0; k < 3; k++) t.emit('learn:step', { delta: 1 });
+    expect(q('.learn-text')!.textContent).toMatch(/^For par: chase once to find your row, then Restart\./);
+    const button = q('[data-action="learn-demo"]')!;
+    const lines: string[] = [q('[data-learn-line="demo"]')!.textContent!];
+    for (let k = 0; k < 20 && button.textContent !== 'Replay'; k++) { button.click(); lines.push(q('[data-learn-line="demo"]')!.textContent!); }
+    const par = solver.solve(pressAll(solver, blank(), [0, 4, 12, 20, 24]))!.length;
+    expect(lines.at(-1)).toBe(`All dark in ${par} taps: that's par.`);
+    expect(lines.filter((l) => l.startsWith('Top row'))).toHaveLength(2); // A and E
+    expect(lines.filter((l) => /^Chase/.test(l))).toHaveLength(par - 2);
+  });
+
+  test('the Restart button (lesson 5 practice): the same board from its start, taps back to 0, even once solved', () => {
+    const t = boot();
+    t.emit('learn:restart_practice', {});
+    expect(t.seen('learn:refused', { command: 'learn:restart_practice', reason: 'no_practice' })).toBeTruthy();
+    t.emit('learn:open', { lessonId: 'shortest' });
+    for (let k = 0; k < 4; k++) t.emit('learn:step', { delta: 1 });
+    const start = t.state('learn').practice!.start;
+    const answer = solver.solve(start)!;
+    t.emit('learn:press', { index: answer[0]! });
+    expect(t.state('learn').practice!.moves).toBe(1);
+    q('[data-action="learn-restart"]')!.click();
+    expect(t.state('learn').practice).toMatchObject({ cells: start, start, moves: 0, status: 'playing' });
+    for (const i of answer) t.emit('learn:press', { index: i });
+    expect(t.state('learn').practice!.status).toBe('solved');
+    t.emit('learn:restart_practice', {});
+    expect(t.state('learn').practice).toMatchObject({ cells: start, moves: 0, status: 'playing' });
+    // other lessons have no Restart button
+    t.emit('learn:open', { lessonId: 'chase' });
+    for (let k = 0; k < 3; k++) t.emit('learn:step', { delta: 1 });
+    expect(q('[data-action="learn-restart"]')).toBeNull();
   });
 
   test('a tap on a demo board steps it (and pauses an auto-play)', () => {

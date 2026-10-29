@@ -17,6 +17,7 @@
     ],
     "readable": 0,
     "roomTries": 3000,
+    "fixFrom": 3,
     "rooms": [
       {
         "id": "7x7",

@@ -12,7 +12,7 @@ Shell: `src/shell` (entry, view service, design system in `src/shell/styles`). C
 | **custom** | `custom` | — | `view`, `solver`, `rng`, `clock`, `storage?` | `custom:started`, `custom:refused`, `custom:set`, `custom:play`, `board:load`, `nav:go`, `nav:back` | `custom:open`, `custom:set`, `custom:play` | `copy`, `rules` |
 | **hints** | `hints` | — | `solver`, `rng` | `hints:shown`, `hints:cleared`, `hints:refused` | `hints:request`, `board:pressed`, `board:undone`, `board:restarted`, `board:loaded`, `board:solved` | `rules`, `flags` |
 | **home-view** | — | — | `view`, `env?` | `levels:start`, `sound:set`, `learn:open`, `variety:open`, `custom:open`, `nav:open_sheet`, `nav:close_sheet`, `progress:clear` | — | `copy` |
-| **learn** | `learn` | — | `view`, `solver`, `rng`, `storage?`, `clock?` | `learn:lesson_opened`, `learn:lesson_completed`, `learn:practice_solved`, `learn:refused`, `nav:go`, `nav:back`, `learn:open`, `learn:step`, `learn:press`, `learn:new_practice`, `learn:set_assist` | `learn:open`, `learn:step`, `learn:press`, `learn:new_practice`, `learn:set_assist` | `rules`, `copy` |
+| **learn** | `learn` | — | `view`, `solver`, `rng`, `storage?`, `clock?` | `learn:lesson_opened`, `learn:lesson_completed`, `learn:practice_solved`, `learn:refused`, `nav:go`, `nav:back`, `learn:open`, `learn:step`, `learn:press`, `learn:new_practice`, `learn:restart_practice`, `learn:set_assist` | `learn:open`, `learn:step`, `learn:press`, `learn:new_practice`, `learn:restart_practice`, `learn:set_assist` | `rules`, `copy` |
 | **levels** | `levels` | — | `solver`, `rng` | `levels:start`, `levels:generated`, `levels:started`, `levels:refused`, `board:load` | `levels:start` | `rules`, `copy` |
 | **nav** | `nav` | — | — | `nav:changed` | `nav:go`, `nav:back`, `nav:open_sheet`, `nav:close_sheet`, `levels:started` | — |
 | **offline** | `offline` | — | `env?`, `view?`, `clock?` | `offline:status_changed` | — | `copy` |
@@ -53,6 +53,7 @@ Shell: `src/shell` (entry, view service, design system in `src/shell/styles`). C
 - `learn:practice_solved`: learn → (nobody yet)
 - `learn:press`: learn → learn
 - `learn:refused`: learn → (nobody yet)
+- `learn:restart_practice`: learn → learn
 - `learn:set_assist`: learn → learn
 - `learn:step`: learn → learn
 - `levels:generated`: levels → progress

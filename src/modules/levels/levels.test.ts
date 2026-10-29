@@ -2,9 +2,9 @@ import { createHash } from 'node:crypto';
 import { describe, expect, test } from 'vitest';
 import { bootModule, fixtureData } from '../../../test/fake-ctx';
 import { refPress, refSolve } from '../../../test/ref-solver';
-import type { Cells, LevelsState, ProgressState, Shape, SolverService } from '../../contracts';
+import { CLASSIC_SHAPE, type Cells, type LevelsState, type ProgressState, type Shape, type SolverService } from '../../contracts';
 import { cubeShape } from '../../lib/cube';
-import { readableIn } from '../../lib/puzzle';
+import { chaseClears, chaseable, readableIn } from '../../lib/puzzle';
 import { cellIndexes, fitsShape, gridSize, hexagonShape, isPressable, parseShape, pressTargets, shapeProblem } from '../../lib/shape';
 import levels from './index';
 import { parsOf } from './generate';
@@ -89,9 +89,18 @@ describe('levels', () => {
   });
 
   // pinned so an accidental change to generation or data shows up here; re-pinned on purpose with decision 45 (bosses)
+  // and decision 72 (from level 3 no board a plain chase clears)
   test('the classic 50 boards are exactly the ones players already have (pinned hash)', () => {
     const hash = createHash('sha256').update(JSON.stringify(classicOf(state))).digest('hex');
-    expect(hash).toBe('f30beedd5784af473eeeb2a386f4164ebb38601d8cab9f5cab14d82a1fa810a4');
+    expect(hash).toBe('2865cff6d62cc6247ff6a904640f7babb3783dddbd9d7be02b8b9a632393646f');
+    // the tutorial's two levels never changed
+    const on = (l: { cells: Cells }) => l.cells.flatMap((x, i) => (x ? [i] : []));
+    expect(on(classicOf(state)[0]!)).toEqual([1, 5, 6, 7, 11]);
+    expect(on(classicOf(state)[1]!)).toEqual([2, 6, 7, 8, 10, 12, 15, 16, 20]);
+  });
+
+  test('no free par: from level 3 a plain chase never clears a classic board (each needs the top-row fix)', () => {
+    for (const level of classicOf(state).slice(2)) expect(chaseClears(CLASSIC_SHAPE, level.cells, solver), `level ${level.id}`).toBe(false);
   });
 
   test('every par is the solver’s fewest presses and matches the data', () => {
@@ -247,6 +256,8 @@ describe('levels', () => {
         expect(fewest.length).toBe(l.par);
         // the openings don't give themselves away: no press of a fewest solution shows as its whole footprint
         expect(readableIn(l.shape!, l.cells, fewest)).toBe(0);
+        // no free par: from level 3 on a board you chase, a plain chase never clears it
+        if (l.index! >= 3 && chaseable(l.shape!)) expect(chaseClears(l.shape!, l.cells, solver), `${id} level ${l.index}`).toBe(false);
       }
       expect(new Set(list.map((l) => l.cells.map(Number).join(''))).size).toBe(list.length);
     });

@@ -1,13 +1,14 @@
 # levels
 
 Owns the `levels` slice: `{ status, list: LevelDef[], chapters, packs: Pack[], error? }`. Uses `solver` and `rng`.
-Data: `rules.json → levels` (seed, bands, maxTries, chapters, readable, roomTries, rooms), `copy.json → levels` (names).
+Data: `rules.json → levels` (seed, bands, maxTries, chapters, readable, roomTries, fixFrom, rooms), `copy.json → levels` (names).
 
-- At init, makes the classic path from `rng.seeded(rules.seed)` exactly as before rooms existed (pinned by a hash test:
-  the 50 boards never change), then each room from its own `rng.seeded(room.seed)`: kind size/stuck/wired (`cols/rows`),
+- At init, makes the classic path from `rng.seeded(rules.seed)` (pinned by a hash test; levels 1–2, the tutorial's, never
+  change), then each room from its own `rng.seeded(room.seed)`: kind size/stuck/wired (`cols/rows`),
   shape (`picture`), hex (`side`: `hexagonShape`), cube (`side`: `cubeShape`); ids `idBase + 1..`. Per level: its own stuck
   cells or wiring (bands say how many), then `lib/puzzle.ts tangle`: clustered presses, par exact, no press readable as a
-  whole footprint (`readable`). Out of tries → the closest board + warning. Retired rooms' ids stay reserved.
+  whole footprint (`readable`). From level `fixFrom` (3) on, classic and every board you chase never give par away: a
+  plain chase doesn't clear them (`chaseClears`). Out of tries → the closest board + warning. Retired rooms' ids stay reserved.
 - `list`: classic first (ids 1..50, at `list[id − 1]`, no pack fields), then room levels with `pack`, `index`, `shape`.
 - `packs`: classic first, then rooms in data order, names from copy. Bad rooms (overlapping ids, no name, par above the
   cell count, bad picture, fields for another kind) stop the game with a plain message. ~150 ms for all 320 levels in Node.

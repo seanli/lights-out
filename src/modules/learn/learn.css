@@ -141,9 +141,13 @@
 .board--mini[data-tall] .cell { scroll-margin-block: calc(var(--letters-h, 0px) + var(--space-4)) var(--space-4); }
 /* the practice line keeps two lines, so a longer message never resizes the board under the finger */
 .learn-stage:is(.learn-stage--practice, .learn-stage--drill) .tutorial-line { min-height: calc(2 * var(--text-md) * var(--leading-snug)); }
-.learn-controls { display: flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: var(--tap-min); }
-.learn-small { min-height: var(--tap-min); padding-inline: var(--space-4); font-size: var(--text-sm); }
+.learn-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--space-2); min-height: var(--tap-min); }
+.learn-small { min-height: var(--tap-min); padding-inline: var(--space-4); font-size: var(--text-sm); white-space: nowrap; }
 .learn-moves { margin-right: auto; font-size: var(--text-sm); font-weight: var(--fw-bold); color: var(--c-text-dim); }
+/* three buttons (lesson 5: Assist, Restart, New board): the taps count takes its own line above them */
+.learn-controls:has(> [data-action="learn-restart"]) { row-gap: var(--space-1); }
+.learn-controls:has(> [data-action="learn-restart"]) > .learn-moves { flex-basis: 100%; margin-right: 0; text-align: center; }
+.learn-controls:has(> [data-action="learn-restart"]) > .learn-small { padding-inline: var(--space-3); }
 .learn-under > .learn-link { align-self: center; }
 /* a list that scrolls inside the stage fades at an edge with more beyond it (view.ts: watchEdges) */
 .learn-scroll[data-more-below] { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--space-6)), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - var(--space-6)), transparent); }
@@ -309,6 +313,8 @@
 /* ---------- short phones: no dots (the header says "Step N of M"), the bar steps down to --bar-h-short ---------- */
 @media (max-height: 640px) {
   .learn-dots { display: none; }
+  /* lesson 5's practice has a second row of controls; its lines are one line long, so they keep one */
+  .learn-stage--practice:has([data-action="learn-restart"]) .tutorial-line { min-height: calc(var(--text-md) * var(--leading-snug)); }
 }
 
 /* ---------- short landscape: the stage left, header, text and bar right ---------- */

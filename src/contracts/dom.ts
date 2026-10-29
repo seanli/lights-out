@@ -78,7 +78,7 @@
 //   [data-lesson-tile][data-lesson="<id>"][data-completed="true|false"]   lesson list
 //   [data-lesson-view="<id>"]  [data-step="N"]   current lesson and step
 //   [data-mini-board] [data-mini-cell][data-index][data-lit] (+ data-suggest="true")   practice board (NOT data-cell: that is the main board only)
-//   [data-action="learn-back"|"learn-next"|"learn-prev"|"learn-practice"|"learn-assist"|"learn-demo"]
+//   [data-action="learn-back"|"learn-next"|"learn-prev"|"learn-practice"|"learn-restart"|"learn-assist"|"learn-demo"]
 //   board guides on big boards: [data-mini-board="practice"][data-aim="true|false"] (aim bubble mode, src/lib/aim.ts),
 //     [data-tall="true"] (the Tower: scrolls with the page, presses on release), [data-aimed="true"] on the aimed mini cell
 //   lesson 4: [data-action="learn-echo"][data-col="0..4"] (pick a top cell), [data-action="learn-deeper"] (Go deeper),

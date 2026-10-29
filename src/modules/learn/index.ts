@@ -40,11 +40,11 @@ const CopySchema = v.looseObject({
   title: text, subtitle: text, back: text, backToLessons: text, stepOf: text, stepOfSize: text, prev: text, next: text, finish: text,
   done: text, assist: text, newBoard: text, another: text, assistLine: text, aimTip: text, undoHint: text, moves: text, movesPar: text,
   solved: text, solvedPar: text, solvedAtPar: text, demoPlay: text, demoReplay: text, demoStep: text, demoTap: text, demoPhaseTap: text,
-  demoDone: text, demoCancel: text,
+  demoDone: text, demoCancel: text, restart: text,
   /** added to a practice light's label when it is a stuck switch */
   cellStuck: text,
   /** how a demo ends when it doesn't end dark ({n} = lights left) */
-  demoEnd: v.object({ left: text, stuck: text, stuckShape: text, cancelled: text }),
+  demoEnd: v.object({ left: text, stuck: text, stuckShape: text, cancelled: text, par: text }),
   demoPhase: v.object({ chase: text, top: text, edge: text, chase2: text, spot: text, back: text, pair: text }),
   /** a guide's practice line by phase: chasing, only the bottom (end) lights left, after the top taps; edgeFix: the
    *  top-edge fix on shaped and stuck boards */
@@ -103,9 +103,9 @@ const learn: ModuleDef = {
     name: 'learn',
     emits: [
       'learn:lesson_opened', 'learn:lesson_completed', 'learn:practice_solved', 'learn:refused', 'nav:go', 'nav:back',
-      'learn:open', 'learn:step', 'learn:press', 'learn:new_practice', 'learn:set_assist',
+      'learn:open', 'learn:step', 'learn:press', 'learn:new_practice', 'learn:restart_practice', 'learn:set_assist',
     ],
-    listens: ['learn:open', 'learn:step', 'learn:press', 'learn:new_practice', 'learn:set_assist'],
+    listens: ['learn:open', 'learn:step', 'learn:press', 'learn:new_practice', 'learn:restart_practice', 'learn:set_assist'],
     owns: ['learn'],
     uses: ['view', 'solver', 'rng'],
     optional: ['storage', 'clock'],
@@ -330,6 +330,14 @@ const learn: ModuleDef = {
       const step = practiceStep(s.lessonId!);
       if (step < 0) return ctx.emit('learn:refused', { command: 'learn:new_practice', reason: 'no_practice' });
       write(step === s.step ? newPractice(s) : atStep(s, step));
+    });
+
+    // the Restart move: the same board from its start, taps back to 0 (a solved one too, to try again for par)
+    ctx.on('learn:restart_practice', () => {
+      const s = read();
+      const pr = s.practice;
+      if (!pr) return ctx.emit('learn:refused', { command: 'learn:restart_practice', reason: 'no_practice' });
+      write({ ...s, practice: { cells: pr.start, start: pr.start, moves: 0, suggest: suggestFor(s, pr.start), status: 'playing' } });
     });
 
     ctx.on('learn:press', (p) => {

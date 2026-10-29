@@ -342,7 +342,8 @@
           "Par is the fewest taps that solve a board. Chasing always works, but often takes more.",
           "Tap A, C and E, then chase: all dark again. B, C and D do the same, so adding either to a fix gives another.",
           "So every bottom row has four fixes. For B and D, fewer letters isn't fewer taps: the chase after counts too.",
-          "Your turn. Any solve counts; hitting par earns three stars in levels."
+          "For par: chase once to find your row, then Restart. Tap a fix first, then chase once; one of the four always lands on par.",
+          "Your turn: try the Restart move. Par earns three stars in levels."
         ]
       },
       "echo-more": {
@@ -489,11 +490,13 @@
     "stepOfSize": "{cols}×{rows} · Step {step} of {total}",
     "demoPhaseTap": "{phase}: tap {n} of {total}",
     "demoCancel": "{name} again: it cancels.",
+    "restart": "Restart",
     "demoEnd": {
       "left": "{n} {n|light|lights} left in the bottom row.",
       "stuck": "{n} {n|light|lights} left in the bottom row: the chase can't reach them.",
       "stuckShape": "{n} {n|light|lights} left, with nothing below to chase them.",
-      "cancelled": "Back to the start: the taps cancelled."
+      "cancelled": "Back to the start: the taps cancelled.",
+      "par": "All dark in {n} taps: that's par."
     },
     "coach": {
       "chase": "Chase: tap under each lit light.",

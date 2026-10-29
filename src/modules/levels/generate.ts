@@ -1,6 +1,6 @@
 // Deterministic level generation and chapter checks. Pure: everything comes in as arguments.
 import { type Cells, type Chapter, type LevelDef, type Rng, type Shape, type SolverService } from '../../contracts';
-import { stuckCells, tangle, wiring } from '../../lib/puzzle';
+import { chaseClears, chaseable, stuckCells, tangle, wiring } from '../../lib/puzzle';
 import { cellIndexes, emptyCells, shapeOf } from '../../lib/shape';
 
 export interface LevelsRules {
@@ -17,6 +17,8 @@ export interface PackPlan {
   pack?: string;
   /** every Nth level (by position in the pack) is stamped `boss: true` */
   bossEvery?: number;
+  /** from this level (by position) on, a plain chase never clears a board: each needs a fix from the top edge */
+  fixFrom?: number;
 }
 
 export interface Generated {
@@ -43,7 +45,7 @@ export function generateLevels(
   solver: SolverService,
   plan: PackPlan = { idBase: 0 },
 ): Generated {
-  const { shape, pack, idBase, bossEvery } = plan;
+  const { shape, pack, idBase, bossEvery, fixFrom } = plan;
   const empty: Cells = emptyCells(shapeOf(shape));
   const seen = new Set<string>();
   const list: LevelDef[] = [];
@@ -56,6 +58,8 @@ export function generateLevels(
   rules.pars.forEach((wanted, n) => {
     const id = idBase + n + 1;
     let best: { cells: Cells; par: number } | null = null;
+    /** the closest board a plain chase clears: kept only if nothing else turns up */
+    let fallback: { cells: Cells; par: number } | null = null;
     let t = 0;
     while (t < rules.maxTries) {
       t++;
@@ -70,9 +74,14 @@ export function generateLevels(
       if (!solution) throw new Error(`The solver couldn't solve a board built from presses (level ${id})`);
       const par = solution.length;
       if (par === 0 || seen.has(key(cells))) continue;
+      if (fixFrom !== undefined && n + 1 >= fixFrom && chaseClears(shapeOf(shape), cells, solver)) {
+        if (!fallback || par > fallback.par) fallback = { cells, par };
+        continue;
+      }
       if (!best || par > best.par) best = { cells, par };
       if (par === wanted) break;
     }
+    best ??= fallback;
     if (!best) throw new Error(`Couldn't find a new board for level ${id} (par ${wanted}) in ${rules.maxTries} tries`);
     if (best.par !== wanted) missed.push({ id, wanted, got: best.par });
     seen.add(key(best.cells));
@@ -104,12 +113,14 @@ export interface RoomPlan {
   /** presses a player may read straight off the board (whole footprint lit) */
   readable: number;
   maxTries: number;
+  /** from this level (by position) on, a chase room's boards each need a fix from the top edge (never a chase alone) */
+  fixFrom?: number;
 }
 
 /**
  * A Variety room: per level, its own stuck cells or wiring (when the room has a twist), then a tangled board
- * (lib/puzzle.ts) whose fewest-presses solution is the band's par and whose presses can't be read off the board.
- * Every 10th level is the band's boss.
+ * (lib/puzzle.ts) whose fewest-presses solution is the band's par and whose presses can't be read off the board; from
+ * `fixFrom` on, on a board you chase, one a plain chase doesn't clear. Every 10th level is the band's boss.
  */
 export function generateRoom(plan: RoomPlan, rng: Rng, solver: SolverService): Generated {
   const seen = new Set<string>();
@@ -123,7 +134,8 @@ export function generateRoom(plan: RoomPlan, rng: Rng, solver: SolverService): G
       let shape: Shape = plan.shape;
       if (plan.twist === 'stuck') shape = { ...shape, stuck: stuckCells(shape, band.stuck ?? 3, rng) };
       if (plan.twist === 'wired') shape = { ...shape, wires: wiring(shape, rng, band.kinds ?? 4, band.gentle ?? false) };
-      const made = tangle(shape, wanted, rng, solver, { readable: plan.readable, maxTries: plan.maxTries, seen });
+      const needsFix = plan.fixFrom !== undefined && index >= plan.fixFrom && chaseable(shape);
+      const made = tangle(shape, wanted, rng, solver, { readable: plan.readable, maxTries: plan.maxTries, seen, needsFix });
       if (made.par !== wanted || made.readable > plan.readable) missed.push({ id, wanted, got: made.par });
       seen.add(made.cells.map((on) => (on ? '1' : '0')).join(''));
       const boss = k === band.pars.length ? { boss: true as const } : {};

@@ -28,7 +28,7 @@ export interface MiniSpec {
 export type Phase = 'chase' | 'top' | 'edge' | 'chase2' | 'spot' | 'back' | 'pair';
 
 /** how a demo ends, when it doesn't end dark: copy.json → learn.demoEnd.<key> ({n} = lights left) */
-export type DemoEnd = 'left' | 'stuck' | 'stuckShape' | 'cancelled';
+export type DemoEnd = 'left' | 'stuck' | 'stuckShape' | 'cancelled' | 'par';
 
 export type Step =
   | { kind: 'show'; boards: MiniSpec[] }
@@ -36,9 +36,10 @@ export type Step =
    *  `lit`: start from a board whose only lights are these cells; `phases`: one per tap of an explicit `play`;
    *  `letters`: the column letters over the board; `end`: the end line (default: "All dark.", or `left` with lights on);
    *  `orders`: each Replay plays the next of these orders of the same taps; `markAll`: dot every tap still to come;
-   *  `rings`: per tap, the lights outlined while it is next (a wired board: the switches that reach the light it clears) */
+   *  `rings`: per tap, the lights outlined while it is next (a wired board: the switches that reach the light it clears);
+   *  play 'clean': the Restart move, the top-row fix that lands on par first, then one chase */
   | {
-    kind: 'demo'; from: number[]; bottom?: number[]; lit?: number[]; play: number[] | 'chase' | 'method'; phases?: (Phase | null)[];
+    kind: 'demo'; from: number[]; bottom?: number[]; lit?: number[]; play: number[] | 'chase' | 'method' | 'clean'; phases?: (Phase | null)[];
     letters?: boolean; end?: DemoEnd; orders?: number[][]; markAll?: boolean; rings?: number[][];
   }
   /** full rectangles: each bottom light and the top lights that clear it (tap a letter to watch it) */
@@ -83,6 +84,8 @@ export interface Lesson {
   tangled?: boolean;
   /** practice: a wrong tap is met with "tap it again to undo it" (one-tap boards) */
   undoHint?: boolean;
+  /** practice: a Restart button (the same board from its start, taps back to 0), for the Restart move */
+  restart?: boolean;
   /** practice: a coach line that follows the phase (chase, the bottom/top-edge fix, chase again); rect names letters,
    *  shape (shaped and stuck boards) points at the top-edge light Assist rings */
   coach?: 'rect' | 'shape';
@@ -159,8 +162,11 @@ export const LESSONS: Record<string, Lesson> = {
       // so B·D has four fixes: A·D, plus A·C·E (C·D·E), plus B·C·D (A·B·C), plus both (B·E); counting the chase after,
       // 15, 11, 11 and 15 taps
       { kind: 'show', boards: [[0, 3], [2, 3, 4], [0, 1, 2], [1, 4]].map((fix) => ({ from: [], lit: [21, 23], fix, caption: 'fixTotal' })) },
+      // the Restart move: on the first step's board, the fix that lands on par first (A·E), then one chase: 5 taps
+      { kind: 'demo', from: LONG_WAY, play: 'clean', letters: true, end: 'par' },
       { kind: 'practice' },
     ],
+    restart: true,
   },
 };
 

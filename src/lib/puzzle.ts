@@ -2,7 +2,7 @@
 // press shows as a whole shape you can read off the board), stuck cells, and per-cell wiring. Pure: the solver and
 // a random source come in as arguments. Shared by the levels module (fixed seeds) and the custom module.
 import type { Cells, Rng, Shape, SolverService } from '../contracts';
-import { cellIndexes, emptyCells, gridSize, isPressable, pressTargets, touching } from './shape';
+import { cellIndexes, emptyCells, gridOf, gridSize, isCell, isPressable, pressTargets, touching } from './shape';
 
 export interface Made {
   cells: Cells;
@@ -19,6 +19,24 @@ export interface TangleOptions {
   maxTries?: number;
   /** boards already used: never made again (keys from boardKey) */
   seen?: Set<string>;
+  /** the board must need a fix from the top edge: a plain chase down doesn't clear it (chaseClears) */
+  needsFix?: boolean;
+}
+
+/** a square grid without wiring, where "chase down" is the method (stuck switches and gaps included) */
+export const chaseable = (shape: Shape): boolean => gridOf(shape) === 'square' && !shape.wires;
+
+/**
+ * True when a plain chase clears the board: row by row from the top, tap the cell under every lit light (where there
+ * is a switch under it). Such a level gives par away for free, so after a board's first levels none is made.
+ */
+export function chaseClears(shape: Shape, cells: Cells, solver: Pick<SolverService, 'press'>): boolean {
+  let b = cells;
+  for (let i = 0; i < gridSize(shape); i++) {
+    const below = i + shape.cols;
+    if (b[i] && below < gridSize(shape) && isCell(shape, below) && isPressable(shape, below)) b = solver.press(b, below, shape);
+  }
+  return !b.some(Boolean);
 }
 
 export const boardKey = (cells: Cells): string => cells.map((on) => (on ? '1' : '0')).join('');
@@ -61,6 +79,7 @@ export function tangle(shape: Shape, par: number, rng: Rng, solver: SolverServic
     return a;
   };
   let best: Made | null = null;
+  let fallback: Made | null = null;
   const better = (m: Made) => !best || m.par > best.par || (m.par === best.par && m.readable < best.readable);
   for (let t = 1; t <= maxTries; t++) {
     const chosen: number[] = [];
@@ -96,9 +115,15 @@ export function tangle(shape: Shape, par: number, rng: Rng, solver: SolverServic
     if (!solution) throw new Error('The solver couldn\'t solve a board built from presses');
     const made: Made = { cells, par: solution.length, readable: readableIn(shape, cells, solution), tries: t };
     if (made.par > par) continue;
+    // a board a plain chase clears is kept only as a last resort
+    if (opts.needsFix && chaseClears(shape, cells, solver)) {
+      if (!fallback || made.par > fallback.par) fallback = made;
+      continue;
+    }
     if (made.par === par && made.readable <= maxReadable) return made;
     if (better(made)) best = made;
   }
+  best ??= fallback;
   if (!best) throw new Error(`Couldn't make a board needing ${par} presses`);
   return { ...best, tries: maxTries };
 }

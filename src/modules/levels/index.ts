@@ -39,6 +39,8 @@ const RulesSchema = v.object({
   readable: v.pipe(int, v.minValue(0)),
   /** tries per room level before keeping the closest board found */
   roomTries: v.pipe(int, v.minValue(1)),
+  /** from this level of a board on (classic and every board you chase), a plain chase never clears it: no free par */
+  fixFrom: v.pipe(int, v.minValue(1)),
   /**
    * Variety rooms, in menu order. size / stuck / wired: cols × rows; shape: a picture ("X" cell, "." gap);
    * hex: a hexagon with `side` cells per edge; cube: `side` cells along each face's edge. Level ids idBase + 1..
@@ -148,11 +150,11 @@ const levels: ModuleDef = {
       for (const { pack, room } of plan) {
         const t0 = performance.now();
         // classic levels carry no pack fields (ids 1..n); every 10th level of every pack is a boss
-        // classic is made exactly as it always was (its boards are pinned); rooms tangle their presses (lib/puzzle.ts)
+        // classic presses random cells; rooms tangle their presses (lib/puzzle.ts); both pinned by tests
         const twist = room?.kind === 'stuck' || room?.kind === 'wired' ? room.kind : undefined;
         const g = room
-          ? generateRoom({ idBase: room.idBase, pack: pack.id, shape: pack.shape, bands: room.bands, readable: rules.readable, maxTries: rules.roomTries, ...(twist ? { twist } : {}) }, rng.seeded(room.seed), solver)
-          : generateLevels({ pars: classicPars, maxTries: rules.maxTries }, rng.seeded(rules.seed), solver, { idBase: 0, bossEvery: BAND });
+          ? generateRoom({ idBase: room.idBase, pack: pack.id, shape: pack.shape, bands: room.bands, readable: rules.readable, maxTries: rules.roomTries, fixFrom: rules.fixFrom, ...(twist ? { twist } : {}) }, rng.seeded(room.seed), solver)
+          : generateLevels({ pars: classicPars, maxTries: rules.maxTries }, rng.seeded(rules.seed), solver, { idBase: 0, bossEvery: BAND, fixFrom: rules.fixFrom });
         const took = performance.now() - t0;
         ms += took;
         made[pack.id] = { ms: Number(took.toFixed(2)), tries: g.tries, missed: g.missed };

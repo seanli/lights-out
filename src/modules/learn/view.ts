@@ -419,6 +419,16 @@ export function createLearnView(d: Deps) {
     if (step.play === 'chase') {
       taps = chase(solver, start).taps;
       phases = taps.map(() => 'chase');
+    } else if (step.play === 'clean') {
+      // the Restart move: of the top-row sets after which one chase clears the board, the one with the fewest taps in all
+      let best: { top: number[]; chase: number[] } | null = null;
+      for (let m = 1; m < 1 << SIZE; m++) {
+        const top = [...Array(SIZE).keys()].filter((c) => (m >> c) & 1);
+        const c = chase(solver, pressAll(solver, start, top));
+        if (!c.cells.some(Boolean) && (!best || top.length + c.taps.length < best.top.length + best.chase.length)) best = { top, chase: c.taps };
+      }
+      taps = best ? [...best.top, ...best.chase] : [];
+      phases = best ? [...best.top.map(() => 'top' as const), ...best.chase.map(() => 'chase' as const)] : [];
     } else if (step.play === 'method') {
       const c1 = chase(solver, start);
       const top = lookup(d.table(), bottomColumns(c1.cells))?.top ?? [];
@@ -454,7 +464,7 @@ export function createLearnView(d: Deps) {
       const left = litIndexes(demo.cells).length;
       text = demoEls.echo !== null ? fmt(copy.echo.caption, { name: copy.letters[demoEls.echo]! })
         : demo.end === 'cancelled' ? copy.demoEnd.cancelled
-        : left === 0 ? copy.demoDone
+        : left === 0 ? (demo.end === 'par' ? fmt(copy.demoEnd.par, { n: demo.taps.length }) : copy.demoDone)
         : fmt(copy.demoEnd[demo.end ?? 'left'], { n: left });
     } else {
       const tap = { n: demo.pos + 1, total: demo.taps.length };
@@ -668,8 +678,11 @@ export function createLearnView(d: Deps) {
         ? h('button', { class: 'btn btn--ghost learn-small', type: 'button', 'data-action': 'learn-assist', 'aria-pressed': String(s.assist), onclick: () => ctx.emit('learn:set_assist', { on: !state().assist }) }, copy.assist)
         : null;
       const another = h('button', { class: 'btn btn--ghost learn-small', type: 'button', 'data-action': 'learn-practice', onclick: () => ctx.emit('learn:new_practice', {}) }, copy.newBoard);
+      const restart = lesson.restart
+        ? h('button', { class: 'btn btn--ghost learn-small', type: 'button', 'data-action': 'learn-restart', onclick: () => ctx.emit('learn:restart_practice', {}) }, copy.restart)
+        : null;
       fit.append(board);
-      under.append(line, h('div', { class: 'learn-controls' }, moves, assist, another));
+      under.append(line, h('div', { class: 'learn-controls' }, moves, assist, restart, another));
       practiceEls = { board, line, moves, another, assist, suggest: null, start: null };
     }
     // "Go deeper" sits under the last idea before practice (lesson 4's list, lesson 5's two answers), never under a practice board

@@ -96,6 +96,8 @@ export interface Events {
   'learn:step': { delta: 1 | -1 };
   'learn:press': { index: number };
   'learn:new_practice': Record<string, never>;
+  /** the same practice board from its start, taps back to 0 (lesson 5: the Restart move for par) */
+  'learn:restart_practice': Record<string, never>;
   'learn:set_assist': { on: boolean };
   'learn:lesson_opened': { lessonId: string | null };
   'learn:lesson_completed': { lessonId: string };
