@@ -95,12 +95,12 @@ export function cubeNeighbours(n: number): number[][] {
   return out;
 }
 
-// ---- orientation: the cube turns in quarter turns; an orientation is a 3×3 rotation matrix (row-major, integers) ----
+// ---- orientation: the cube turns freely; an orientation is a 3×3 rotation matrix (row-major), the view included ----
 
 export type Mat = readonly [number, number, number, number, number, number, number, number, number];
 export const IDENTITY: Mat = [1, 0, 0, 0, 1, 0, 0, 0, 1];
 
-const mul = (a: Mat, b: Mat): Mat => {
+export const mul = (a: Mat, b: Mat): Mat => {
   const o = new Array<number>(9);
   for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) o[r * 3 + c] = a[r * 3]! * b[c]! + a[r * 3 + 1]! * b[3 + c]! + a[r * 3 + 2]! * b[6 + c]!;
   return o as unknown as Mat;
@@ -110,30 +110,71 @@ export const apply = (m: Mat, p: Vec): Vec => [
 ];
 
 /**
- * A quarter turn in the world (before the view's fixed tilt), pre-multiplied: 'left'/'right' spin about the vertical
- * axis (a swipe left brings the right face to the front), 'up'/'down' tip about the horizontal axis (a swipe up brings
- * the bottom face to the front).
+ * A turn by `angle` radians about a unit axis, in CSS's axes (x right, y down, z toward the viewer): the same turn as
+ * CSS's rotate3d, so rotation([0, 1, 0], a) is rotateY(a), which takes the front toward the right.
  */
-export function turn(m: Mat, dir: 'left' | 'right' | 'up' | 'down'): Mat {
-  // CSS axes (y down): rotating +90° about y takes +z (front) to +x (right)
-  const R: Record<typeof dir, Mat> = {
-    right: [0, 0, 1, 0, 1, 0, -1, 0, 0], // front → right: the left face comes to the front
-    left: [0, 0, -1, 0, 1, 0, 1, 0, 0], // front → left: the right face comes to the front
-    up: [1, 0, 0, 0, 0, -1, 0, 1, 0], // front → up: the bottom face comes to the front
-    down: [1, 0, 0, 0, 0, 1, 0, -1, 0], // front → down: the top face comes to the front
-  };
-  return mul(R[dir], m);
+export function rotation([x, y, z]: Vec, angle: number): Mat {
+  const c = Math.cos(angle), s = Math.sin(angle), t = 1 - c;
+  return [
+    c + t * x * x, t * x * y - s * z, t * x * z + s * y,
+    t * x * y + s * z, c + t * y * y, t * y * z - s * x,
+    t * x * z - s * y, t * y * z + s * x, c + t * z * z,
+  ];
 }
 
-/** the orientation that brings a face to the front, keeping the turn small (used to show a hinted light) */
-export function frontFace(face: FaceId): Mat {
-  let m = IDENTITY;
-  const path: Record<FaceId, ('left' | 'right' | 'up' | 'down')[]> = {
-    front: [], right: ['left'], left: ['right'], back: ['left', 'left'], up: ['down'], down: ['up'],
-  };
-  for (const d of path[face]) m = turn(m, d);
-  return m;
+const DEG = Math.PI / 180;
+/** the starting view: tipped toward you and turned a little, so the front, the top and the right side show */
+export const VIEW: Mat = mul(rotation([1, 0, 0], -30 * DEG), rotation([0, 1, 0], -35 * DEG));
+
+/** the nearest true rotation (rows made unit length and square to each other), so many small turns never skew the cube */
+export function orthonormal(m: Mat): Mat {
+  const unit = (v: Vec): Vec => { const l = Math.hypot(...v) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
+  const dot = (a: Vec, b: Vec) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const a = unit([m[0], m[1], m[2]]);
+  const r1: Vec = [m[3], m[4], m[5]];
+  const d = dot(a, r1);
+  const b = unit([r1[0] - d * a[0], r1[1] - d * a[1], r1[2] - d * a[2]]);
+  const c: Vec = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  return [...a, ...b, ...c] as unknown as Mat;
 }
+
+/**
+ * A drag of (dx, dy) px rolls the cube like a ball under the finger: it turns about the axis square to the drag, on
+ * the screen, by `perPx` radians a pixel. Free: no axis is preferred and nothing snaps.
+ */
+export function rolled(m: Mat, dx: number, dy: number, perPx: number): Mat {
+  const d = Math.hypot(dx, dy);
+  if (!d) return m;
+  return orthonormal(mul(rotation([-dy / d, dx / d, 0], d * perPx), m));
+}
+
+/**
+ * A quarter turn about the screen's axes, pre-multiplied: 'left'/'right' about the vertical (left brings the right
+ * face toward you), 'up'/'down' about the horizontal (up brings the bottom face toward you).
+ */
+export function turn(m: Mat, dir: 'left' | 'right' | 'up' | 'down'): Mat {
+  const axis: Record<typeof dir, [Vec, number]> = {
+    right: [[0, 1, 0], 90], left: [[0, 1, 0], -90], down: [[1, 0, 0], -90], up: [[1, 0, 0], 90],
+  };
+  const [v, deg] = axis[dir];
+  return orthonormal(mul(rotation(v, deg * DEG), m));
+}
+
+/** the turn that brings a face square to the front (keeping the turn small) */
+export function frontFace(face: FaceId): Mat {
+  const path: Record<FaceId, Mat> = {
+    front: IDENTITY,
+    right: rotation([0, 1, 0], -90 * DEG),
+    left: rotation([0, 1, 0], 90 * DEG),
+    back: rotation([0, 1, 0], 180 * DEG),
+    up: rotation([1, 0, 0], -90 * DEG),
+    down: rotation([1, 0, 0], 90 * DEG),
+  };
+  return path[face];
+}
+
+/** the orientation that shows a face toward you, in the starting view's tilt (its neighbours above and right show too) */
+export const facing = (face: FaceId): Mat => mul(VIEW, frontFace(face));
 
 /** CSS matrix3d() for an orientation (column-major, no translation) */
 export const cssMatrix = (m: Mat): string =>
@@ -144,18 +185,9 @@ export const faceMatrix = (f: Face): string =>
   `matrix3d(${f.u[0]},${f.u[1]},${f.u[2]},0,${f.v[0]},${f.v[1]},${f.v[2]},0,${f.n[0]},${f.n[1]},${f.n[2]},0,0,0,0,1)`;
 
 /**
- * Which faces point at the viewer for an orientation under the view's tilt (a rotation: x tilt then y spin, degrees).
- * A face shows when its turned normal has a positive z after the tilt.
+ * The faces that look toward you: a face shows when its turned normal points at you by more than `least` (the z of a
+ * unit normal; 0.1 leaves out faces seen almost edge on, whose lights are too thin to tap).
  */
-export function facesShowing(m: Mat, tiltX: number, spinY: number): FaceId[] {
-  const rx = (tiltX * Math.PI) / 180, ry = (spinY * Math.PI) / 180;
-  return FACES.filter((f) => {
-    let [x, y, z] = apply(m, f.n);
-    // rotateY(spinY) then rotateX(tiltX) as CSS applies "rotateX() rotateY() matrix" right to left
-    const x1 = x * Math.cos(ry) + z * Math.sin(ry);
-    const z1 = -x * Math.sin(ry) + z * Math.cos(ry);
-    [x, z] = [x1, z1];
-    const z2 = y * Math.sin(rx) + z * Math.cos(rx);
-    return z2 > 1e-6;
-  }).map((f) => f.id);
+export function facesShowing(m: Mat, least = 0.1): FaceId[] {
+  return FACES.filter((f) => apply(m, f.n)[2] > least).map((f) => f.id);
 }

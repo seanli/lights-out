@@ -602,7 +602,7 @@ describe('play-view', () => {
       expect(cell(12).querySelector('.hex-ring')).toBeNull();
     });
 
-    test('a cube folds six faces, names each light by its face, presses on release and turns on a swipe', () => {
+    test('a cube folds six faces, names each light by its face, presses on release and rolls freely under a drag', () => {
       const cube = cubeShape(3);
       const lit = cube.mask!.map(() => false);
       const front = (1 * 3 + 1) * 9 + 4; // the front face's centre (face row 1, column 1 in the net)
@@ -619,17 +619,25 @@ describe('play-view', () => {
       up(cell(front), { pointerId: 1, clientX: 100, clientY: 100 });
       click(cell(front), 1);
       expect(presses()).toEqual([front]);
-      // a swipe turns the cube and presses nothing; the faces that show change
+      // a drag rolls the cube with the finger and presses nothing: 220px left turns it past a quarter, the front goes
+      // out of sight and the right face comes round; it stays where it was left (nothing snaps to a quarter turn)
       const board = q('[data-board]');
-      pointer(cell(front), { pointerId: 2, clientX: 200, clientY: 100 });
-      move(board, { pointerId: 2, clientX: 150, clientY: 100 });
-      move(board, { pointerId: 2, clientX: 120, clientY: 100 });
-      up(board, { pointerId: 2, clientX: 120, clientY: 100 });
+      const facingNow = () => [...document.querySelectorAll<HTMLElement>('.cube__face[data-facing]')].map((f) => f.dataset.face);
+      pointer(cell(front), { pointerId: 2, clientX: 300, clientY: 100 });
+      move(board, { pointerId: 2, clientX: 295, clientY: 100 });
+      expect(facingNow().sort()).toEqual(['front', 'right', 'up']); // under 10px: still a tap, nothing turns
+      move(board, { pointerId: 2, clientX: 200, clientY: 100 });
+      move(board, { pointerId: 2, clientX: 80, clientY: 100 });
+      up(board, { pointerId: 2, clientX: 80, clientY: 100 });
       expect(presses()).toEqual([front]);
-      expect([...document.querySelectorAll<HTMLElement>('.cube__face[data-facing]')].map((f) => f.dataset.face).sort()).toEqual(['back', 'right', 'up']);
+      expect(facingNow()).toContain('right');
+      expect(facingNow()).not.toContain('front');
+      const orient = (t.instance!.debug!() as { cube: { orient: number[] } }).cube.orient;
+      expect(orient.some((x) => Math.abs(x) > 0.05 && Math.abs(Math.abs(x) - 1) > 0.05)).toBe(true);
       // lights out of sight are counted under the cube
       expect(q('[data-cube-line]').hidden).toBe(false);
-      expect(q('[data-cube-line]').textContent).toBe('1 lit light out of sight · swipe to turn');
+      expect(q('[data-cube-line]').textContent).toBe('1 lit light out of sight · drag to turn');
+      // Shift + an arrow (or the console) turns it a quarter about the screen's axes
       expect(t.instance!.commands!.turn!(['right'])).toMatch(/front/);
     });
 

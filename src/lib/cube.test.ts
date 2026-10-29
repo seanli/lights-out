@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { FACES, IDENTITY, apply, cellCentre, cellFace, cubeNeighbours, cubeShape, facesShowing, frontFace, isCubeNet, turn, type Mat } from './cube';
+import { FACES, IDENTITY, VIEW, apply, cellCentre, cellFace, cubeNeighbours, cubeShape, facesShowing, facing, frontFace, isCubeNet, rolled, turn, type Mat } from './cube';
 import { cellCount, cellIndexes, hexagonShape, isPressable, pressTargets, shapeKey, shapeProblem, touching, PLUS_WIRES } from './shape';
 
 const at = (n: number, face: string, a: number, b: number) => {
@@ -52,20 +52,46 @@ describe('cube geometry', () => {
     expect(cellCentre(3, at(3, 'front', 1, 1))).toEqual([0, 0, 1.5]);
   });
 
+  const close = (a: readonly number[], b: readonly number[]) => a.forEach((x, k) => expect(x).toBeCloseTo(b[k]!, 9));
+
   test('quarter turns: four of any turn come back, and frontFace brings each face to the front', () => {
     for (const d of ['left', 'right', 'up', 'down'] as const) {
       let m: Mat = IDENTITY;
       for (let k = 0; k < 4; k++) m = turn(m, d);
-      expect(m).toEqual(IDENTITY);
+      close(m, IDENTITY);
     }
-    for (const f of FACES) expect(apply(frontFace(f.id), f.n)).toEqual([0, 0, 1]);
-    // a swipe left brings the right face to the front
-    expect(apply(turn(IDENTITY, 'left'), [1, 0, 0])).toEqual([0, 0, 1]);
+    for (const f of FACES) close(apply(frontFace(f.id), f.n), [0, 0, 1]);
+    // a quarter turn left brings the right face to the front; up brings the bottom one
+    close(apply(turn(IDENTITY, 'left'), [1, 0, 0]), [0, 0, 1]);
+    close(apply(turn(IDENTITY, 'up'), [0, 1, 0]), [0, 0, 1]);
   });
 
-  test('the tilted view shows the front, the top and the right side', () => {
-    expect(facesShowing(IDENTITY, -30, -35).sort()).toEqual(['front', 'right', 'up']);
-    expect(facesShowing(turn(IDENTITY, 'left'), -30, -35)).toContain('right');
+  test('the starting view shows the front, the top and the right side; facing() shows any face toward you', () => {
+    expect(facesShowing(VIEW).sort()).toEqual(['front', 'right', 'up']);
+    for (const f of FACES) {
+      expect(facesShowing(facing(f.id))).toContain(f.id);
+      // that face is the one turned most toward you
+      const z = (id: string) => apply(facing(f.id), FACES.find((g) => g.id === id)!.n)[2];
+      for (const g of FACES) expect(z(f.id)).toBeGreaterThanOrEqual(z(g.id) - 1e-9);
+    }
+  });
+
+  test('a drag rolls the cube like a ball under the finger, freely, and stays a true rotation', () => {
+    // dragging right turns the front toward the right (as CSS rotateY), dragging down turns it down
+    const right = apply(rolled(IDENTITY, 30, 0, Math.PI / 180), [0, 0, 1]);
+    expect(right[0]).toBeGreaterThan(0);
+    close(right, [Math.sin(Math.PI / 6), 0, Math.cos(Math.PI / 6)]);
+    expect(apply(rolled(IDENTITY, 0, 30, Math.PI / 180), [0, 0, 1])[1]).toBeGreaterThan(0);
+    // 180 px at 0.5° a px is a quarter turn: the left face comes to the front
+    close(apply(rolled(IDENTITY, 180, 0, Math.PI / 360), [-1, 0, 0]), [0, 0, 1]);
+    // a diagonal drag turns about a diagonal axis (no axis is preferred), and nothing snaps
+    let m: Mat = VIEW;
+    for (let k = 0; k < 500; k++) m = rolled(m, 7, -3, Math.PI / 360);
+    const rows = [m.slice(0, 3), m.slice(3, 6), m.slice(6, 9)];
+    for (const r of rows) expect(Math.hypot(...r)).toBeCloseTo(1, 9);
+    expect(rows[0]![0]! * rows[1]![0]! + rows[0]![1]! * rows[1]![1]! + rows[0]![2]! * rows[1]![2]!).toBeCloseTo(0, 9);
+    expect(m.some((x) => Math.abs(x) > 0.05 && Math.abs(Math.abs(x) - 1) > 0.05)).toBe(true);
+    expect(rolled(VIEW, 0, 0, 1)).toBe(VIEW);
   });
 });
 

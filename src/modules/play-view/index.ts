@@ -10,7 +10,7 @@ import { cellAt, hexCellAt, hexHalf, hexSpan, isTall, rowEdge, stepFrom } from '
 import { attachAim, type AimMode } from '../../lib/aim';
 import { fmt, h, setAttr, setText } from '../../lib/dom';
 import { hexRing, skull, stuckIcon, wireIcon } from '../../lib/icons';
-import { FACES, IDENTITY, cellFace, cssMatrix, cubeSide, faceMatrix, facesShowing, frontFace, turn, type FaceId, type Mat } from '../../lib/cube';
+import { FACES, VIEW, cellFace, cssMatrix, cubeSide, faceMatrix, facesShowing, facing, rolled, turn, type FaceId, type Mat } from '../../lib/cube';
 import { cellIndexes, gridOf, gridSize, isCell, isStuck, shapeKey, shapeOf } from '../../lib/shape';
 import './play-view.css';
 
@@ -54,13 +54,10 @@ function icon(paths: string[]): SVGSVGElement {
 }
 
 const ARROWS: Record<string, [number, number]> = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
-/** the cube's fixed view: tipped toward you, turned a little, so the front, the top and the right side show */
-const CUBE_TILT = -30;
-const CUBE_SPIN = -35;
-/** a swipe this long (px) turns the cube a quarter; shorter, it springs back */
-const CUBE_SWIPE = 36;
-/** degrees the cube follows the finger per px while it is dragged */
-const CUBE_DRAG = 0.45;
+/** the cube rolls under a dragging finger by this much a pixel (radians: 0.5° a px, a quarter turn in 180px) */
+const CUBE_ROLL = 0.5 * (Math.PI / 180);
+/** a finger that moves less than this (px) taps; more, it turns the cube */
+const CUBE_SLOP = 10;
 
 /** a CSS time token in ms ("800ms" / ".8s"), or NaN */
 function ms(value: string): number {
@@ -183,9 +180,9 @@ const playView: ModuleDef = {
     let decorKey = '';
     /** said after each light's name: ", stuck" or ", wired up and down" (per level) */
     let suffix: string[] = [];
-    // ---- the cube: its element, its faces, the orientation (a quarter-turn rotation) and the faces that show ----
+    // ---- the cube: its element, its faces, the orientation (any rotation, the view included) and the faces that show ----
     let cube: { el: HTMLElement; n: number; faces: Map<FaceId, HTMLElement>; showing: Set<FaceId> } | null = null;
-    let orient: Mat = IDENTITY;
+    let orient: Mat = VIEW;
     let turned = false;
     const rowOf = (i: number) => Math.floor(i / shape!.cols);
     const colOf = (i: number) => i % shape!.cols;
@@ -248,7 +245,7 @@ const playView: ModuleDef = {
         for (const cell of cells) if (cell) faces.get(cellFace(side, Number(cell.dataset.index))!.face.id)!.append(cell);
         board.replaceChildren(el);
         cube = { el, n: side, faces, showing: new Set() };
-        orient = IDENTITY;
+        orient = VIEW;
         showOrient(false);
       } else {
         cube = null;
@@ -333,12 +330,12 @@ const playView: ModuleDef = {
       press(i); // a click with no pointerdown before it
     });
 
-    // ---------- the cube: a tap presses on release; a swipe turns it a quarter (the cube follows the finger meanwhile) ----------
-    function showOrient(animate: boolean, extra = '') {
+    // ---------- the cube: a tap presses on release; a drag rolls it freely, like a ball under the finger ----------
+    function showOrient(animate: boolean) {
       if (!cube) return;
       cube.el.classList.toggle('cube--still', !animate);
-      cube.el.style.transform = `rotateX(${CUBE_TILT}deg) rotateY(${CUBE_SPIN}deg) ${extra}${cssMatrix(orient)}`;
-      const showing = new Set(facesShowing(orient, CUBE_TILT, CUBE_SPIN));
+      cube.el.style.transform = cssMatrix(orient);
+      const showing = new Set(facesShowing(orient));
       cube.showing = showing;
       for (const [id, face] of cube.faces) setAttr(face, 'data-facing', showing.has(id) ? 'true' : null);
       cubeLineNow();
@@ -352,46 +349,57 @@ const playView: ModuleDef = {
       setText(cubeLine, text);
       cubeLine.hidden = !text;
     }
+    /** a quarter turn about the screen's axes (Shift + an arrow, the console) */
     const turnCube = (dir: 'left' | 'right' | 'up' | 'down') => {
       orient = turn(orient, dir);
       turned = true;
       showOrient(true);
     };
-    /** bring a light's face round to the front when it is out of sight (a hint, or keyboard focus) */
+    /** bring a light's face round toward you when it is out of sight (a hint, or keyboard focus) */
     const reveal = (i: number) => {
       if (!cube || i < 0) return;
       const id = cellFace(cube.n, i)?.face.id;
       if (!id || cube.showing.has(id)) return;
-      orient = frontFace(id);
+      orient = facing(id);
       showOrient(true);
     };
-    let drag: { id: number; x: number; y: number; cell: number; dx: number; dy: number; moved: boolean } | null = null;
+    // one finger at a time; the board keeps it (pointer capture) once it turns, so the drag never drops at an edge
+    let drag: { id: number; x: number; y: number; lastX: number; lastY: number; cell: number; moved: boolean } | null = null;
+    /**
+     * The light exactly under a point of the turned cube. The browser's own target can be a neighbour: on a face seen at
+     * a slant, touch adjustment moves a tap to a "better" button nearby. Faces turned away take no pointer, so they're skipped.
+     */
+    const cubeCellAt = (x: number, y: number, fallback: EventTarget | null): number => {
+      for (const el of document.elementsFromPoint?.(x, y) ?? []) {
+        const i = cellIndex(el);
+        if (i >= 0) return i;
+      }
+      return cellIndex(fallback);
+    };
     board.addEventListener('pointerdown', (e) => {
       if (!cube || e.button !== 0 || drag) return;
-      drag = { id: e.pointerId, x: e.clientX, y: e.clientY, cell: cellIndex(e.target), dx: 0, dy: 0, moved: false };
+      drag = { id: e.pointerId, x: e.clientX, y: e.clientY, lastX: e.clientX, lastY: e.clientY, cell: cubeCellAt(e.clientX, e.clientY, e.target), moved: false };
     });
     board.addEventListener('pointermove', (e) => {
       if (!cube || !drag || e.pointerId !== drag.id) return;
-      drag.dx = e.clientX - drag.x;
-      drag.dy = e.clientY - drag.y;
-      if (!drag.moved && Math.hypot(drag.dx, drag.dy) < 10) return;
-      drag.moved = true;
-      // follow the finger along the stronger axis (in the world, before the view's tilt)
-      const across = Math.abs(drag.dx) >= Math.abs(drag.dy);
-      showOrient(false, across ? `rotateY(${drag.dx * CUBE_DRAG}deg) ` : `rotateX(${-drag.dy * CUBE_DRAG}deg) `);
+      if (!drag.moved) {
+        if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < CUBE_SLOP) return;
+        drag.moved = true;
+        try { board.setPointerCapture(e.pointerId); } catch { /* no capture (a synthetic event): the drag still works */ }
+      }
+      // roll by the finger's step since the last event: the cube turns with it, from wherever it is
+      orient = rolled(orient, e.clientX - drag.lastX, e.clientY - drag.lastY, CUBE_ROLL);
+      drag.lastX = e.clientX;
+      drag.lastY = e.clientY;
+      turned = true;
+      showOrient(false);
     });
     const endDrag = (e: PointerEvent, cancelled: boolean) => {
       if (!cube || !drag || e.pointerId !== drag.id) return;
       const d = drag;
       drag = null;
-      if (!d.moved) {
-        if (!cancelled && d.cell >= 0) { pending[d.cell] = 1; press(d.cell); }
-        return;
-      }
-      const across = Math.abs(d.dx) >= Math.abs(d.dy);
-      const dist = across ? d.dx : d.dy;
-      if (!cancelled && Math.abs(dist) >= CUBE_SWIPE) turnCube(across ? (dist > 0 ? 'right' : 'left') : (dist > 0 ? 'down' : 'up'));
-      else showOrient(true);
+      // a tap presses the light it landed on; a drag leaves the cube where the finger left it
+      if (!d.moved && !cancelled && d.cell >= 0) { pending[d.cell] = 1; press(d.cell); }
     };
     board.addEventListener('pointerup', (e) => endDrag(e, false));
     board.addEventListener('pointercancel', (e) => endDrag(e, true));
@@ -641,7 +649,7 @@ const playView: ModuleDef = {
       if (load && tall) board.scrollTop = 0; // a new level starts at the top of the Tower
       if (load) edges();
       // a new cube level starts square on, with the line that says how to turn it (until the player has turned one)
-      if (load && cube) { orient = IDENTITY; showOrient(false); }
+      if (load && cube) { orient = VIEW; showOrient(false); }
       cubeLineNow();
       if (load) startIntro(lit);
       else if (cancelIntro || board.classList.contains('board--intro')) endIntro(); // the first press ends the intro
@@ -785,7 +793,7 @@ const playView: ModuleDef = {
           reveal(i);
           return `showing ${[...cube.showing].join(', ')}`;
         },
-        /** turn left|right|up|down: turns the cube a quarter */
+        /** turn left|right|up|down: turns the cube a quarter about the screen's axes */
         turn(args) {
           const dir = args[0] as 'left' | 'right' | 'up' | 'down';
           if (!cube) return 'The board is not a cube';

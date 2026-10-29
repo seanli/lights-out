@@ -372,7 +372,7 @@ button, input { font: inherit; color: inherit; }
 }
 
 /* ---------- the cube (data-grid="cube"): six panels folded by play-view (lib/cube.ts frames); the board is its stage.
-   It turns in quarter turns (a swipe, or Shift + arrows); only the faces toward you take taps. ---------- */
+   A drag rolls it freely (Shift + arrows turn it a quarter); only the faces toward you take taps. ---------- */
 .board[data-grid="cube"] {
   --cube-edge: min(var(--fit-w) / 1.46, var(--fit-h) / 1.66);
   --cube-half: calc(var(--cube-edge) / 2);
