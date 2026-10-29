@@ -69,8 +69,11 @@ const blockedBy = (id, dep) => record(id, 'SKIP', '—', `needs #${dep} (${resul
 let target;
 try { target = resolveTarget(args.url); } catch (err) { console.error(err.message); process.exit(2); }
 const pageUrl = target.url.split('#')[0];
-// classic pars from the data: bands of ten, each band's nine levels then its boss (DECISIONS #46)
-const rulesPars = JSON.parse(readFileSync(join(ROOT, 'data/rules.json'), 'utf8')).levels.bands.flatMap((b) => [...b.pars, b.boss]);
+// classic pars from the data: bands of ten, each band's nine levels then its boss (DECISIONS #46); a picture level's par
+// is whatever its picture needs (#79), so the data has no par for it
+const levelRules = JSON.parse(readFileSync(join(ROOT, 'data/rules.json'), 'utf8')).levels;
+const pictured = new Set((levelRules.pictures ?? []).map((p) => p.at));
+const rulesPars = levelRules.bands.flatMap((b) => [...b.pars, b.boss]).map((par, k) => (pictured.has(k + 1) ? undefined : par));
 const browser = await launch();
 const requests = [];
 const errors = [];

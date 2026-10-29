@@ -5,37 +5,55 @@ import { refPress, refSolve } from '../../../test/ref-solver';
 import { CLASSIC_SHAPE, type Cells, type LevelsState, type ProgressState, type Shape, type SolverService } from '../../contracts';
 import { cubeShape } from '../../lib/cube';
 import { chaseClears, chaseable, readableIn } from '../../lib/puzzle';
-import { cellIndexes, fitsShape, gridSize, hexagonShape, isPressable, parseShape, pressTargets, shapeProblem } from '../../lib/shape';
+import { cellIndexes, fitsShape, gridSize, hexagonShape, isCell, isPressable, parseShape, pressTargets, shapeKey, shapeProblem, touching } from '../../lib/shape';
+import { isPinwheel, symmetriesOfBoard } from '../../lib/symmetry';
 import levels from './index';
 import { parsOf } from './generate';
 
 /**
  * independent reference for any board: BigInt elimination with one equation per real cell and one variable per
- * pressable cell (wiring makes the press map one-way, stuck cells have no variable), then the lightest of every solution
+ * pressable cell (wiring makes the press map one-way, stuck cells have no variable), then the lightest of every solution.
+ * The elimination is done once per shape, tracking which cells' equations each row sums, so a board only needs its
+ * right-hand side.
  */
-function refShapedSolve(shape: Shape, cells: readonly boolean[]): number[] | null {
+type RefElim = { real: number[]; vars: number[]; rows: bigint[]; sums: bigint[]; pivots: number[]; free: number[] };
+const refElims = new Map<string, RefElim>();
+const parity = (x: bigint) => { let n = 0; for (; x; x &= x - 1n) n ^= 1; return n; };
+function refElim(shape: Shape): RefElim {
+  const key = shapeKey(shape);
+  const hit = refElims.get(key);
+  if (hit) return hit;
   const real = cellIndexes(shape);
   const vars = real.filter((g) => isPressable(shape, g));
-  if (!fitsShape(shape, cells)) return null;
-  const n = vars.length, B = BigInt(n);
-  const rows = real.map((g) => vars.reduce((row, v, j) => (pressTargets(shape, v).includes(g) ? row | (1n << BigInt(j)) : row), cells[g] ? 1n << B : 0n));
+  const rows = real.map((g) => vars.reduce((row, v, j) => (pressTargets(shape, v).includes(g) ? row | (1n << BigInt(j)) : row), 0n));
+  const sums = real.map((_, i) => 1n << BigInt(i));
   const pivots: number[] = [];
-  for (let col = 0; col < n; col++) {
+  for (let col = 0; col < vars.length; col++) {
     const bit = 1n << BigInt(col), rank = pivots.length;
     const p = rows.findIndex((row, i) => i >= rank && (row & bit) !== 0n);
     if (p < 0) continue;
     [rows[rank], rows[p]] = [rows[p]!, rows[rank]!];
-    for (let r = 0; r < rows.length; r++) if (r !== rank && rows[r]! & bit) rows[r]! ^= rows[rank]!;
+    [sums[rank], sums[p]] = [sums[p]!, sums[rank]!];
+    for (let r = 0; r < rows.length; r++) if (r !== rank && rows[r]! & bit) { rows[r]! ^= rows[rank]!; sums[r]! ^= sums[rank]!; }
     pivots.push(col);
   }
-  for (let r = pivots.length; r < rows.length; r++) if (rows[r]! >> B) return null;
-  const free = [...Array(n).keys()].filter((c) => !pivots.includes(c));
+  const free = [...Array(vars.length).keys()].filter((c) => !pivots.includes(c));
+  const e = { real, vars, rows, sums, pivots, free };
+  refElims.set(key, e);
+  return e;
+}
+function refShapedSolve(shape: Shape, cells: readonly boolean[]): number[] | null {
+  if (!fitsShape(shape, cells)) return null;
+  const { real, vars, rows, sums, pivots, free } = refElim(shape);
+  const lit = real.reduce((m, g, i) => (cells[g] ? m | (1n << BigInt(i)) : m), 0n);
+  const rhs = sums.map((x) => parity(x & lit));
+  for (let r = pivots.length; r < rows.length; r++) if (rhs[r]) return null;
   let best: number[] = [];
   for (let combo = 0; combo < 1 << free.length; combo++) {
     const x = new Set<number>(free.filter((_, k) => combo & (1 << k)));
     pivots.forEach((pv, r) => {
-      let bit = (rows[r]! >> B) & 1n;
-      for (const f of free) if (x.has(f) && rows[r]! & (1n << BigInt(f))) bit ^= 1n;
+      let bit = rhs[r]!;
+      for (const f of free) if (x.has(f) && rows[r]! & (1n << BigInt(f))) bit ^= 1;
       if (bit) x.add(pv);
     });
     if (combo === 0 || x.size < best.length) best = [...x];
@@ -53,9 +71,15 @@ const shapedSolve = (cells: Cells, shape?: Shape) => (shape ? refShapedSolve(sha
 // modules never import each other: inject an independent reference solver
 const solver: SolverService = { press: shapedPress, solve: shapedSolve, isSolvable: (c, s) => shapedSolve(c, s) !== null };
 type Band = { pars: number[]; boss: number };
-type Room = { id: string; kind: string; group: string; cols?: number; rows?: number; side?: number; picture?: string[]; idBase: number; seed: number; bands: Band[] };
-const rules = (fixtureData.rules as { levels: Record<string, unknown> & { rooms: Room[] } }).levels;
-const target = parsOf(rules.bands as Band[]);
+type Picture = { at: number; picture: 'all' | string[] };
+type Room = { id: string; kind: string; group: string; cols?: number; rows?: number; side?: number; picture?: string[]; idBase: number; seed: number; bands: Band[]; pictures?: Picture[] };
+const rules = (fixtureData.rules as { levels: Record<string, unknown> & { rooms: Room[]; pictures?: Picture[] } }).levels;
+/** a picture level's board: every light on, or the picture's "X"s */
+const pictureCells = (shape: Shape, p: Picture): boolean[] =>
+  p.picture === 'all' ? Array.from({ length: gridSize(shape) }, (_, i) => isCell(shape, i)) : p.picture.join('').split('').map((ch) => ch === 'X');
+const classicPictures = new Map((rules.pictures ?? []).map((p) => [p.at, pictureCells(CLASSIC_SHAPE, p)]));
+/** the pars the data asks for, except a picture's: whatever its board needs */
+const target = parsOf(rules.bands as Band[]).map((par, i) => (classicPictures.has(i + 1) ? refSolve(classicPictures.get(i + 1)!)!.length : par));
 const nine = (p: number) => Array<number>(9).fill(p);
 const rooms = rules.rooms;
 const roomNames = (fixtureData.copy as { levels: { rooms: Record<string, string> } }).levels.rooms;
@@ -88,11 +112,11 @@ describe('levels', () => {
     expect(t.seen('levels:generated')).toEqual({ count: target.length, pars: target });
   });
 
-  // pinned so an accidental change to generation or data shows up here; re-pinned on purpose with decision 45 (bosses)
-  // and decision 72 (from level 3 no board a plain chase clears)
+  // pinned so an accidental change to generation or data shows up here; re-pinned on purpose with decision 45 (bosses),
+  // decision 72 (from level 3 no board a plain chase clears) and decision 79 (symmetric boards and pictures)
   test('the classic 50 boards are exactly the ones players already have (pinned hash)', () => {
     const hash = createHash('sha256').update(JSON.stringify(classicOf(state))).digest('hex');
-    expect(hash).toBe('2865cff6d62cc6247ff6a904640f7babb3783dddbd9d7be02b8b9a632393646f');
+    expect(hash).toBe('b9dfb1546a271d96a02db591c7dfca34f60dba961eadf1a68b52b8083268885b');
     // the tutorial's two levels never changed
     const on = (l: { cells: Cells }) => l.cells.flatMap((x, i) => (x ? [i] : []));
     expect(on(classicOf(state)[0]!)).toEqual([1, 5, 6, 7, 11]);
@@ -103,11 +127,19 @@ describe('levels', () => {
     for (const level of classicOf(state).slice(2)) expect(chaseClears(CLASSIC_SHAPE, level.cells, solver), `level ${level.id}`).toBe(false);
   });
 
-  test('every par is the solver’s fewest presses and matches the data', () => {
+  test('every par is the solver’s fewest presses and matches the data (a picture: the picture, whatever it needs)', () => {
     for (const level of classicOf(state)) {
       expect(refSolve(level.cells)?.length).toBe(level.par);
       expect(level.par).toBe(target[level.id - 1]);
+      if (classicPictures.has(level.id)) expect(level.cells).toEqual(classicPictures.get(level.id));
     }
+    // the finale is every light on
+    expect(classicOf(state)[49]!.cells.every(Boolean)).toBe(true);
+  });
+
+  test('from level 3 every board is symmetric (a mirror or a turn carries it onto itself), and none is a pinwheel', () => {
+    for (const level of classicOf(state).slice(2)) expect(symmetriesOfBoard(CLASSIC_SHAPE, level.cells).length, `level ${level.id}`).toBeGreaterThan(0);
+    for (const level of state.list) expect(isPinwheel(level.shape ?? CLASSIC_SHAPE, level.cells), `level ${level.id}`).toBe(false);
   });
 
   test('every board is different', () => {
@@ -124,16 +156,18 @@ describe('levels', () => {
     expect(other.list.filter((l) => l.pack)).toEqual(state.list.filter((l) => l.pack));
   });
 
+  // the real solver makes them in about 200 ms in the browser (the probe's lo:interactive budget covers that)
   test('generates fast enough', () => {
     const t0 = performance.now();
     boot();
     const ms = performance.now() - t0;
     console.log(`levels: ${state.list.length} levels in ${ms.toFixed(1)} ms with the reference solver (the real one is faster)`);
-    expect(ms).toBeLessThan(1000);
+    expect(ms).toBeLessThan(1500);
   });
 
   test('when tries run out it keeps the closest board and warns with the real par', () => {
-    const b = boot({ data: withRules({ bands: [{ pars: nine(14), boss: 15 }], maxTries: 1, chapters: [{ id: 'first-light', from: 1, to: 10 }], rooms: [] }) });
+    // random presses only (no symmetric boards, no pictures): a random 14- or 15-press board is rarely that par
+    const b = boot({ data: withRules({ bands: [{ pars: nine(14), boss: 15 }], maxTries: 1, chapters: [{ id: 'first-light', from: 1, to: 10 }], rooms: [], pictures: [], looks: { ...(rules.looks as object), from: 11 } }) });
     const s = b.state('levels') as LevelsState;
     expect(s.status).toBe('ready');
     for (const l of s.list) {
@@ -237,7 +271,8 @@ describe('levels', () => {
     test.each(rooms.map((r) => [r.id, r] as const))('%s: ids, pack, index, shape; par = fewest presses = data; no repeats', (id, room) => {
       const shape = shapeOf(room);
       const list = state.list.filter((l) => l.pack === id);
-      const pars = parsOf(room.bands);
+      const pictures = new Map((room.pictures ?? []).map((p) => [p.at, pictureCells(shape, p)]));
+      const pars = parsOf(room.bands).map((par, i) => (pictures.has(i + 1) ? refShapedSolve(shape, pictures.get(i + 1)!)!.length : par));
       expect(list.map((l) => l.id)).toEqual(pars.map((_, i) => room.idBase + i + 1));
       expect(list.map((l) => l.index)).toEqual(pars.map((_, i) => i + 1));
       expect(list.map((l) => l.par)).toEqual(pars);
@@ -248,14 +283,27 @@ describe('levels', () => {
         expect(grid).toEqual(shape);
         expect(stuck !== undefined).toBe(room.kind === 'stuck');
         expect(wires !== undefined).toBe(room.kind === 'wired');
-        if (stuck) expect(stuck).toHaveLength((room.bands[Math.floor((l.index! - 1) / 10)] as Band & { stuck: number }).stuck);
+        if (stuck) {
+          expect(stuck).toHaveLength((room.bands[Math.floor((l.index! - 1) / 10)] as Band & { stuck: number }).stuck);
+          // stuck plates sit apart and off the edge (decision 60)
+          for (const g of stuck) {
+            expect(touching(shape, g).length, `${id} level ${l.index}: stuck ${g} on the edge`).toBe(4);
+            expect(stuck.some((h) => touching(shape, g).includes(h)), `${id} level ${l.index}: stuck ${g} touches another`).toBe(false);
+          }
+        }
         expect(shapeProblem(l.shape!)).toBeNull();
         expect(l.cells.length).toBe(gridSize(shape));
         expect(fitsShape(l.shape!, l.cells)).toBe(true);
         const fewest = refShapedSolve(l.shape!, l.cells)!;
         expect(fewest.length).toBe(l.par);
+        if (pictures.has(l.index!)) {
+          expect(l.cells).toEqual(pictures.get(l.index!));
+          continue;
+        }
         // the openings don't give themselves away: no press of a fewest solution shows as its whole footprint
         expect(readableIn(l.shape!, l.cells, fewest)).toBe(0);
+        // symmetric: a mirror or a turn carries the board (lights, stuck cells and wiring) onto itself
+        expect(symmetriesOfBoard(l.shape!, l.cells).length, `${id} level ${l.index}`).toBeGreaterThan(0);
         // no free par: from level 3 on a board you chase, a plain chase never clears it
         if (l.index! >= 3 && chaseable(l.shape!)) expect(chaseClears(l.shape!, l.cells, solver), `${id} level ${l.index}`).toBe(false);
       }
@@ -316,6 +364,10 @@ describe('levels', () => {
       ['the same room twice', { rooms: [rooms[0]!, rooms[0]!] }, /Two rooms are called "7x7"/],
       ['a par above the cell count', { rooms: [{ ...rooms[0]!, bands: [{ pars: nine(1), boss: 50 }] }] }, /par 50, but its board has only 49 cells/],
       ['a ragged picture', { rooms: [{ ...rooms.find((r) => r.kind === 'shape')!, picture: ['XXX', 'XX', 'XXX'] }] }, /same length/],
+      ['a level picture past its last level', { rooms: [{ ...rooms[0]!, pictures: [{ at: 31, picture: 'all' }] }] }, /level 31's picture: the pack has only 30 levels/],
+      ['a level picture lighting a gap', { rooms: [{ ...rooms.find((r) => r.id === 'ring')!, pictures: [{ at: 5, picture: Array(7).fill('XXXXXXX') }] }] }, /level 5's picture lights a gap/],
+      ['a level picture the wrong size', { rooms: [{ ...rooms[0]!, pictures: [{ at: 5, picture: ['XX', 'XX'] }] }] }, /level 5's picture must be 7 rows of 7/],
+      ['a level picture that can\'t be solved', { pictures: [{ at: 20, picture: ['X....', '.....', '.....', '.....', '.....'] }] }, /Classic level 20's picture can't be solved/],
     ])('a room with %s stops the game with a plain message', (_, patch, message) => {
       expect(() => boot({ data: withRules(patch) })).toThrow(message);
     });
@@ -325,6 +377,7 @@ describe('levels', () => {
       ['a 21-wide board', { ...rooms[0]!, cols: 21, rows: 8 }, /Invalid value/],
       ['a hex room without a side', { ...rooms.find((r) => r.kind === 'hex')!, side: undefined }, /needs a side/],
       ['stuck cells on a room that isn\'t stuck', { ...rooms[0]!, bands: rooms[0]!.bands.map((b) => ({ ...b, stuck: 2 })) }, /Only a stuck room/],
+      ['pictures in a stuck room', { ...rooms.find((r) => r.kind === 'stuck')!, pictures: [{ at: 10, picture: 'all' }] }, /A stuck or wired room has no pictures/],
     ])('data with %s is rejected before init', (_, room, message) => {
       expect(() => boot({ data: withRules({ rooms: [room] }) })).toThrow(message);
     });

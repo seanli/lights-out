@@ -1,12 +1,37 @@
 // Deterministic level generation and chapter checks. Pure: everything comes in as arguments.
 import { type Cells, type Chapter, type LevelDef, type Rng, type Shape, type SolverService } from '../../contracts';
-import { chaseClears, chaseable, stuckCells, tangle, wiring } from '../../lib/puzzle';
+import { chaseClears, chaseable, makePuzzle, type Made } from '../../lib/puzzle';
 import { cellIndexes, emptyCells, shapeOf } from '../../lib/shape';
+import type { SymmetryName } from '../../lib/symmetry';
 
 export interface LevelsRules {
   pars: number[];
   maxTries: number;
   chapters: { id: string; from: number; to: number }[];
+}
+
+/** the symmetries levels are made with (rules.json → levels.looks) */
+export interface Looks {
+  /** a level's first choice takes turns along this list by the level's position; the rest of the list follows */
+  levels: readonly SymmetryName[];
+  /** a boss's order, the most symmetric first; after its own list a level falls back on this one */
+  boss: readonly SymmetryName[];
+  /** tries per symmetry before moving on to the next */
+  tries: number;
+}
+
+/** the symmetries to try for a level, in order (names a board doesn't have are skipped by the caller) */
+export function looksFor(looks: Looks, index: number, boss: boolean): SymmetryName[] {
+  if (boss) return [...looks.boss];
+  const k = (index - 1) % looks.levels.length;
+  return [...new Set([...looks.levels.slice(k), ...looks.levels.slice(0, k), ...looks.boss])];
+}
+
+/** a hand-made board (a picture, or every light on): its par is whatever the solver says */
+function pictureLevel(cells: Cells, shape: Shape | undefined, solver: SolverService, id: number): { cells: Cells; par: number } {
+  const solution = solver.solve(cells, shape);
+  if (!solution) throw new Error(`Level ${id}'s picture can't be solved: no presses turn it off`);
+  return { cells, par: solution.length };
 }
 
 /** where a pack's levels go: ids idBase + 1.., and the shape (absent = classic, generated exactly as before packs existed) */
@@ -19,6 +44,11 @@ export interface PackPlan {
   bossEvery?: number;
   /** from this level (by position) on, a plain chase never clears a board: each needs a fix from the top edge */
   fixFrom?: number;
+  /** symmetric boards from level `looksFrom` (by position) on; earlier levels keep their random presses */
+  looks?: Looks;
+  looksFrom?: number;
+  /** hand-made boards by position */
+  pictures?: ReadonlyMap<number, Cells>;
 }
 
 export interface Generated {
@@ -35,8 +65,9 @@ export const parsOf = (bands: readonly { pars: readonly number[]; boss: number }
 const key = (cells: Cells) => cells.map((on) => (on ? '1' : '0')).join('');
 
 /**
- * For each target par k: press k distinct random cells on an empty board and keep the board
- * when its fewest-presses solution is exactly k and no earlier level has the same board.
+ * For each target par k: a picture if the plan has one there; else, from `looksFrom` on, a symmetric board (looksFor,
+ * lib/puzzle.ts symmetric); else press k distinct random cells on an empty board and keep the board when its
+ * fewest-presses solution is exactly k and no earlier level has the same board.
  * Out of tries → keep the closest new board found (highest par below k) and report it in `missed`.
  */
 export function generateLevels(
@@ -45,7 +76,7 @@ export function generateLevels(
   solver: SolverService,
   plan: PackPlan = { idBase: 0 },
 ): Generated {
-  const { shape, pack, idBase, bossEvery, fixFrom } = plan;
+  const { shape, pack, idBase, bossEvery, fixFrom, looks, looksFrom = 1, pictures } = plan;
   const empty: Cells = emptyCells(shapeOf(shape));
   const seen = new Set<string>();
   const list: LevelDef[] = [];
@@ -61,7 +92,19 @@ export function generateLevels(
     /** the closest board a plain chase clears: kept only if nothing else turns up */
     let fallback: { cells: Cells; par: number } | null = null;
     let t = 0;
-    while (t < rules.maxTries) {
+    const picture = pictures?.get(n + 1);
+    const boss = !!bossEvery && (n + 1) % bossEvery === 0;
+    const needsFix = fixFrom !== undefined && n + 1 >= fixFrom;
+    if (picture) best = pictureLevel(picture, shape, solver, id);
+    else if (looks && n + 1 >= looksFrom) {
+      // classic never limited readable presses
+      const made = makePuzzle({ base: shapeOf(shape), par: wanted, looks: looksFor(looks, n + 1, boss), looksTries: looks.tries, readable: Infinity, maxTries: rules.maxTries, seen, needsFix: () => needsFix }, rng, solver);
+      t = made.tries;
+      best = made;
+    }
+    // a picture or a symmetric board is the level; otherwise random presses, as before symmetric levels existed
+    const done = best !== null;
+    while (!done && t < rules.maxTries) {
       t++;
       // partial Fisher-Yates: the first k entries of `order` become k distinct cells
       let cells = empty;
@@ -74,7 +117,7 @@ export function generateLevels(
       if (!solution) throw new Error(`The solver couldn't solve a board built from presses (level ${id})`);
       const par = solution.length;
       if (par === 0 || seen.has(key(cells))) continue;
-      if (fixFrom !== undefined && n + 1 >= fixFrom && chaseClears(shapeOf(shape), cells, solver)) {
+      if (needsFix && chaseClears(shapeOf(shape), cells, solver)) {
         if (!fallback || par > fallback.par) fallback = { cells, par };
         continue;
       }
@@ -83,10 +126,11 @@ export function generateLevels(
     }
     best ??= fallback;
     if (!best) throw new Error(`Couldn't find a new board for level ${id} (par ${wanted}) in ${rules.maxTries} tries`);
-    if (best.par !== wanted) missed.push({ id, wanted, got: best.par });
+    if (best.par !== wanted && !picture) missed.push({ id, wanted, got: best.par });
     seen.add(key(best.cells));
-    const boss = bossEvery && (n + 1) % bossEvery === 0 ? { boss: true as const } : {};
-    list.push(pack === undefined ? { id, cells: best.cells, par: best.par, ...boss } : { id, cells: best.cells, par: best.par, pack, index: n + 1, ...(shape ? { shape } : {}), ...boss });
+    const bossMark = boss ? { boss: true as const } : {};
+    const cells = [...best.cells];
+    list.push(pack === undefined ? { id, cells, par: best.par, ...bossMark } : { id, cells, par: best.par, pack, index: n + 1, ...(shape ? { shape } : {}), ...bossMark });
     tries.push(t);
   });
   return { list, tries, missed };
@@ -115,12 +159,18 @@ export interface RoomPlan {
   maxTries: number;
   /** from this level (by position) on, a chase room's boards each need a fix from the top edge (never a chase alone) */
   fixFrom?: number;
+  /** symmetric boards (and symmetric stuck cells or wiring); absent = tangled boards only */
+  looks?: Looks;
+  /** hand-made boards by position (never in a stuck or wired room: each of its levels has its own shape) */
+  pictures?: ReadonlyMap<number, Cells>;
 }
 
 /**
- * A Variety room: per level, its own stuck cells or wiring (when the room has a twist), then a tangled board
- * (lib/puzzle.ts) whose fewest-presses solution is the band's par and whose presses can't be read off the board; from
- * `fixFrom` on, on a board you chase, one a plain chase doesn't clear. Every 10th level is the band's boss.
+ * A Variety room: per level, a picture if the plan has one there; else a symmetric board (looksFor, with its stuck
+ * cells or wiring placed to match when the room has a twist), or failing every symmetry, its own random stuck cells
+ * or wiring and a tangled board (lib/puzzle.ts). Either way the fewest-presses solution is the band's par and no press
+ * can be read off the board; from `fixFrom` on, on a board you chase, a plain chase doesn't clear it. Every 10th level
+ * is the band's boss.
  */
 export function generateRoom(plan: RoomPlan, rng: Rng, solver: SolverService): Generated {
   const seen = new Set<string>();
@@ -131,15 +181,24 @@ export function generateRoom(plan: RoomPlan, rng: Rng, solver: SolverService): G
     [...band.pars, band.boss].forEach((wanted, k) => {
       const index = b * (band.pars.length + 1) + k + 1;
       const id = plan.idBase + index;
-      let shape: Shape = plan.shape;
-      if (plan.twist === 'stuck') shape = { ...shape, stuck: stuckCells(shape, band.stuck ?? 3, rng) };
-      if (plan.twist === 'wired') shape = { ...shape, wires: wiring(shape, rng, band.kinds ?? 4, band.gentle ?? false) };
-      const needsFix = plan.fixFrom !== undefined && index >= plan.fixFrom && chaseable(shape);
-      const made = tangle(shape, wanted, rng, solver, { readable: plan.readable, maxTries: plan.maxTries, seen, needsFix });
-      if (made.par !== wanted || made.readable > plan.readable) missed.push({ id, wanted, got: made.par });
+      const isBoss = k === band.pars.length;
+      const picture = plan.pictures?.get(index);
+      let made: Made & { shape: Shape };
+      if (picture) made = { ...pictureLevel(picture, plan.shape, solver, id), readable: 0, tries: 0, shape: plan.shape };
+      else {
+        const twist = plan.twist === 'stuck' ? { stuck: band.stuck ?? 3 } : plan.twist === 'wired' ? { kinds: band.kinds ?? 4, gentle: band.gentle ?? false } : undefined;
+        made = makePuzzle({
+          base: plan.shape, par: wanted, ...(twist ? { twist } : {}),
+          looks: plan.looks ? looksFor(plan.looks, index, isBoss) : [], looksTries: plan.looks?.tries ?? 0,
+          readable: plan.readable, maxTries: plan.maxTries, seen,
+          needsFix: (s) => plan.fixFrom !== undefined && index >= plan.fixFrom && chaseable(s),
+        }, rng, solver);
+        if (made.par !== wanted || made.readable > plan.readable) missed.push({ id, wanted, got: made.par });
+      }
+      const shape = made.shape;
       seen.add(made.cells.map((on) => (on ? '1' : '0')).join(''));
-      const boss = k === band.pars.length ? { boss: true as const } : {};
-      list.push({ id, cells: made.cells, par: made.par, pack: plan.pack, index, shape, ...boss });
+      const boss = isBoss ? { boss: true as const } : {};
+      list.push({ id, cells: [...made.cells], par: made.par, pack: plan.pack, index, shape, ...boss });
       tries.push(made.tries);
     });
   });

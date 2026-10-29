@@ -11,7 +11,8 @@ import { cubeShape } from '../../lib/cube';
 import { fmt, h, setAttr, setText } from '../../lib/dom';
 import { roomGlyph } from '../../lib/glyph';
 import { skull } from '../../lib/icons';
-import { stuckCells, tangle, wiring } from '../../lib/puzzle';
+import { makePuzzle, shuffled, type Puzzle } from '../../lib/puzzle';
+import { SYMMETRY_NAMES } from '../../lib/symmetry';
 import { cellCount, hexagonShape } from '../../lib/shape';
 import './custom.css';
 
@@ -93,6 +94,9 @@ const RulesSchema = v.object({
   maxTries: count,
   /** a puzzle never asks for more presses than this, however big the board */
   maxPar: count,
+  /** symmetries a puzzle may have (lib/symmetry.ts), tried in a random order; tries per symmetry before the next */
+  looks: v.pipe(v.array(v.picklist(SYMMETRY_NAMES)), v.minLength(1)),
+  looksTries: count,
 });
 type Tuning = v.InferOutput<typeof RulesSchema>;
 
@@ -105,18 +109,11 @@ function baseShape(s: CustomSettings): Shape {
 
 const parTarget = (t: Tuning, lights: number, d: CustomSettings['difficulty']) => Math.min(t.maxPar, Math.max(t.minPar, Math.round(lights * t.par[d])));
 
-/** the board with its twist: stuck lights or wiring drawn from `rng` */
-function puzzleShape(t: Tuning, s: CustomSettings, rng: Rng): Shape {
-  const shape = baseShape(s);
-  if (s.twist === 'stuck') {
-    const n = Math.min(t.maxStuck, Math.max(1, Math.round(cellCount(shape) / t.lightsPerStuck)));
-    return { ...shape, stuck: stuckCells(shape, n, rng) };
-  }
-  if (s.twist === 'wired') {
-    const w = t.wires[s.difficulty];
-    return { ...shape, wires: wiring(shape, rng, w.kinds, w.gentle) };
-  }
-  return shape;
+/** the twist a puzzle asks for: how many stuck lights, or which wiring */
+function twistOf(t: Tuning, s: CustomSettings, shape: Shape): { stuck: number } | { kinds: number; gentle: boolean } | undefined {
+  if (s.twist === 'stuck') return { stuck: Math.min(t.maxStuck, Math.max(1, Math.round(cellCount(shape) / t.lightsPerStuck))) };
+  if (s.twist === 'wired') return t.wires[s.difficulty];
+  return undefined;
 }
 
 /** wired needs the square grid: on hex or cube it quietly becomes none */
@@ -155,7 +152,7 @@ const custom: ModuleDef = {
     const storage = ctx.service('storage');
     const state = () => ctx.read('custom')!;
     /** the last puzzle made, for the console */
-    let last: { label: string; target: number; par: number; readable: number; tries: number; ms: number } | null = null;
+    let last: { label: string; target: number; par: number; readable: number; tries: number; symmetry: string | null; ms: number } | null = null;
 
     function loadSettings(): CustomSettings {
       const raw = storage?.get(STORE_KEY);
@@ -217,14 +214,17 @@ const custom: ModuleDef = {
       const s = cur.settings;
       const t0 = performance.now();
       let shape: Shape;
-      let made: ReturnType<typeof tangle>;
+      let made: Puzzle;
       let target: number;
       try {
         // one draw from the session rng per puzzle: replays make the same puzzle
         const r = rng.seeded(rng.int(2 ** 31));
-        shape = puzzleShape(tuning, s, r);
-        target = parTarget(tuning, cellCount(shape), s.difficulty);
-        made = tangle(shape, target, r, solver, { readable: s.difficulty === 'easy' ? 1 : 0, maxTries: tuning.maxTries });
+        const base = baseShape(s);
+        const twist = twistOf(tuning, s, base);
+        target = parTarget(tuning, cellCount(base), s.difficulty);
+        // a symmetric board like the levels' (a random symmetry first), else a tangled one
+        made = makePuzzle({ base, par: target, ...(twist ? { twist } : {}), looks: shuffled(tuning.looks, r), looksTries: tuning.looksTries, orPars: [target - 1, target + 1].filter((n) => n >= tuning.minPar && n <= tuning.maxPar), readable: s.difficulty === 'easy' ? 1 : 0, maxTries: tuning.maxTries }, r, solver);
+        shape = made.shape;
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         ctx.log.error('Couldn\'t make a custom puzzle', { settings: s, message });
@@ -233,7 +233,7 @@ const custom: ModuleDef = {
       }
       const label = labelOf(s, cellCount(shape));
       const played = cur.played + 1;
-      last = { label, target, par: made.par, readable: made.readable, tries: made.tries, ms: Math.round(performance.now() - t0) };
+      last = { label, target, par: made.par, readable: made.readable, tries: made.tries, symmetry: made.symmetry, ms: Math.round(performance.now() - t0) };
       ctx.log.info('Made a custom puzzle', last);
       ctx.emit('board:load', { levelId: CUSTOM_LEVEL_ID, cells: made.cells, par: made.par, shape });
       ctx.write('custom', { status: 'playing', settings: s, played, label });

@@ -1,9 +1,10 @@
 // levels: makes every board's levels from fixed seeds at boot, owns the `levels` slice, starts a level.
 // Levels come in bands of ten: nine that ramp up, then a boss (every 10th level) that is drastically harder.
 import * as v from 'valibot';
-import { CLASSIC_SHAPE, MAX_COLS, MAX_ROWS, type LevelDef, type LevelsState, type ModuleDef, type Pack, type Shape } from '../../contracts';
+import { CLASSIC_SHAPE, MAX_COLS, MAX_ROWS, type Cells, type LevelDef, type LevelsState, type ModuleDef, type Pack, type Shape, type SolverService } from '../../contracts';
 import { cubeShape } from '../../lib/cube';
-import { cellCount, hexagonShape, parseShape } from '../../lib/shape';
+import { cellCount, cellIndexes, gridSize, hexagonShape, isCell, parseShape } from '../../lib/shape';
+import { SYMMETRY_NAMES } from '../../lib/symmetry';
 import { checkChapters, generateLevels, generateRoom, parsOf, type Generated } from './generate';
 
 /** No 5×5 board needs more than 15 presses, so a higher par could never be generated. */
@@ -27,6 +28,13 @@ const BandSchema = v.pipe(
 );
 const BandsSchema = v.pipe(v.array(BandSchema), v.minLength(1, 'There must be at least one band of levels'));
 
+/** a hand-made level: at a position in its pack, every light on ("all") or a picture over the grid ("X" lit, "." dark) */
+const PicturesSchema = v.pipe(
+  v.array(v.object({ at: v.pipe(int, v.minValue(1)), picture: v.union([v.literal('all'), v.pipe(v.array(v.string()), v.minLength(1))]) })),
+  v.check((list) => new Set(list.map((p) => p.at)).size === list.length, 'Two pictures are at the same level'),
+);
+const SymmetrySchema = v.picklist(SYMMETRY_NAMES);
+
 const RulesSchema = v.object({
   seed: int,
   bands: v.pipe(
@@ -41,6 +49,18 @@ const RulesSchema = v.object({
   roomTries: v.pipe(int, v.minValue(1)),
   /** from this level of a board on (classic and every board you chase), a plain chase never clears it: no free par */
   fixFrom: v.pipe(int, v.minValue(1)),
+  /**
+   * symmetric boards (lib/symmetry.ts): a level's first choice takes turns along `levels`, a boss takes `boss` in
+   * order; `tries` per symmetry before the next; classic levels before `from` keep their random presses (the tutorial's)
+   */
+  looks: v.object({
+    levels: v.pipe(v.array(SymmetrySchema), v.minLength(1)),
+    boss: v.pipe(v.array(SymmetrySchema), v.minLength(1)),
+    from: v.pipe(int, v.minValue(1)),
+    tries: v.pipe(int, v.minValue(1)),
+  }),
+  /** classic levels made by hand */
+  pictures: v.optional(PicturesSchema),
   /**
    * Variety rooms, in menu order. size / stuck / wired: cols × rows; shape: a picture ("X" cell, "." gap);
    * hex: a hexagon with `side` cells per edge; cube: `side` cells along each face's edge. Level ids idBase + 1..
@@ -59,12 +79,15 @@ const RulesSchema = v.object({
       idBase: v.pipe(int, v.minValue(1)),
       seed: int,
       bands: BandsSchema,
+      /** levels made by hand (not in a stuck or wired room: each of its levels has its own shape) */
+      pictures: v.optional(PicturesSchema),
     }),
     v.check((r) => r.kind !== 'shape' || (r.picture !== undefined && r.cols === undefined && r.rows === undefined), 'A shape room has a picture (and no cols or rows)'),
     v.check((r) => !['size', 'stuck', 'wired'].includes(r.kind) || (r.cols !== undefined && r.rows !== undefined && r.picture === undefined), 'A size, stuck or wired room needs cols and rows (and no picture)'),
     v.check((r) => !['hex', 'cube'].includes(r.kind) || (r.side !== undefined && r.cols === undefined && r.rows === undefined && r.picture === undefined), 'A hex or cube room needs a side (and no cols, rows or picture)'),
     v.check((r) => r.kind === 'stuck' || r.bands.every((b) => b.stuck === undefined), 'Only a stuck room sets stuck cells per band'),
     v.check((r) => r.kind === 'wired' || r.bands.every((b) => b.kinds === undefined && b.gentle === undefined), 'Only a wired room sets wiring per band'),
+    v.check((r) => !r.pictures || !['stuck', 'wired'].includes(r.kind), 'A stuck or wired room has no pictures: each of its levels has its own shape'),
   )),
 });
 type Rules = v.InferOutput<typeof RulesSchema>;
@@ -95,10 +118,32 @@ function roomShape(room: Room): Shape {
   return shape;
 }
 
+/** a pack's pictures as boards by position, checked against its shape; throws a plain message */
+function pictureBoards(where: string, shape: Shape, count: number, list: v.InferOutput<typeof PicturesSchema> | undefined, solver: SolverService): Map<number, Cells> {
+  const out = new Map<number, Cells>();
+  for (const { at, picture } of list ?? []) {
+    const name = `${where} level ${at}'s picture`;
+    if (at > count) throw new Error(`${name}: the pack has only ${count} levels`);
+    const cells: boolean[] = new Array<boolean>(gridSize(shape)).fill(false);
+    if (picture === 'all') for (const i of cellIndexes(shape)) cells[i] = true;
+    else {
+      if (picture.length !== shape.rows || picture.some((r) => r.length !== shape.cols)) throw new Error(`${name} must be ${shape.rows} rows of ${shape.cols}`);
+      if (!picture.every((r) => /^[X.]+$/.test(r))) throw new Error(`${name} uses only "X" (lit) and "." (dark)`);
+      picture.join('').split('').forEach((ch, i) => { cells[i] = ch === 'X'; });
+      if (cells.some((on, i) => on && !isCell(shape, i))) throw new Error(`${name} lights a gap in the board`);
+      if (!cells.some(Boolean)) throw new Error(`${name} has no lights on`);
+    }
+    if (!solver.isSolvable(cells, shape)) throw new Error(`${name} can't be solved: no presses turn it all off`);
+    out.set(at, cells);
+  }
+  return out;
+}
+
 /** packs in menu order (classic first); throws on overlapping ids, duplicate rooms or missing names */
-function planPacks(rules: Rules, copy: v.InferOutput<typeof CopySchema>): { pack: Pack; room: Room | null }[] {
-  const out: { pack: Pack; room: Room | null }[] = [
-    { pack: { id: 'classic', name: copy.classic, kind: 'classic', group: 'boards', shape: CLASSIC_SHAPE, first: 1, count: rules.bands.length * BAND }, room: null },
+function planPacks(rules: Rules, copy: v.InferOutput<typeof CopySchema>, solver: SolverService): { pack: Pack; room: Room | null; pictures: Map<number, Cells> }[] {
+  const classicCount = rules.bands.length * BAND;
+  const out: { pack: Pack; room: Room | null; pictures: Map<number, Cells> }[] = [
+    { pack: { id: 'classic', name: copy.classic, kind: 'classic', group: 'boards', shape: CLASSIC_SHAPE, first: 1, count: classicCount }, room: null, pictures: pictureBoards('Classic', CLASSIC_SHAPE, classicCount, rules.pictures, solver) },
   ];
   for (const room of rules.rooms) {
     if (out.some((p) => p.pack.id === room.id)) throw new Error(`Two rooms are called "${room.id}"`);
@@ -108,7 +153,8 @@ function planPacks(rules: Rules, copy: v.InferOutput<typeof CopySchema>): { pack
     const first = room.idBase + 1, last = room.idBase + count;
     const clash = out.find((p) => first <= p.pack.first + p.pack.count - 1 && p.pack.first <= last);
     if (clash) throw new Error(`Room "${room.id}" uses level ids ${first}–${last}, which overlap "${clash.pack.id}"`);
-    out.push({ pack: { id: room.id, name, kind: room.kind, group: room.group, shape: roomShape(room), first, count }, room });
+    const shape = roomShape(room);
+    out.push({ pack: { id: room.id, name, kind: room.kind, group: room.group, shape, first, count }, room, pictures: pictureBoards(`Room "${room.id}"`, shape, count, room.pictures, solver) });
   }
   return out;
 }
@@ -134,7 +180,7 @@ const levels: ModuleDef = {
     let plan: ReturnType<typeof planPacks>;
     try {
       chapters = checkChapters(rules.chapters, copy.chapters, classicPars.length);
-      plan = planPacks(rules, copy);
+      plan = planPacks(rules, copy, solver);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       fail(message);
@@ -147,14 +193,16 @@ const levels: ModuleDef = {
     try {
       const rng = ctx.need('rng');
       const list: LevelDef[] = [];
-      for (const { pack, room } of plan) {
+      const { from: looksFrom, ...looks } = rules.looks;
+      for (const { pack, room, pictures } of plan) {
         const t0 = performance.now();
         // classic levels carry no pack fields (ids 1..n); every 10th level of every pack is a boss
-        // classic presses random cells; rooms tangle their presses (lib/puzzle.ts); both pinned by tests
+        // pictures where the data puts them; otherwise symmetric boards (lib/puzzle.ts symmetric), and failing those,
+        // random presses (classic) or tangled ones (rooms); all pinned by tests
         const twist = room?.kind === 'stuck' || room?.kind === 'wired' ? room.kind : undefined;
         const g = room
-          ? generateRoom({ idBase: room.idBase, pack: pack.id, shape: pack.shape, bands: room.bands, readable: rules.readable, maxTries: rules.roomTries, fixFrom: rules.fixFrom, ...(twist ? { twist } : {}) }, rng.seeded(room.seed), solver)
-          : generateLevels({ pars: classicPars, maxTries: rules.maxTries }, rng.seeded(rules.seed), solver, { idBase: 0, bossEvery: BAND, fixFrom: rules.fixFrom });
+          ? generateRoom({ idBase: room.idBase, pack: pack.id, shape: pack.shape, bands: room.bands, readable: rules.readable, maxTries: rules.roomTries, fixFrom: rules.fixFrom, looks, pictures, ...(twist ? { twist } : {}) }, rng.seeded(room.seed), solver)
+          : generateLevels({ pars: classicPars, maxTries: rules.maxTries }, rng.seeded(rules.seed), solver, { idBase: 0, bossEvery: BAND, fixFrom: rules.fixFrom, looks, looksFrom, pictures });
         const took = performance.now() - t0;
         ms += took;
         made[pack.id] = { ms: Number(took.toFixed(2)), tries: g.tries, missed: g.missed };

@@ -85,11 +85,19 @@ function pressTable(s: Shape): number[][] {
 /** what a press at i toggles: i and the cells it reaches on this grid (none for a gap or a stuck cell) */
 export const pressTargets = (s: Shape, i: number): number[] => (Number.isInteger(i) && i >= 0 && i < gridSize(s) ? pressTable(s)[i]! : []);
 
-/** the cells that touch i on this grid, wiring aside (a hex cell's six, a cube light's four, a square cell's plus) */
-export function touching(s: Shape, i: number): number[] {
+/** per shape: each cell's touching cells (built once; puzzle making asks thousands of times) */
+const touchTables = new WeakMap<Shape, readonly number[][]>();
+
+/** the cells that touch i on this grid, wiring aside (a hex cell's six, a cube light's four, a square cell's plus); read only */
+export function touching(s: Shape, i: number): readonly number[] {
   if (!isCell(s, i)) return [];
-  const plain: Shape = { cols: s.cols, rows: s.rows, mask: s.mask, ...(s.grid ? { grid: s.grid } : {}) };
-  return pressTargets(plain, i).slice(1);
+  let t = touchTables.get(s);
+  if (!t) {
+    const plain: Shape = { cols: s.cols, rows: s.rows, mask: s.mask, ...(s.grid ? { grid: s.grid } : {}) };
+    t = pressTable(plain).map((row) => row.slice(1));
+    touchTables.set(s, t);
+  }
+  return t[i]!;
 }
 
 export const emptyCells = (s: Shape): Cells => new Array<boolean>(gridSize(s)).fill(false);

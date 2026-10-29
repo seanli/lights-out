@@ -18,6 +18,18 @@
     "readable": 0,
     "roomTries": 3000,
     "fixFrom": 3,
+    "looks": {
+      "levels": ["mirror", "both", "flip", "mirror", "third", "full", "mirror", "flip", "both"],
+      "boss": ["full", "third", "both", "mirror", "flip", "turn", "diagonal"],
+      "from": 3,
+      "tries": 150
+    },
+    "pictures": [
+      { "at": 20, "picture": [".XXX.", "X...X", "X...X", "X...X", ".XXX."] },
+      { "at": 30, "picture": [".....", ".....", "..X..", ".....", "....."] },
+      { "at": 40, "picture": ["..X..", ".X.X.", "X...X", ".X.X.", "..X.."] },
+      { "at": 50, "picture": "all" }
+    ],
     "rooms": [
       {
         "id": "7x7",
@@ -31,6 +43,10 @@
           { "pars": [4, 4, 5, 5, 6, 6, 6, 7, 7], "boss": 11 },
           { "pars": [7, 7, 8, 8, 9, 9, 10, 10, 10], "boss": 15 },
           { "pars": [10, 10, 11, 11, 12, 12, 13, 13, 14], "boss": 21 }
+        ],
+        "pictures": [
+          { "at": 20, "picture": ["...X...", "..X.X..", ".X.X.X.", "X.X.X.X", ".X.X.X.", "..X.X..", "...X..."] },
+          { "at": 30, "picture": [".......", ".XX.XX.", ".......", "...X...", "X.....X", ".X...X.", "..XXX.."] }
         ]
       },
       {
@@ -44,7 +60,8 @@
           { "pars": [3, 3, 4, 4, 5, 5, 5, 6, 6], "boss": 9 },
           { "pars": [6, 6, 7, 7, 8, 8, 8, 9, 9], "boss": 14 },
           { "pars": [9, 9, 10, 10, 11, 11, 12, 12, 12], "boss": 18 }
-        ]
+        ],
+        "pictures": [{ "at": 30, "picture": "all" }]
       },
       {
         "id": "diamond",
@@ -57,7 +74,8 @@
           { "pars": [3, 3, 4, 4, 4, 5, 5, 5, 6], "boss": 9 },
           { "pars": [5, 5, 6, 6, 7, 7, 7, 8, 8], "boss": 12 },
           { "pars": [7, 7, 8, 8, 9, 9, 9, 10, 10], "boss": 15 }
-        ]
+        ],
+        "pictures": [{ "at": 10, "picture": "all" }]
       },
       {
         "id": "stuck",
@@ -68,9 +86,9 @@
         "idBase": 11000,
         "seed": 1106,
         "bands": [
-          { "pars": [3, 3, 4, 4, 4, 5, 5, 5, 6], "boss": 9, "stuck": 3 },
+          { "pars": [3, 3, 4, 4, 4, 5, 5, 5, 6], "boss": 9, "stuck": 2 },
           { "pars": [5, 5, 6, 6, 7, 7, 7, 8, 8], "boss": 12, "stuck": 4 },
-          { "pars": [7, 7, 8, 8, 9, 9, 10, 10, 10], "boss": 15, "stuck": 5 }
+          { "pars": [7, 7, 8, 8, 9, 9, 10, 10, 10], "boss": 15, "stuck": 4 }
         ]
       },
       {
@@ -84,7 +102,8 @@
           { "pars": [2, 3, 3, 4, 4, 4, 5, 5, 5], "boss": 8 },
           { "pars": [5, 5, 6, 6, 6, 7, 7, 7, 8], "boss": 12 },
           { "pars": [7, 8, 8, 9, 9, 9, 10, 10, 10], "boss": 15 }
-        ]
+        ],
+        "pictures": [{ "at": 18, "picture": "all" }]
       },
       {
         "id": "cube",
@@ -97,7 +116,8 @@
           { "pars": [2, 3, 3, 4, 4, 4, 5, 5, 5], "boss": 8 },
           { "pars": [5, 5, 6, 6, 6, 7, 7, 7, 8], "boss": 12 },
           { "pars": [7, 7, 8, 8, 8, 9, 9, 9, 10], "boss": 15 }
-        ]
+        ],
+        "pictures": [{ "at": 20, "picture": "all" }]
       },
       {
         "id": "wired",
@@ -136,9 +156,9 @@
         "idBase": 10000,
         "seed": 5016,
         "bands": [
-          { "pars": [8, 8, 9, 9, 10, 10, 11, 11, 12], "boss": 18 },
-          { "pars": [12, 12, 13, 13, 14, 14, 15, 15, 16], "boss": 24 },
-          { "pars": [16, 16, 17, 18, 18, 19, 20, 20, 21], "boss": 32 }
+          { "pars": [8, 8, 8, 10, 10, 10, 12, 12, 12], "boss": 18 },
+          { "pars": [12, 12, 14, 14, 14, 16, 16, 16, 16], "boss": 24 },
+          { "pars": [16, 16, 18, 18, 18, 20, 20, 20, 20], "boss": 32 }
         ]
       }
     ]
@@ -153,7 +173,7 @@
   },
   "hints": { "choice": "random" },
   "custom": {
-    "$comment": "Custom mode: par as a share of the lights per difficulty (at most maxPar), wiring mixed per difficulty, stuck lights per lights, tries per puzzle.",
+    "$comment": "Custom mode: par as a share of the lights per difficulty (at most maxPar), wiring mixed per difficulty, stuck lights per lights, tries per puzzle, and the symmetries a puzzle may have (tried in a random order, then a tangled board).",
     "par": { "easy": 0.1, "medium": 0.17, "hard": 0.25, "boss": 0.33 },
     "minPar": 2,
     "wires": {
@@ -165,7 +185,9 @@
     "lightsPerStuck": 12,
     "maxStuck": 8,
     "maxTries": 400,
-    "maxPar": 80
+    "maxPar": 80,
+    "looks": ["mirror", "both", "flip", "full", "third"],
+    "looksTries": 80
   },
   "solved-sheet": { "delayMs": 640 },
   "tutorial": {

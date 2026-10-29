@@ -4,7 +4,8 @@
 import * as v from 'valibot';
 import { CELL_COUNT, CLASSIC_SHAPE, MAX_CELLS, type Cells, type LearnState, type ModuleDef, type Pack } from '../../contracts';
 import { cellIndexes, isCell, isPressable, isStuck, shapeKey } from '../../lib/shape';
-import { tangle } from '../../lib/puzzle';
+import { makePuzzle, shuffled } from '../../lib/puzzle';
+import { SYMMETRY_NAMES } from '../../lib/symmetry';
 import { LESSONS, type Lesson } from './lessons';
 import { bottomRowTable, chaseShape, chaseSuggest, createFixer, fixSuggest, isClear, makeBoard, methodSuggest, quietPatterns, touches, type Fixer, type TableEntry } from './method';
 import { GUIDE_PREFIX, GUIDE_STEPS, buildGuide, guideId, guideKind, spotOrder, type GuideKind } from './guides';
@@ -249,8 +250,11 @@ const learn: ModuleDef = {
       // lesson 2: shapes that don't touch, so every lit light belongs to one whole shape
       const apart = lesson.apart ? (taps: readonly number[]) => taps.every((a, k) => taps.slice(k + 1).every((b) => !touches(lesson.shape ?? CLASSIC_SHAPE, a, b))) : undefined;
       const make = () => makeBoard(solver, (n) => rng.int(n), min + rng.int(max - min + 1), pool, lesson.shape, apart);
-      // twist and shaped guides: a board made like the levels' (every tap overlaps another, none reads whole)
-      let cells = lesson.tangled && lesson.shape ? tangle(lesson.shape, min + rng.int(max - min + 1), rng, solver, { readable: 0, maxTries: 300 }).cells : make();
+      // twist and shaped guides: a board made like the levels' (symmetric where the board allows, every tap overlapping
+      // another, none reading whole)
+      let cells = lesson.tangled && lesson.shape
+        ? makePuzzle({ base: lesson.shape, par: min + rng.int(max - min + 1), looks: shuffled(SYMMETRY_NAMES, rng), looksTries: 60, readable: 0, maxTries: 300 }, rng, solver).cells
+        : make();
       if (isClear(cells)) cells = make();
       // a full rectangle's guide teaches the bottom-row step: a few taps low on the board (a short first chase, which
       // clears exactly what they lit) plus one or two lone bottom lights, which are what that chase leaves.

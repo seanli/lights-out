@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, test } from 'vitest';
 import type { CustomSettings, ProgressState, SolverService, State } from '../../contracts';
 import { CUSTOM_LEVEL_ID, SEL } from '../../contracts';
 import { cellCount, isPressable, shapeProblem } from '../../lib/shape';
+import { isPinwheel, symmetriesOfBoard } from '../../lib/symmetry';
 import { bootModule, createMemoryStorage } from '../../../test/fake-ctx';
 import solverModule from '../solver/index';
 import custom from './index';
@@ -152,6 +153,9 @@ describe('custom: making a puzzle', () => {
       const solution = solver.solve(load.cells, load.shape)!;
       expect(solution.length).toBe(load.par);
       expect(solution.every((i) => isPressable(load.shape!, i))).toBe(true);
+      // symmetric like the levels (a mirror or a turn carries lights, stuck cells and wiring onto themselves), never a pinwheel
+      expect(symmetriesOfBoard(load.shape!, load.cells).length).toBeGreaterThan(0);
+      expect(isPinwheel(load.shape!, load.cells)).toBe(false);
       if (settings.twist === 'stuck') expect(load.shape!.stuck!.length).toBeGreaterThan(0);
       if (settings.twist === 'wired') expect(load.shape!.wires!.length).toBe(load.shape!.cols * load.shape!.rows);
       expect(t.state('custom')).toMatchObject({ status: 'playing', played: 1, label });
