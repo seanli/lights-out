@@ -1748,7 +1748,7 @@ describe('learn: the twist guides (Hex, Cube, Wired, Stuck)', () => {
   test('Wired: a fixed gentle wiring with one answer per board; three switches, a light\'s switches outlined, then work back from the lit lights', () => {
     const shape = guideOf('wired').lesson.shape!;
     expect(shape.wires).toEqual(guideWiring(ROOM.wired!));
-    expect(pressRank(shape)).toBe(25);
+    expect(pressRank(shape)).toBe(shape.cols * shape.rows);
     const [three, reach] = shows('wired');
     expect(new Set(three!.boards.map((b) => b.caption)).size).toBe(3);
     for (const b of three!.boards) expect(litOf(startOf(shape, b)).sort((x, y) => x - y)).toEqual([...pressTargets(shape, b.from[0]!)].sort((x, y) => x - y));

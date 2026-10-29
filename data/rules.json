@@ -105,7 +105,8 @@
         "bands": [
           { "pars": [2, 3, 3, 4, 4, 4, 5, 5, 5], "boss": 8 },
           { "pars": [5, 5, 6, 6, 6, 7, 7, 7, 8], "boss": 12 },
-          { "pars": [7, 8, 8, 9, 9, 9, 10, 10, 10], "boss": 15 }
+          { "pars": [7, 8, 8, 9, 9, 9, 10, 10, 10], "boss": 15 },
+          { "pars": [10, 10, 11, 11, 11, 12, 12, 12, 12], "boss": 18 }
         ],
         "pictures": [{ "at": 18, "picture": "all" }]
       },
@@ -119,7 +120,8 @@
         "bands": [
           { "pars": [2, 3, 3, 4, 4, 4, 5, 5, 5], "boss": 8 },
           { "pars": [5, 5, 6, 6, 6, 7, 7, 7, 8], "boss": 12 },
-          { "pars": [7, 7, 8, 8, 8, 9, 9, 9, 10], "boss": 15 }
+          { "pars": [7, 7, 8, 8, 8, 9, 9, 9, 10], "boss": 15 },
+          { "pars": [10, 10, 11, 11, 11, 12, 12, 13, 13], "boss": 20 }
         ],
         "pictures": [{ "at": 20, "picture": "all" }]
       },
@@ -127,18 +129,20 @@
         "id": "wired",
         "kind": "wired",
         "group": "twists",
-        "cols": 5,
-        "rows": 5,
+        "cols": 6,
+        "rows": 6,
         "idBase": 14000,
         "seed": 1405,
         "bands": [
           { "pars": [2, 2, 3, 3, 3, 4, 4, 4, 5], "boss": 8, "kinds": 3, "gentle": true },
           { "pars": [4, 4, 5, 5, 5, 6, 6, 6, 7], "boss": 11, "kinds": 4, "gentle": false },
-          { "pars": [6, 6, 7, 7, 7, 8, 8, 8, 9], "boss": 14, "kinds": 5, "gentle": false }
+          { "pars": [6, 6, 7, 7, 7, 8, 8, 8, 9], "boss": 14, "kinds": 5, "gentle": false },
+          { "pars": [8, 8, 9, 9, 10, 10, 10, 11, 11], "boss": 17, "kinds": 6, "gentle": false }
         ],
         "pictures": [
-          { "at": 20, "picture": [".XXX.", "X...X", "X...X", "X...X", ".XXX."] },
-          { "at": 30, "picture": "all" }
+          { "at": 20, "picture": [".X..X.", "X.XX.X", "X....X", ".X..X.", "..XX..", "......"] },
+          { "at": 30, "picture": ["..XX..", ".X..X.", "X....X", "X....X", ".X..X.", "..XX.."] },
+          { "at": 40, "picture": "all" }
         ]
       },
       {

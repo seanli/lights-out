@@ -344,13 +344,14 @@ function cubeGuide(solver: Solving, shape: Shape): Step[] {
 
 /**
  * The Wired guide's board: the room's grid with a fixed wiring of the gentle patterns (plus, X, the two lines), as on a
- * room's first levels. On 5×5 this layout has one answer per board and a plus, an X and a line in the middle (tested).
+ * room's first levels. On 5×5 and 6×6 this layout has one answer per board and a plus, an X and a line near the middle
+ * (tested; searched over layouts of this form).
  */
 export function guideWiring(shape: Shape): number[] {
   const kinds = [WIRINGS.plus, WIRINGS.cross, WIRINGS.across, WIRINGS.updown];
   return Array.from({ length: shape.cols * shape.rows }, (_, i) => {
     const r = Math.floor(i / shape.cols), c = i % shape.cols;
-    return isCell(shape, i) ? kinds[(3 * r + 3 * c + 2 * ((r * c) % 3)) % 4]! : 0;
+    return isCell(shape, i) ? kinds[(r + 2 * c + 3 * ((r * c) % 3)) % 4]! : 0;
   });
 }
 /** what a wiring looks like, for its caption (learn.captions) */

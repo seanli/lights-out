@@ -89,7 +89,7 @@ describe('solver on every room shape', () => {
     const dims = Object.fromEntries(SHAPES.map(([id, s]) => [id, createShaped(s).nullDim]));
     console.log('solver: null-space dimension per room', JSON.stringify(dims));
     // stuck and wired rooms are listed by their plain grid (each level adds its own stuck cells or wiring)
-    expect(dims).toEqual({ '7x7': 0, ring: 2, diamond: 0, stuck: 0, hex: 4, cube: 6, wired: 2, '8x8': 0, tower: 0 });
+    expect(dims).toEqual({ '7x7': 0, ring: 2, diamond: 0, stuck: 0, hex: 4, cube: 6, wired: 0, '8x8': 0, tower: 0 });
     for (const [, s] of SHAPES) expect(createShaped(s).approximate).toBe(false);
   });
 
